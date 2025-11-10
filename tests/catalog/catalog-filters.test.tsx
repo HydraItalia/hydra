@@ -124,7 +124,10 @@ describe("CatalogFilters", () => {
     expect(lastCall[0]).not.toContain("inStock");
   });
 
-  // Skipping vendor select test due to JSDOM compatibility with Radix UI Select
+  // TODO: E2E test for vendor select
+  // Skipped due to JSDOM/Radix UI Select pointer capture incompatibility
+  // See: https://github.com/radix-ui/primitives/issues/1207
+  // Track in issue #8: Add E2E tests for vendor select interaction
   it.skip("sets vendorId when vendor is selected", async () => {
     const user = userEvent.setup();
     render(<CatalogFilters {...defaultProps} />);
