@@ -1,58 +1,76 @@
-import { redirect } from 'next/navigation'
-import { currentUser } from '@/lib/auth'
-import { PageHeader } from '@/components/shared/page-header'
-import { DataCard } from '@/components/shared/data-card'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { prisma } from '@/lib/prisma'
-import { Package, ShoppingCart, Store, Users, TrendingUp, AlertTriangle } from 'lucide-react'
-import Link from 'next/link'
+import { redirect } from "next/navigation";
+import { currentUser } from "@/lib/auth";
+import { PageHeader } from "@/components/shared/page-header";
+import { DataCard } from "@/components/shared/data-card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { prisma } from "@/lib/prisma";
+import {
+  Package,
+  ShoppingCart,
+  Store,
+  Users,
+  TrendingUp,
+  AlertTriangle,
+} from "lucide-react";
+import Link from "next/link";
 
 export default async function DashboardPage() {
-  const user = await currentUser()
+  const user = await currentUser();
 
   if (!user) {
-    redirect('/signin')
+    redirect("/signin");
   }
 
   // Route to role-specific dashboard
   switch (user.role) {
-    case 'ADMIN':
-    case 'AGENT':
-      return <AdminAgentDashboard user={user} />
-    case 'VENDOR':
-      return <VendorDashboard user={user} />
-    case 'CLIENT':
-      return <ClientDashboard user={user} />
+    case "ADMIN":
+    case "AGENT":
+      return <AdminAgentDashboard user={user} />;
+    case "VENDOR":
+      return <VendorDashboard user={user} />;
+    case "CLIENT":
+      return <ClientDashboard user={user} />;
     default:
-      return <div>Unauthorized</div>
+      return <div>Unauthorized</div>;
   }
 }
 
 // Admin/Agent Dashboard
-async function AdminAgentDashboard({ user }: { user: { role: string; name?: string | null; email: string } }) {
+async function AdminAgentDashboard({
+  user,
+}: {
+  user: { role: string; name?: string | null; email: string };
+}) {
   // Fetch statistics
-  const [vendorCount, clientCount, productCount, orderCount] = await Promise.all([
-    prisma.vendor.count({ where: { deletedAt: null } }),
-    prisma.client.count({ where: { deletedAt: null } }),
-    prisma.product.count({ where: { deletedAt: null } }),
-    prisma.order.count(),
-  ])
+  const [vendorCount, clientCount, productCount, orderCount] =
+    await Promise.all([
+      prisma.vendor.count({ where: { deletedAt: null } }),
+      prisma.client.count({ where: { deletedAt: null } }),
+      prisma.product.count({ where: { deletedAt: null } }),
+      prisma.order.count(),
+    ]);
 
   // Get recent orders
   const recentOrders = await prisma.order.findMany({
     take: 5,
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
     include: {
       client: true,
       items: true,
     },
-  })
+  });
 
   return (
     <div className="space-y-8">
       <PageHeader
-        title={user.role === 'ADMIN' ? 'Admin Dashboard' : 'Agent Dashboard'}
+        title={user.role === "ADMIN" ? "Admin Dashboard" : "Agent Dashboard"}
         subtitle={`Welcome back, ${user.name || user.email}`}
       />
 
@@ -96,13 +114,17 @@ async function AdminAgentDashboard({ user }: { user: { role: string; name?: stri
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 // Vendor Dashboard
-async function VendorDashboard({ user }: { user: { vendorId?: string | null; name?: string | null; email: string } }) {
+async function VendorDashboard({
+  user,
+}: {
+  user: { vendorId?: string | null; name?: string | null; email: string };
+}) {
   if (!user.vendorId) {
-    return <div>No vendor associated with this account</div>
+    return <div>No vendor associated with this account</div>;
   }
 
   // Fetch vendor statistics
@@ -128,7 +150,7 @@ async function VendorDashboard({ user }: { user: { vendorId?: string | null; nam
         },
       },
     }),
-  ])
+  ]);
 
   // Get low stock products
   const lowStockProducts = await prisma.vendorProduct.findMany({
@@ -141,7 +163,7 @@ async function VendorDashboard({ user }: { user: { vendorId?: string | null; nam
     include: {
       product: true,
     },
-  })
+  });
 
   return (
     <div className="space-y-8">
@@ -199,13 +221,17 @@ async function VendorDashboard({ user }: { user: { vendorId?: string | null; nam
         </Card>
       )}
     </div>
-  )
+  );
 }
 
 // Client Dashboard
-async function ClientDashboard({ user }: { user: { clientId?: string | null; name?: string | null; email: string } }) {
+async function ClientDashboard({
+  user,
+}: {
+  user: { clientId?: string | null; name?: string | null; email: string };
+}) {
   if (!user.clientId) {
-    return <div>No client associated with this account</div>
+    return <div>No client associated with this account</div>;
   }
 
   // Fetch client statistics
@@ -219,25 +245,25 @@ async function ClientDashboard({ user }: { user: { clientId?: string | null; nam
     prisma.cart.findFirst({
       where: {
         clientId: user.clientId,
-        status: 'ACTIVE',
+        status: "ACTIVE",
       },
       include: {
         items: true,
       },
     }),
-  ])
+  ]);
 
   // Get recent orders
   const recentOrders = await prisma.order.findMany({
     where: { clientId: user.clientId },
     take: 5,
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
     include: {
       items: true,
     },
-  })
+  });
 
-  const cartItemCount = activeCart?.items.length || 0
+  const cartItemCount = activeCart?.items.length || 0;
 
   return (
     <div className="space-y-8">
@@ -254,7 +280,11 @@ async function ClientDashboard({ user }: { user: { clientId?: string | null; nam
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <DataCard title="Total Orders" value={orderCount} icon={ShoppingCart} />
-        <DataCard title="Active Agreements" value={agreementCount} icon={TrendingUp} />
+        <DataCard
+          title="Active Agreements"
+          value={agreementCount}
+          icon={TrendingUp}
+        />
         <DataCard title="Cart Items" value={cartItemCount} icon={Package} />
       </div>
 
@@ -312,5 +342,5 @@ async function ClientDashboard({ user }: { user: { clientId?: string | null; nam
         </Card>
       </div>
     </div>
-  )
+  );
 }
