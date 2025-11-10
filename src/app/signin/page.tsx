@@ -12,7 +12,8 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
 
-  const isDev = process.env.NODE_ENV !== 'production'
+  const isDev = process.env.NODE_ENV !== 'production' &&
+                process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === '1'
 
   async function handleEmailSignIn(e: React.FormEvent) {
     e.preventDefault()
@@ -49,7 +50,7 @@ export default function SignInPage() {
 
   if (emailSent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Check your email</CardTitle>
@@ -78,7 +79,7 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 p-4">
       <div className="w-full max-w-md space-y-4">
         <Card>
           <CardHeader>
@@ -109,7 +110,7 @@ export default function SignInPage() {
         </Card>
 
         {isDev && (
-          <Card className="border-yellow-500 bg-yellow-50">
+          <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-600">
             <CardHeader>
               <CardTitle className="text-sm">Dev Mode - Quick Login</CardTitle>
               <CardDescription className="text-xs">
@@ -151,7 +152,7 @@ export default function SignInPage() {
                   Client
                 </Button>
               </div>
-              <p className="text-xs text-yellow-700 mt-2">
+              <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-2">
                 Note: You&apos;ll still need to click the magic link in the console/email
               </p>
             </CardContent>

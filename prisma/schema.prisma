@@ -56,11 +56,12 @@ enum OrderStatus {
 // ===== CORE MODELS =====
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  role      Role     @default(CLIENT)
-  agentCode String?  @unique // For agents (e.g., "ANDREA", "MANUELE")
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime? // Required by NextAuth adapter
+  name          String?
+  role          Role      @default(CLIENT)
+  agentCode     String?   @unique // For agents (e.g., "ANDREA", "MANUELE")
 
   // Relations based on role
   vendorId  String?  @unique

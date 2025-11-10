@@ -1,20 +1,21 @@
-import { ReactNode } from 'react'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { currentUser } from '@/lib/auth'
-import { SidebarNav } from '@/components/dashboard/sidebar-nav'
-import { UserNav } from '@/components/dashboard/user-nav'
-import { MobileNav } from '@/components/dashboard/mobile-nav'
+import { ReactNode } from "react";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { currentUser } from "@/lib/auth";
+import { SidebarNav } from "@/components/dashboard/sidebar-nav";
+import { UserNav } from "@/components/dashboard/user-nav";
+import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function DashboardLayout({
   children,
 }: {
-  children: ReactNode
+  children: ReactNode;
 }) {
-  const user = await currentUser()
+  const user = await currentUser();
 
   if (!user) {
-    redirect('/signin')
+    redirect("/signin");
   }
 
   return (
@@ -33,7 +34,8 @@ export default async function DashboardLayout({
             </Link>
           </div>
 
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
             <UserNav user={user} />
           </div>
         </div>
@@ -53,5 +55,5 @@ export default async function DashboardLayout({
         </main>
       </div>
     </div>
-  )
+  );
 }
