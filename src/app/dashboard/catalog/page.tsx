@@ -4,10 +4,11 @@ import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEffectivePriceCents } from "@/lib/pricing";
 import { PageHeader } from "@/components/shared/page-header";
-import { CatalogFilters } from "@/components/catalog/catalog-filters";
+import { CatalogFiltersNew } from "@/components/catalog/catalog-filters-new";
 import { CatalogSidebar } from "@/components/catalog/catalog-sidebar";
 import { ProductGrid } from "@/components/catalog/product-grid";
 import { CategoryGroupType, ProductUnit } from "@prisma/client";
+import { parseBoolParam } from "@/lib/url";
 
 type SearchParams = {
   group?: string;
@@ -67,7 +68,10 @@ export default async function CatalogPage({
   const categorySlug = params.category;
   const vendorId = params.vendorId;
   const searchQuery = params.q;
-  const inStockOnly = params.inStock === "true";
+  // Parse inStock from URL (1 = true, absent = false)
+  const searchParamsObj = new URLSearchParams();
+  if (params.inStock) searchParamsObj.set("inStock", params.inStock);
+  const inStockOnly = parseBoolParam(searchParamsObj, "inStock");
 
   // Validate group
   const validGroups: CategoryGroupType[] = ["FOOD", "BEVERAGE", "SERVICES"];
@@ -233,11 +237,22 @@ export default async function CatalogPage({
         {/* Main Content */}
         <div className="flex-1 space-y-4">
           {/* Filters */}
-          <CatalogFilters
-            vendors={vendorsInGroup}
-            selectedVendorId={vendorId}
-            searchQuery={searchQuery}
-            inStockOnly={inStockOnly}
+          <CatalogFiltersNew
+            vendors={[
+              { label: "All vendors", value: "" },
+              ...vendorsInGroup.map((v) => ({ label: v.name, value: v.id })),
+            ]}
+            categories={categories.map((c) => ({
+              label: c.name,
+              value: c.slug,
+            }))}
+            initial={{
+              group: selectedGroup.toLowerCase() as "food" | "beverage" | "services",
+              category: categorySlug,
+              vendorId,
+              q: searchQuery,
+              inStock: inStockOnly,
+            }}
           />
 
           {/* Product Grid */}
