@@ -37,6 +37,7 @@ export function CatalogFiltersNew({ vendors, initial }: CatalogFiltersProps) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const isTypingRef = useRef(false);
 
   // Local state for immediate UI feedback
   const [search, setSearch] = useState(initial.q || "");
@@ -47,26 +48,24 @@ export function CatalogFiltersNew({ vendors, initial }: CatalogFiltersProps) {
 
   // Debounced search update
   useEffect(() => {
+    // Immediately update URL without re-render while typing
+    const params = new URLSearchParams(searchParams.toString());
+    if (search) {
+      params.set("q", search);
+    } else {
+      params.delete("q");
+    }
+    window.history.replaceState(null, "", `/dashboard/catalog?${params.toString()}`);
+
+    // After debounce, trigger server re-render to fetch filtered data
     const timer = setTimeout(() => {
-      updateURL({ q: search || undefined });
+      isTypingRef.current = false;
+      router.refresh(); // Trigger server re-fetch without navigation
     }, 300);
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
-
-  // Restore focus to search input after transition
-  useEffect(() => {
-    if (!isPending && document.activeElement !== searchInputRef.current) {
-      // Only restore focus if user was typing (search state has value)
-      if (search && searchInputRef.current) {
-        const input = searchInputRef.current;
-        const length = input.value.length;
-        input.focus();
-        input.setSelectionRange(length, length);
-      }
-    }
-  }, [isPending, search]);
 
   const updateURL = useCallback(
     (updates: Record<string, string | undefined>) => {
@@ -132,7 +131,10 @@ export function CatalogFiltersNew({ vendors, initial }: CatalogFiltersProps) {
                 type="text"
                 placeholder="Search by name or description..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  isTypingRef.current = true;
+                  setSearch(e.target.value);
+                }}
                 className="pl-9"
                 disabled={isPending}
               />
