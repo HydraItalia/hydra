@@ -1,0 +1,383 @@
+// Hydra - Restaurant Supply Procurement Platform
+// Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== ENUMS =====
+
+enum Role {
+  ADMIN
+  AGENT
+  VENDOR
+  CLIENT
+}
+
+enum CategoryGroupType {
+  FOOD
+  BEVERAGE
+  SERVICES
+}
+
+enum ProductUnit {
+  KG
+  L
+  PIECE
+  BOX
+  SERVICE
+}
+
+enum PriceMode {
+  BASE      // Use vendor's base price
+  DISCOUNT  // Apply percentage discount
+  OVERRIDE  // Use override price
+}
+
+enum CartStatus {
+  ACTIVE
+  ORDERED
+}
+
+enum OrderStatus {
+  DRAFT
+  SUBMITTED
+  CONFIRMED
+  FULFILLING
+  DELIVERED
+  CANCELED
+}
+
+// ===== CORE MODELS =====
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(CLIENT)
+  agentCode String?  @unique // For agents (e.g., "ANDREA", "MANUELE")
+
+  // Relations based on role
+  vendorId  String?  @unique
+  vendor    Vendor?  @relation(fields: [vendorId], references: [id])
+
+  clientId  String?  @unique
+  client    Client?  @relation(fields: [clientId], references: [id])
+
+  // Relations
+  cartsCreated      Cart[]        @relation("CartCreator")
+  ordersSubmitted   Order[]       @relation("OrderSubmitter")
+  ordersAssigned    Order[]       @relation("AssignedAgent")
+  auditLogs         AuditLog[]
+  agentVendors      AgentVendor[]
+  agentClients      AgentClient[]
+  accounts          Account[]
+  sessions          Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([email])
+  @@index([role])
+}
+
+// NextAuth models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ===== BUSINESS MODELS =====
+
+model Vendor {
+  id     String  @id @default(cuid())
+  name   String
+  region String? // e.g., "Sardegna"
+  notes  String? @db.Text
+
+  // Relations
+  user            User?           @relation
+  products        VendorProduct[]
+  agreements      Agreement[]
+  agentVendors    AgentVendor[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([region])
+}
+
+model Client {
+  id     String  @id @default(cuid())
+  name   String
+  region String? // e.g., "Sardegna"
+  notes  String? @db.Text
+
+  // Relations
+  user         User?         @relation
+  carts        Cart[]
+  orders       Order[]
+  agreements   Agreement[]
+  agentClients AgentClient[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([region])
+}
+
+model CategoryGroup {
+  id   String            @id @default(cuid())
+  name CategoryGroupType @unique
+
+  categories ProductCategory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProductCategory {
+  id      String @id @default(cuid())
+  groupId String
+  name    String
+  slug    String @unique
+
+  group    CategoryGroup @relation(fields: [groupId], references: [id])
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId])
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  categoryId  String
+  name        String
+  description String?     @db.Text
+  unit        ProductUnit @default(PIECE)
+  imageUrl    String?
+
+  category       ProductCategory @relation(fields: [categoryId], references: [id])
+  vendorProducts VendorProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([categoryId])
+  @@index([name])
+}
+
+model VendorProduct {
+  id              String  @id @default(cuid())
+  vendorId        String
+  productId       String
+  vendorSku       String
+  basePriceCents  Int     // Price in cents
+  currency        String  @default("EUR")
+  stockQty        Int     @default(0)
+  leadTimeDays    Int     @default(0)
+  minOrderQty     Int?
+  isActive        Boolean @default(true)
+
+  vendor     Vendor      @relation(fields: [vendorId], references: [id])
+  product    Product     @relation(fields: [productId], references: [id])
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@unique([vendorId, productId])
+  @@index([vendorId])
+  @@index([productId])
+  @@index([isActive])
+}
+
+model Agreement {
+  id                 String    @id @default(cuid())
+  clientId           String
+  vendorId           String
+  priceMode          PriceMode @default(BASE)
+  discountPct        Float?    // 0.0 to 0.5 (0% to 50%)
+  overridePriceCents Int?      // Must be > 0
+  notes              String?   @db.Text
+
+  client Client @relation(fields: [clientId], references: [id])
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([clientId, vendorId])
+  @@index([clientId])
+  @@index([vendorId])
+}
+
+model Cart {
+  id              String     @id @default(cuid())
+  clientId        String
+  createdByUserId String
+  status          CartStatus @default(ACTIVE)
+
+  client    Client     @relation(fields: [clientId], references: [id])
+  createdBy User       @relation("CartCreator", fields: [createdByUserId], references: [id])
+  items     CartItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId, status])
+}
+
+model CartItem {
+  id               String @id @default(cuid())
+  cartId           String
+  vendorProductId  String
+  qty              Int
+  unitPriceCents   Int    // Snapshot of price at time of add
+
+  cart          Cart          @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  vendorProduct VendorProduct @relation(fields: [vendorProductId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cartId])
+  @@index([vendorProductId])
+}
+
+model Order {
+  id                  String      @id @default(cuid())
+  clientId            String
+  submitterUserId     String
+  status              OrderStatus @default(DRAFT)
+  region              String?
+  assignedAgentUserId String?
+  notes               String?     @db.Text
+
+  client        Client      @relation(fields: [clientId], references: [id])
+  submitter     User        @relation("OrderSubmitter", fields: [submitterUserId], references: [id])
+  assignedAgent User?       @relation("AssignedAgent", fields: [assignedAgentUserId], references: [id])
+  items         OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([clientId])
+  @@index([status])
+  @@index([assignedAgentUserId])
+}
+
+model OrderItem {
+  id              String @id @default(cuid())
+  orderId         String
+  vendorProductId String
+  qty             Int
+  unitPriceCents  Int    // Snapshot of effective price
+  lineTotalCents  Int    // qty * unitPriceCents (computed)
+
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendorProduct VendorProduct @relation(fields: [vendorProductId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([vendorProductId])
+}
+
+// ===== PIVOT TABLES =====
+
+model AgentVendor {
+  userId   String
+  vendorId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, vendorId])
+  @@index([userId])
+  @@index([vendorId])
+}
+
+model AgentClient {
+  userId   String
+  clientId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, clientId])
+  @@index([userId])
+  @@index([clientId])
+}
+
+// ===== AUDIT LOG =====
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorUserId String?
+  entityType String   // e.g., "Order", "VendorProduct"
+  entityId   String
+  action     String   // e.g., "CREATE", "UPDATE", "DELETE"
+  diff       Json?    // JSON with before/after values
+
+  actor User? @relation(fields: [actorUserId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([createdAt])
+}
