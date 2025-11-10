@@ -239,7 +239,7 @@ export default async function CatalogPage({
           {/* Filters */}
           <CatalogFiltersNew
             vendors={[
-              { label: "All vendors", value: "" },
+              { label: "All vendors", value: "all" },
               ...vendorsInGroup.map((v) => ({ label: v.name, value: v.id })),
             ]}
             categories={categories.map((c) => ({

@@ -44,7 +44,7 @@ export function CatalogFiltersNew({
 
   // Local state for immediate UI feedback
   const [search, setSearch] = useState(initial.q || "")
-  const [selectedVendor, setSelectedVendor] = useState(initial.vendorId || "")
+  const [selectedVendor, setSelectedVendor] = useState(initial.vendorId || "all")
   const [inStockOnly, setInStockOnly] = useState(initial.inStock || false)
   const [selectedCategory, setSelectedCategory] = useState(
     initial.category || ""
@@ -90,7 +90,8 @@ export function CatalogFiltersNew({
 
   const handleVendorChange = (value: string) => {
     setSelectedVendor(value)
-    updateURL({ vendorId: value || undefined })
+    // "all" means no vendor filter
+    updateURL({ vendorId: value === "all" ? undefined : value })
   }
 
   const handleInStockToggle = (checked: boolean) => {
@@ -105,12 +106,12 @@ export function CatalogFiltersNew({
 
   const handleClearFilters = () => {
     setSearch("")
-    setSelectedVendor("")
+    setSelectedVendor("all")
     setInStockOnly(false)
     updateURL({ q: undefined, vendorId: undefined, inStock: undefined })
   }
 
-  const hasActiveFilters = search || selectedVendor || inStockOnly
+  const hasActiveFilters = search || (selectedVendor && selectedVendor !== "all") || inStockOnly
 
   return (
     <div className="bg-card rounded-lg border p-4 space-y-4">
