@@ -6,7 +6,7 @@ import { getEffectivePriceCents } from "@/lib/pricing";
 import { PageHeader } from "@/components/shared/page-header";
 import { CatalogFilters } from "@/components/catalog/catalog-filters";
 import { CatalogSidebar } from "@/components/catalog/catalog-sidebar";
-import { ProductGrid } from "@/components/catalog/product-grid";
+import { ProductGridWithDrawer } from "@/components/catalog/product-grid-with-drawer";
 import { CategoryGroupType, ProductUnit } from "@prisma/client";
 import { parseBoolParam } from "@/lib/url";
 
@@ -134,8 +134,9 @@ export default async function CatalogPage({
     orderBy: { name: "asc" },
   });
 
-  // Build ProductResult array with pricing
+  // Build ProductResult array with pricing and offers map
   const productResults: ProductResult[] = [];
+  const productOffersMap: Record<string, any[]> = {};
 
   for (const product of products) {
     if (product.vendorProducts.length === 0) continue;
@@ -162,6 +163,9 @@ export default async function CatalogPage({
         };
       })
     );
+
+    // Store all offers for this product
+    productOffersMap[product.id] = offers;
 
     // Find best offer (lowest price, prefer in-stock)
     const inStockOffers = offers.filter((o) => o.inStock);
@@ -256,7 +260,10 @@ export default async function CatalogPage({
 
           {/* Product Grid */}
           <Suspense fallback={<div>Loading products...</div>}>
-            <ProductGrid products={productResults} />
+            <ProductGridWithDrawer
+              products={productResults}
+              productOffersMap={productOffersMap}
+            />
           </Suspense>
 
           {productResults.length === 0 && (

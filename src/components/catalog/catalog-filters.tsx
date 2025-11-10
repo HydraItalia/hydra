@@ -46,27 +46,6 @@ export function CatalogFilters({ vendors, initial }: CatalogFiltersProps) {
   );
   const [inStockOnly, setInStockOnly] = useState(initial.inStock || false);
 
-  // Debounced search update
-  useEffect(() => {
-    // Immediately update URL without re-render while typing
-    const params = new URLSearchParams(searchParams.toString());
-    if (search) {
-      params.set("q", search);
-    } else {
-      params.delete("q");
-    }
-    window.history.replaceState(null, "", `/dashboard/catalog?${params.toString()}`);
-
-    // After debounce, trigger server re-render to fetch filtered data
-    const timer = setTimeout(() => {
-      isTypingRef.current = false;
-      router.refresh(); // Trigger server re-fetch without navigation
-    }, 300);
-
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
-
   const updateURL = useCallback(
     (updates: Record<string, string | undefined>) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -94,6 +73,16 @@ export function CatalogFilters({ vendors, initial }: CatalogFiltersProps) {
     },
     [searchParams, router]
   );
+
+  // Debounced search update
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      isTypingRef.current = false;
+      updateURL({ q: search || undefined });
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search, updateURL]);
 
   const handleVendorChange = (value: string) => {
     setSelectedVendor(value);
