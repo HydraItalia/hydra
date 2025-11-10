@@ -5,6 +5,7 @@ import { currentUser } from '@/lib/auth'
 import { SidebarNav } from '@/components/dashboard/sidebar-nav'
 import { UserNav } from '@/components/dashboard/user-nav'
 import { MobileNav } from '@/components/dashboard/mobile-nav'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export default async function DashboardLayout({
   children,
@@ -33,7 +34,8 @@ export default async function DashboardLayout({
             </Link>
           </div>
 
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
             <UserNav user={user} />
           </div>
         </div>
