@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition, useEffect, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -11,65 +12,109 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Search, X } from "lucide-react";
-import { useState, useTransition } from "react";
 
-type Vendor = {
-  id: string;
-  name: string;
+type FilterOption = {
+  label: string;
+  value: string;
 };
 
 type CatalogFiltersProps = {
-  vendors: Vendor[];
-  selectedVendorId?: string;
-  searchQuery?: string;
-  inStockOnly: boolean;
+  vendors: FilterOption[];
+  initial: {
+    group: "food" | "beverage" | "services";
+    category?: string;
+    vendorId?: string;
+    q?: string;
+    inStock?: boolean;
+  };
 };
 
-export function CatalogFilters({
-  vendors,
-  selectedVendorId,
-  searchQuery,
-  inStockOnly,
-}: CatalogFiltersProps) {
+export function CatalogFilters({ vendors, initial }: CatalogFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [search, setSearch] = useState(searchQuery || "");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const isTypingRef = useRef(false);
 
-  const updateParams = (updates: Record<string, string | null>) => {
+  // Local state for immediate UI feedback
+  const [search, setSearch] = useState(initial.q || "");
+  const [selectedVendor, setSelectedVendor] = useState(
+    initial.vendorId || "all"
+  );
+  const [inStockOnly, setInStockOnly] = useState(initial.inStock || false);
+
+  // Debounced search update
+  useEffect(() => {
+    // Immediately update URL without re-render while typing
     const params = new URLSearchParams(searchParams.toString());
+    if (search) {
+      params.set("q", search);
+    } else {
+      params.delete("q");
+    }
+    window.history.replaceState(null, "", `/dashboard/catalog?${params.toString()}`);
 
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === null || value === "") {
-        params.delete(key);
-      } else {
-        params.set(key, value);
+    // After debounce, trigger server re-render to fetch filtered data
+    const timer = setTimeout(() => {
+      isTypingRef.current = false;
+      router.refresh(); // Trigger server re-fetch without navigation
+    }, 300);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const updateURL = useCallback(
+    (updates: Record<string, string | undefined>) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === undefined || value === "") {
+          params.delete(key);
+        } else {
+          params.set(key, value);
+        }
+      });
+
+      // Special handling for inStock boolean
+      if ("inStock" in updates) {
+        if (updates.inStock === "true") {
+          params.set("inStock", "1");
+        } else {
+          params.delete("inStock");
+        }
       }
-    });
 
-    startTransition(() => {
-      router.push(`/dashboard/catalog?${params.toString()}`);
-    });
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateParams({ q: search || null });
-  };
-
-  const clearSearch = () => {
-    setSearch("");
-    updateParams({ q: null });
-  };
+      startTransition(() => {
+        router.replace(`/dashboard/catalog?${params.toString()}`);
+      });
+    },
+    [searchParams, router]
+  );
 
   const handleVendorChange = (value: string) => {
-    updateParams({ vendorId: value === "all" ? null : value });
+    setSelectedVendor(value);
+    // "all" means no vendor filter
+    updateURL({ vendorId: value === "all" ? undefined : value });
   };
 
-  const handleStockToggle = () => {
-    updateParams({ inStock: inStockOnly ? null : "true" });
+  const handleInStockToggle = (checked: boolean) => {
+    setInStockOnly(checked);
+    updateURL({ inStock: checked ? "true" : undefined });
   };
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setSelectedVendor("all");
+    setInStockOnly(false);
+    updateURL({ q: undefined, vendorId: undefined, inStock: undefined });
+  };
+
+  const hasActiveFilters =
+    search || (selectedVendor && selectedVendor !== "all") || inStockOnly;
 
   return (
     <div className="bg-card rounded-lg border p-4 space-y-4">
@@ -77,48 +122,51 @@ export function CatalogFilters({
         {/* Search */}
         <div className="md:col-span-2">
           <Label htmlFor="search">Search products</Label>
-          <form onSubmit={handleSearch} className="flex gap-2 mt-1">
+          <div className="relative flex gap-2 mt-1">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                ref={searchInputRef}
                 id="search"
                 type="text"
                 placeholder="Search by name or description..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  isTypingRef.current = true;
+                  setSearch(e.target.value);
+                }}
                 className="pl-9"
+                disabled={isPending}
               />
               {search && (
                 <button
                   type="button"
-                  onClick={clearSearch}
+                  onClick={() => setSearch("")}
                   className="absolute right-3 top-1/2 -translate-y-1/2"
+                  aria-label="Clear search"
                 >
                   <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
                 </button>
               )}
             </div>
-            <Button type="submit" disabled={isPending}>
-              Search
-            </Button>
-          </form>
+          </div>
         </div>
 
         {/* Vendor Filter */}
         <div>
           <Label htmlFor="vendor">Filter by vendor</Label>
           <Select
-            value={selectedVendorId || "all"}
+            value={selectedVendor}
             onValueChange={handleVendorChange}
+            disabled={isPending}
           >
             <SelectTrigger id="vendor" className="mt-1">
               <SelectValue placeholder="All vendors" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All vendors</SelectItem>
               {vendors.map((vendor) => (
-                <SelectItem key={vendor.id} value={vendor.id}>
-                  {vendor.name}
+                <SelectItem key={vendor.value} value={vendor.value}>
+                  {vendor.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -128,12 +176,11 @@ export function CatalogFilters({
 
       {/* In Stock Toggle */}
       <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
+        <Checkbox
           id="inStock"
           checked={inStockOnly}
-          onChange={handleStockToggle}
-          className="h-4 w-4 rounded border-gray-300"
+          onCheckedChange={handleInStockToggle}
+          disabled={isPending}
         />
         <Label htmlFor="inStock" className="cursor-pointer">
           Show in-stock products only
@@ -141,50 +188,53 @@ export function CatalogFilters({
       </div>
 
       {/* Active Filters */}
-      {(searchQuery || selectedVendorId || inStockOnly) && (
+      {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
           <span className="text-sm text-muted-foreground">Active filters:</span>
-          {searchQuery && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setSearch("");
-                updateParams({ q: null });
-              }}
-            >
-              Search: {searchQuery}
-              <X className="ml-1 h-3 w-3" />
-            </Button>
+          {search && (
+            <Badge variant="secondary">
+              Search: {search}
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="ml-1"
+                aria-label="Clear search filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
           )}
-          {selectedVendorId && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => updateParams({ vendorId: null })}
-            >
-              Vendor:{" "}
-              {vendors.find((v) => v.id === selectedVendorId)?.name}
-              <X className="ml-1 h-3 w-3" />
-            </Button>
+          {selectedVendor && (
+            <Badge variant="secondary">
+              Vendor: {vendors.find((v) => v.value === selectedVendor)?.label}
+              <button
+                type="button"
+                onClick={() => handleVendorChange("")}
+                className="ml-1"
+                aria-label="Clear vendor filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
           )}
           {inStockOnly && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => updateParams({ inStock: null })}
-            >
+            <Badge variant="secondary">
               In stock only
-              <X className="ml-1 h-3 w-3" />
-            </Button>
+              <button
+                type="button"
+                onClick={() => handleInStockToggle(false)}
+                className="ml-1"
+                aria-label="Clear in stock filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
           )}
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setSearch("");
-              router.push("/dashboard/catalog");
-            }}
+            onClick={handleClearFilters}
+            disabled={isPending}
           >
             Clear all
           </Button>

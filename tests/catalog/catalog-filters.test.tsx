@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CatalogFiltersNew } from "@/components/catalog/catalog-filters-new";
+import { CatalogFilters } from "@/components/catalog/catalog-filters";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // Mock Next.js navigation
@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: vi.fn(),
 }));
 
-describe("CatalogFiltersNew", () => {
+describe("CatalogFilters", () => {
   const mockReplace = vi.fn();
   const mockSearchParams = new URLSearchParams();
 
@@ -44,7 +44,7 @@ describe("CatalogFiltersNew", () => {
   });
 
   it("renders with initial params", () => {
-    render(<CatalogFiltersNew {...defaultProps} />);
+    render(<CatalogFilters {...defaultProps} />);
 
     expect(screen.getByLabelText("Search products")).toBeInTheDocument();
     expect(screen.getByLabelText("Filter by vendor")).toBeInTheDocument();
@@ -55,7 +55,7 @@ describe("CatalogFiltersNew", () => {
 
   it("updates URL on search after debounce", async () => {
     const user = userEvent.setup();
-    render(<CatalogFiltersNew {...defaultProps} />);
+    render(<CatalogFilters {...defaultProps} />);
 
     const searchInput = screen.getByLabelText("Search products");
     await user.type(searchInput, "pasta");
@@ -81,7 +81,7 @@ describe("CatalogFiltersNew", () => {
       initial: { ...defaultProps.initial, q: "pasta" },
     };
 
-    render(<CatalogFiltersNew {...propsWithSearch} />);
+    render(<CatalogFilters {...propsWithSearch} />);
 
     const searchInput = screen.getByLabelText("Search products");
     await user.clear(searchInput);
@@ -98,7 +98,7 @@ describe("CatalogFiltersNew", () => {
 
   it("toggles in-stock filter and updates URL", async () => {
     const user = userEvent.setup();
-    render(<CatalogFiltersNew {...defaultProps} />);
+    render(<CatalogFilters {...defaultProps} />);
 
     const checkbox = screen.getByLabelText("Show in-stock products only");
     await user.click(checkbox);
@@ -115,7 +115,7 @@ describe("CatalogFiltersNew", () => {
       initial: { ...defaultProps.initial, inStock: true },
     };
 
-    render(<CatalogFiltersNew {...propsWithInStock} />);
+    render(<CatalogFilters {...propsWithInStock} />);
 
     const checkbox = screen.getByLabelText("Show in-stock products only");
     await user.click(checkbox);
@@ -127,7 +127,7 @@ describe("CatalogFiltersNew", () => {
   // Skipping vendor select test due to JSDOM compatibility with Radix UI Select
   it.skip("sets vendorId when vendor is selected", async () => {
     const user = userEvent.setup();
-    render(<CatalogFiltersNew {...defaultProps} />);
+    render(<CatalogFilters {...defaultProps} />);
 
     const vendorSelect = screen.getByLabelText("Filter by vendor");
     await user.click(vendorSelect);
@@ -152,7 +152,7 @@ describe("CatalogFiltersNew", () => {
       },
     };
 
-    render(<CatalogFiltersNew {...propsWithFilters} />);
+    render(<CatalogFilters {...propsWithFilters} />);
 
     expect(screen.getByText(/Search: pasta/)).toBeInTheDocument();
     expect(screen.getByText(/Vendor: Vendor A/)).toBeInTheDocument();
@@ -172,7 +172,7 @@ describe("CatalogFiltersNew", () => {
       },
     };
 
-    render(<CatalogFiltersNew {...propsWithFilters} />);
+    render(<CatalogFilters {...propsWithFilters} />);
 
     const clearAllButton = screen.getByText("Clear all");
     await user.click(clearAllButton);

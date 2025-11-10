@@ -4,7 +4,7 @@ import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEffectivePriceCents } from "@/lib/pricing";
 import { PageHeader } from "@/components/shared/page-header";
-import { CatalogFiltersNew } from "@/components/catalog/catalog-filters-new";
+import { CatalogFilters } from "@/components/catalog/catalog-filters";
 import { CatalogSidebar } from "@/components/catalog/catalog-sidebar";
 import { ProductGrid } from "@/components/catalog/product-grid";
 import { CategoryGroupType, ProductUnit } from "@prisma/client";
@@ -237,7 +237,7 @@ export default async function CatalogPage({
         {/* Main Content */}
         <div className="flex-1 space-y-4">
           {/* Filters */}
-          <CatalogFiltersNew
+          <CatalogFilters
             vendors={[
               { label: "All vendors", value: "all" },
               ...vendorsInGroup.map((v) => ({ label: v.name, value: v.id })),
