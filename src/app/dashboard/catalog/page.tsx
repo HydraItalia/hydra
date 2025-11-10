@@ -242,12 +242,11 @@ export default async function CatalogPage({
               { label: "All vendors", value: "all" },
               ...vendorsInGroup.map((v) => ({ label: v.name, value: v.id })),
             ]}
-            categories={categories.map((c) => ({
-              label: c.name,
-              value: c.slug,
-            }))}
             initial={{
-              group: selectedGroup.toLowerCase() as "food" | "beverage" | "services",
+              group: selectedGroup.toLowerCase() as
+                | "food"
+                | "beverage"
+                | "services",
               category: categorySlug,
               vendorId,
               q: searchQuery,

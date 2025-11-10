@@ -1,117 +1,121 @@
-"use client"
+"use client";
 
-import { useRouter, useSearchParams } from "next/navigation"
-import { useState, useTransition, useEffect, useCallback } from "react"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition, useEffect, useCallback, useRef } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Search, X } from "lucide-react"
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, X } from "lucide-react";
 
 type FilterOption = {
-  label: string
-  value: string
-}
+  label: string;
+  value: string;
+};
 
 type CatalogFiltersProps = {
-  vendors: FilterOption[]
-  categories: FilterOption[]
+  vendors: FilterOption[];
   initial: {
-    group: "food" | "beverage" | "services"
-    category?: string
-    vendorId?: string
-    q?: string
-    inStock?: boolean
-  }
-}
+    group: "food" | "beverage" | "services";
+    category?: string;
+    vendorId?: string;
+    q?: string;
+    inStock?: boolean;
+  };
+};
 
-export function CatalogFiltersNew({
-  vendors,
-  categories,
-  initial,
-}: CatalogFiltersProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
+export function CatalogFiltersNew({ vendors, initial }: CatalogFiltersProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Local state for immediate UI feedback
-  const [search, setSearch] = useState(initial.q || "")
-  const [selectedVendor, setSelectedVendor] = useState(initial.vendorId || "all")
-  const [inStockOnly, setInStockOnly] = useState(initial.inStock || false)
-  const [selectedCategory, setSelectedCategory] = useState(
-    initial.category || ""
-  )
+  const [search, setSearch] = useState(initial.q || "");
+  const [selectedVendor, setSelectedVendor] = useState(
+    initial.vendorId || "all"
+  );
+  const [inStockOnly, setInStockOnly] = useState(initial.inStock || false);
 
   // Debounced search update
   useEffect(() => {
     const timer = setTimeout(() => {
-      updateURL({ q: search || undefined })
-    }, 300)
+      updateURL({ q: search || undefined });
+    }, 300);
 
-    return () => clearTimeout(timer)
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search])
+  }, [search]);
+
+  // Restore focus to search input after transition
+  useEffect(() => {
+    if (!isPending && document.activeElement !== searchInputRef.current) {
+      // Only restore focus if user was typing (search state has value)
+      if (search && searchInputRef.current) {
+        const input = searchInputRef.current;
+        const length = input.value.length;
+        input.focus();
+        input.setSelectionRange(length, length);
+      }
+    }
+  }, [isPending, search]);
 
   const updateURL = useCallback(
     (updates: Record<string, string | undefined>) => {
-      const params = new URLSearchParams(searchParams.toString())
+      const params = new URLSearchParams(searchParams.toString());
 
       Object.entries(updates).forEach(([key, value]) => {
         if (value === undefined || value === "") {
-          params.delete(key)
+          params.delete(key);
         } else {
-          params.set(key, value)
+          params.set(key, value);
         }
-      })
+      });
 
       // Special handling for inStock boolean
       if ("inStock" in updates) {
         if (updates.inStock === "true") {
-          params.set("inStock", "1")
+          params.set("inStock", "1");
         } else {
-          params.delete("inStock")
+          params.delete("inStock");
         }
       }
 
       startTransition(() => {
-        router.replace(`/dashboard/catalog?${params.toString()}`)
-      })
+        router.replace(`/dashboard/catalog?${params.toString()}`);
+      });
     },
     [searchParams, router]
-  )
+  );
 
   const handleVendorChange = (value: string) => {
-    setSelectedVendor(value)
+    setSelectedVendor(value);
     // "all" means no vendor filter
-    updateURL({ vendorId: value === "all" ? undefined : value })
-  }
+    updateURL({ vendorId: value === "all" ? undefined : value });
+  };
 
   const handleInStockToggle = (checked: boolean) => {
-    setInStockOnly(checked)
-    updateURL({ inStock: checked ? "true" : undefined })
-  }
-
-  const handleCategoryClick = (categoryValue: string) => {
-    setSelectedCategory(categoryValue)
-    updateURL({ category: categoryValue || undefined })
-  }
+    setInStockOnly(checked);
+    updateURL({ inStock: checked ? "true" : undefined });
+  };
 
   const handleClearFilters = () => {
-    setSearch("")
-    setSelectedVendor("all")
-    setInStockOnly(false)
-    updateURL({ q: undefined, vendorId: undefined, inStock: undefined })
-  }
+    setSearch("");
+    setSelectedVendor("all");
+    setInStockOnly(false);
+    updateURL({ q: undefined, vendorId: undefined, inStock: undefined });
+  };
 
-  const hasActiveFilters = search || (selectedVendor && selectedVendor !== "all") || inStockOnly
+  const hasActiveFilters =
+    search || (selectedVendor && selectedVendor !== "all") || inStockOnly;
 
   return (
     <div className="bg-card rounded-lg border p-4 space-y-4">
@@ -123,6 +127,7 @@ export function CatalogFiltersNew({
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                ref={searchInputRef}
                 id="search"
                 type="text"
                 placeholder="Search by name or description..."
@@ -167,38 +172,6 @@ export function CatalogFiltersNew({
         </div>
       </div>
 
-      {/* Categories */}
-      {categories.length > 0 && (
-        <div>
-          <Label className="mb-2 block">Categories</Label>
-          <div className="flex flex-wrap gap-2 overflow-x-auto">
-            <Button
-              variant={!selectedCategory ? "default" : "outline"}
-              size="sm"
-              onClick={() => handleCategoryClick("")}
-              disabled={isPending}
-              aria-pressed={!selectedCategory}
-            >
-              All Categories
-            </Button>
-            {categories.map((category) => (
-              <Button
-                key={category.value}
-                variant={
-                  selectedCategory === category.value ? "default" : "outline"
-                }
-                size="sm"
-                onClick={() => handleCategoryClick(category.value)}
-                disabled={isPending}
-                aria-pressed={selectedCategory === category.value}
-              >
-                {category.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* In Stock Toggle */}
       <div className="flex items-center gap-2">
         <Checkbox
@@ -231,8 +204,7 @@ export function CatalogFiltersNew({
           )}
           {selectedVendor && (
             <Badge variant="secondary">
-              Vendor:{" "}
-              {vendors.find((v) => v.value === selectedVendor)?.label}
+              Vendor: {vendors.find((v) => v.value === selectedVendor)?.label}
               <button
                 type="button"
                 onClick={() => handleVendorChange("")}
@@ -267,5 +239,5 @@ export function CatalogFiltersNew({
         </div>
       )}
     </div>
-  )
+  );
 }
