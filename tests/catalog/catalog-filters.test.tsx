@@ -37,6 +37,7 @@ describe("CatalogFilters", () => {
     );
     (useRouter as ReturnType<typeof vi.fn>).mockReturnValue({
       replace: mockReplace,
+      refresh: vi.fn(),
     });
     (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue(
       mockSearchParams
