@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { getEffectivePriceCents } from "@/lib/pricing";
 import { getCategoryGroups } from "@/lib/loaders/categories";
 import { PageHeader } from "@/components/shared/page-header";
@@ -10,14 +9,18 @@ import { CatalogSidebar } from "@/components/catalog/catalog-sidebar";
 import { ProductGridWithDrawer } from "@/components/catalog/product-grid-with-drawer";
 import { CatalogSkeleton } from "@/components/catalog/catalog-skeleton";
 import { EmptyState } from "@/components/catalog/empty-state";
+import { Pagination } from "@/components/catalog/pagination";
 import { CategoryGroupType, ProductUnit } from "@prisma/client";
 import { parseBoolParam } from "@/lib/url";
+import { fetchCatalogPage } from "@/data/catalog";
 
 type SearchParams = {
   group?: string;
   category?: string;
   q?: string;
   inStock?: string;
+  page?: string;
+  pageSize?: string;
 };
 
 type ProductResult = {
@@ -69,6 +72,14 @@ export default async function CatalogPage({
   ).toUpperCase() as CategoryGroupType;
   const categorySlug = params.category;
   const searchQuery = params.q;
+
+  // Parse pagination params
+  const page = Math.max(parseInt(params.page || "1"), 1);
+  const pageSize = Math.min(
+    Math.max(parseInt(params.pageSize || "24"), 12),
+    60
+  );
+
   // Parse inStock from URL (1 = true, absent = false)
   const searchParamsObj = new URLSearchParams();
   if (params.inStock) searchParamsObj.set("inStock", params.inStock);
@@ -84,54 +95,21 @@ export default async function CatalogPage({
   const currentGroup = categoryGroups.find((g) => g.name === selectedGroup);
   const categories = currentGroup?.categories || [];
 
-  // Build product query
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const productWhere: any = {
-    deletedAt: null,
-    category: {
-      group: { name: selectedGroup },
-      ...(categorySlug && { slug: categorySlug }),
-    },
-  };
-
-  if (searchQuery) {
-    productWhere.OR = [
-      { name: { contains: searchQuery, mode: "insensitive" } },
-      { description: { contains: searchQuery, mode: "insensitive" } },
-    ];
-  }
-
-  // Fetch products with vendor products
-  const products = await prisma.product.findMany({
-    where: productWhere,
-    include: {
-      category: {
-        select: { slug: true, name: true },
-      },
-      vendorProducts: {
-        where: {
-          isActive: true,
-          deletedAt: null,
-          ...(inStockOnly ? { stockQty: { gt: 0 } } : {}),
-        },
-        include: {
-          vendor: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: { name: "asc" },
+  // Fetch paginated products using data layer
+  const catalogResult = await fetchCatalogPage({
+    group: selectedGroup,
+    categorySlug,
+    q: searchQuery,
+    inStock: inStockOnly,
+    page,
+    pageSize,
   });
 
   // Build ProductResult array with pricing and offers map
   const productResults: ProductResult[] = [];
   const productOffersMap: Record<string, any[]> = {};
 
-  for (const product of products) {
+  for (const product of catalogResult.data) {
     if (product.vendorProducts.length === 0) continue;
 
     // Calculate offers for each vendor product
@@ -183,7 +161,7 @@ export default async function CatalogPage({
     productResults.push({
       productId: product.id,
       productName: product.name,
-      unit: product.unit,
+      unit: product.unit as ProductUnit,
       categorySlug: product.category.slug,
       bestOffer,
       offersCount: offers.length,
@@ -237,6 +215,18 @@ export default async function CatalogPage({
               <EmptyState hasActiveFilters={hasActiveFilters} />
             )}
           </Suspense>
+
+          {/* Pagination */}
+          {catalogResult.total > 0 && (
+            <Suspense fallback={null}>
+              <Pagination
+                page={catalogResult.currentPage}
+                pageSize={catalogResult.pageSize}
+                total={catalogResult.total}
+                totalPages={catalogResult.totalPages}
+              />
+            </Suspense>
+          )}
         </div>
       </div>
     </div>
