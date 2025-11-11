@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { CatalogFilters } from "@/components/catalog/catalog-filters";
 import { CatalogSidebar } from "@/components/catalog/catalog-sidebar";
 import { ProductGridWithDrawer } from "@/components/catalog/product-grid-with-drawer";
+import { CatalogSkeleton } from "@/components/catalog/catalog-skeleton";
+import { EmptyState } from "@/components/catalog/empty-state";
 import { CategoryGroupType, ProductUnit } from "@prisma/client";
 import { parseBoolParam } from "@/lib/url";
 
@@ -188,6 +190,9 @@ export default async function CatalogPage({
     });
   }
 
+  // Check if any filters are active
+  const hasActiveFilters = !!(searchQuery || inStockOnly || categorySlug);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -207,7 +212,7 @@ export default async function CatalogPage({
         </aside>
 
         {/* Main Content */}
-        <div className="flex-1 space-y-4">
+        <div className="flex-1 space-y-6">
           {/* Filters */}
           <CatalogFilters
             initial={{
@@ -222,20 +227,16 @@ export default async function CatalogPage({
           />
 
           {/* Product Grid */}
-          <Suspense fallback={<div>Loading products...</div>}>
-            <ProductGridWithDrawer
-              products={productResults}
-              productOffersMap={productOffersMap}
-            />
+          <Suspense fallback={<CatalogSkeleton />}>
+            {productResults.length > 0 ? (
+              <ProductGridWithDrawer
+                products={productResults}
+                productOffersMap={productOffersMap}
+              />
+            ) : (
+              <EmptyState hasActiveFilters={hasActiveFilters} />
+            )}
           </Suspense>
-
-          {productResults.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">
-                No products found matching your filters.
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>
