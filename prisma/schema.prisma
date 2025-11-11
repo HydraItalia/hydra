@@ -237,6 +237,7 @@ model VendorProduct {
   @@index([vendorId])
   @@index([productId])
   @@index([isActive])
+  @@index([stockQty])
 }
 
 model Agreement {
