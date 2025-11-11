@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEffectivePriceCents } from "@/lib/pricing";
+import { getCategoryGroups } from "@/lib/loaders/categories";
 import { PageHeader } from "@/components/shared/page-header";
 import { CatalogFilters } from "@/components/catalog/catalog-filters";
 import { CatalogSidebar } from "@/components/catalog/catalog-sidebar";
@@ -13,7 +14,6 @@ import { parseBoolParam } from "@/lib/url";
 type SearchParams = {
   group?: string;
   category?: string;
-  vendorId?: string;
   q?: string;
   inStock?: string;
 };
@@ -66,7 +66,6 @@ export default async function CatalogPage({
     params.group || "food"
   ).toUpperCase() as CategoryGroupType;
   const categorySlug = params.category;
-  const vendorId = params.vendorId;
   const searchQuery = params.q;
   // Parse inStock from URL (1 = true, absent = false)
   const searchParamsObj = new URLSearchParams();
@@ -77,15 +76,8 @@ export default async function CatalogPage({
   const validGroups: CategoryGroupType[] = ["FOOD", "BEVERAGE", "SERVICES"];
   const selectedGroup = validGroups.includes(groupParam) ? groupParam : "FOOD";
 
-  // Fetch category groups and categories
-  const categoryGroups = await prisma.categoryGroup.findMany({
-    include: {
-      categories: {
-        orderBy: { name: "asc" },
-      },
-    },
-    orderBy: { name: "asc" },
-  });
+  // Fetch category groups and categories (cached)
+  const categoryGroups = await getCategoryGroups();
 
   const currentGroup = categoryGroups.find((g) => g.name === selectedGroup);
   const categories = currentGroup?.categories || [];
@@ -118,7 +110,6 @@ export default async function CatalogPage({
         where: {
           isActive: true,
           deletedAt: null,
-          ...(vendorId ? { vendorId } : {}),
           ...(inStockOnly ? { stockQty: { gt: 0 } } : {}),
         },
         include: {
@@ -197,29 +188,6 @@ export default async function CatalogPage({
     });
   }
 
-  // Get vendors that have products in this group for filter
-  const vendorsInGroup = await prisma.vendor.findMany({
-    where: {
-      deletedAt: null,
-      products: {
-        some: {
-          isActive: true,
-          deletedAt: null,
-          product: {
-            category: {
-              group: { name: selectedGroup },
-            },
-          },
-        },
-      },
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-    orderBy: { name: "asc" },
-  });
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -242,17 +210,12 @@ export default async function CatalogPage({
         <div className="flex-1 space-y-4">
           {/* Filters */}
           <CatalogFilters
-            vendors={[
-              { label: "All vendors", value: "all" },
-              ...vendorsInGroup.map((v) => ({ label: v.name, value: v.id })),
-            ]}
             initial={{
               group: selectedGroup.toLowerCase() as
                 | "food"
                 | "beverage"
                 | "services",
               category: categorySlug,
-              vendorId,
               q: searchQuery,
               inStock: inStockOnly,
             }}

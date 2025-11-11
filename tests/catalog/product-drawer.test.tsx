@@ -13,7 +13,7 @@ describe("ProductDrawer", () => {
   const mockProduct = {
     productId: "prod-1",
     productName: "Premium Olive Oil",
-    unit: ProductUnit.LITER,
+    unit: ProductUnit.L,
     categorySlug: "aceite",
     bestOffer: {
       vendorId: "vendor-1",

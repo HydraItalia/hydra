@@ -5,34 +5,20 @@ import { useState, useTransition, useEffect, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, X } from "lucide-react";
 
-type FilterOption = {
-  label: string;
-  value: string;
-};
-
 type CatalogFiltersProps = {
-  vendors: FilterOption[];
   initial: {
     group: "food" | "beverage" | "services";
     category?: string;
-    vendorId?: string;
     q?: string;
     inStock?: boolean;
   };
 };
 
-export function CatalogFilters({ vendors, initial }: CatalogFiltersProps) {
+export function CatalogFilters({ initial }: CatalogFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -41,9 +27,6 @@ export function CatalogFilters({ vendors, initial }: CatalogFiltersProps) {
 
   // Local state for immediate UI feedback
   const [search, setSearch] = useState(initial.q || "");
-  const [selectedVendor, setSelectedVendor] = useState(
-    initial.vendorId || "all"
-  );
   const [inStockOnly, setInStockOnly] = useState(initial.inStock || false);
 
   const updateURL = useCallback(
@@ -84,12 +67,6 @@ export function CatalogFilters({ vendors, initial }: CatalogFiltersProps) {
     return () => clearTimeout(timer);
   }, [search, updateURL]);
 
-  const handleVendorChange = (value: string) => {
-    setSelectedVendor(value);
-    // "all" means no vendor filter
-    updateURL({ vendorId: value === "all" ? undefined : value });
-  };
-
   const handleInStockToggle = (checked: boolean) => {
     setInStockOnly(checked);
     updateURL({ inStock: checked ? "true" : undefined });
@@ -97,19 +74,17 @@ export function CatalogFilters({ vendors, initial }: CatalogFiltersProps) {
 
   const handleClearFilters = () => {
     setSearch("");
-    setSelectedVendor("all");
     setInStockOnly(false);
-    updateURL({ q: undefined, vendorId: undefined, inStock: undefined });
+    updateURL({ q: undefined, inStock: undefined });
   };
 
-  const hasActiveFilters =
-    search || (selectedVendor && selectedVendor !== "all") || inStockOnly;
+  const hasActiveFilters = search || inStockOnly;
 
   return (
     <div className="bg-card rounded-lg border p-4 space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {/* Search */}
-        <div className="md:col-span-2">
+        <div>
           <Label htmlFor="search">Search products</Label>
           <div className="relative flex gap-2 mt-1">
             <div className="relative flex-1">
@@ -139,27 +114,9 @@ export function CatalogFilters({ vendors, initial }: CatalogFiltersProps) {
               )}
             </div>
           </div>
-        </div>
-
-        {/* Vendor Filter */}
-        <div>
-          <Label htmlFor="vendor">Filter by vendor</Label>
-          <Select
-            value={selectedVendor}
-            onValueChange={handleVendorChange}
-            disabled={isPending}
-          >
-            <SelectTrigger id="vendor" className="mt-1">
-              <SelectValue placeholder="All vendors" />
-            </SelectTrigger>
-            <SelectContent>
-              {vendors.map((vendor) => (
-                <SelectItem key={vendor.value} value={vendor.value}>
-                  {vendor.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <p className="text-xs text-muted-foreground mt-2">
+            Products supplied by multiple trusted vendors
+          </p>
         </div>
       </div>
 
@@ -188,19 +145,6 @@ export function CatalogFilters({ vendors, initial }: CatalogFiltersProps) {
                 onClick={() => setSearch("")}
                 className="ml-1"
                 aria-label="Clear search filter"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          )}
-          {selectedVendor && (
-            <Badge variant="secondary">
-              Vendor: {vendors.find((v) => v.value === selectedVendor)?.label}
-              <button
-                type="button"
-                onClick={() => handleVendorChange("")}
-                className="ml-1"
-                aria-label="Clear vendor filter"
               >
                 <X className="h-3 w-3" />
               </button>

@@ -15,15 +15,9 @@ describe("CatalogFilters", () => {
   const mockSearchParams = new URLSearchParams();
 
   const defaultProps = {
-    vendors: [
-      { label: "All vendors", value: "all" },
-      { label: "Vendor A", value: "vendor-a" },
-      { label: "Vendor B", value: "vendor-b" },
-    ],
     initial: {
       group: "food" as const,
       category: undefined,
-      vendorId: undefined,
       q: undefined,
       inStock: false,
     },
@@ -48,7 +42,9 @@ describe("CatalogFilters", () => {
     render(<CatalogFilters {...defaultProps} />);
 
     expect(screen.getByLabelText("Search products")).toBeInTheDocument();
-    expect(screen.getByLabelText("Filter by vendor")).toBeInTheDocument();
+    expect(
+      screen.getByText("Products supplied by multiple trusted vendors")
+    ).toBeInTheDocument();
     expect(
       screen.getByLabelText("Show in-stock products only")
     ).toBeInTheDocument();
@@ -125,32 +121,12 @@ describe("CatalogFilters", () => {
     expect(lastCall[0]).not.toContain("inStock");
   });
 
-  // TODO: E2E test for vendor select
-  // Skipped due to JSDOM/Radix UI Select pointer capture incompatibility
-  // See: https://github.com/radix-ui/primitives/issues/1207
-  // Track in issue #8: Add E2E tests for vendor select interaction
-  it.skip("sets vendorId when vendor is selected", async () => {
-    const user = userEvent.setup();
-    render(<CatalogFilters {...defaultProps} />);
-
-    const vendorSelect = screen.getByLabelText("Filter by vendor");
-    await user.click(vendorSelect);
-
-    const vendorOption = screen.getByText("Vendor A");
-    await user.click(vendorOption);
-
-    expect(mockReplace).toHaveBeenCalledWith(
-      expect.stringContaining("vendorId=vendor-a")
-    );
-  });
-
   it("shows active filter badges", () => {
     const propsWithFilters = {
       ...defaultProps,
       initial: {
         group: "food" as const,
         category: undefined,
-        vendorId: "vendor-a",
         q: "pasta",
         inStock: true,
       },
@@ -159,7 +135,6 @@ describe("CatalogFilters", () => {
     render(<CatalogFilters {...propsWithFilters} />);
 
     expect(screen.getByText(/Search: pasta/)).toBeInTheDocument();
-    expect(screen.getByText(/Vendor: Vendor A/)).toBeInTheDocument();
     expect(screen.getByText("In stock only")).toBeInTheDocument();
   });
 
@@ -170,7 +145,6 @@ describe("CatalogFilters", () => {
       initial: {
         group: "food" as const,
         category: undefined,
-        vendorId: "vendor-a",
         q: "pasta",
         inStock: true,
       },
@@ -183,7 +157,6 @@ describe("CatalogFilters", () => {
 
     const lastCall = mockReplace.mock.calls[mockReplace.mock.calls.length - 1];
     expect(lastCall[0]).not.toContain("q=");
-    expect(lastCall[0]).not.toContain("vendorId=");
     expect(lastCall[0]).not.toContain("inStock=");
   });
 });
