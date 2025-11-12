@@ -1,10 +1,11 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import Image from "next/image"
-import Link from "next/link"
-import { ShoppingCart, Trash2, Plus, Minus } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { ShoppingCart, Trash2, Plus, Minus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -12,7 +13,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -20,24 +21,45 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Separator } from "@/components/ui/separator"
-import { useCartStore } from "@/store/cart"
-import { formatCurrency } from "@/lib/utils"
-import { toast } from "sonner"
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Separator } from "@/components/ui/separator";
+import { useCartStore } from "@/store/cart";
+import { formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 
 type CartPageProps = {
-  cart: Awaited<ReturnType<typeof import("@/data/cart").getCart>>
-}
+  cart: Awaited<ReturnType<typeof import("@/data/cart").getCart>>;
+};
 
 export function CartPage({ cart }: CartPageProps) {
-  const [isHydrated, setIsHydrated] = useState(false)
-  const { setItems, update, remove, clear, totalCents, itemCount, isLoading } =
-    useCartStore()
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  const {
+    items,
+    setItems,
+    update,
+    remove,
+    clear,
+    totalCents,
+    itemCount,
+    isLoading,
+  } = useCartStore();
 
-  // Initialize store with server data
+  // Initialize store with server data only once
   useEffect(() => {
-    const items = cart.items.map((item) => ({
+    const cartItems = cart.items.map((item) => ({
       id: item.id,
       vendorProductId: item.vendorProductId,
       qty: item.qty,
@@ -46,39 +68,78 @@ export function CartPage({ cart }: CartPageProps) {
       vendorName: item.vendorProduct.vendor.name,
       productUnit: item.vendorProduct.product.unit,
       imageUrl: item.vendorProduct.product.imageUrl,
-    }))
-    setItems(items)
-    setIsHydrated(true)
-  }, [cart, setItems])
+    }));
+    setItems(cartItems);
+    setIsHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleQuantityChange = async (itemId: string, newQty: number) => {
-    if (newQty < 1) return
+    if (newQty < 1 || newQty > 9999) return;
     try {
-      await update(itemId, newQty)
-      toast.success("Cart updated")
+      await update(itemId, newQty);
     } catch (error) {
-      toast.error("Failed to update cart")
+      toast.error("Failed to update cart");
     }
-  }
+  };
+
+  const handleInputChange = (itemId: string, value: string) => {
+    setInputValues({ ...inputValues, [itemId]: value });
+  };
+
+  const handleInputBlur = async (itemId: string, currentQty: number) => {
+    const value = inputValues[itemId];
+    if (!value) {
+      setInputValues({ ...inputValues, [itemId]: "" });
+      setEditingItemId(null);
+      return;
+    }
+
+    const newQty = parseInt(value, 10);
+    if (isNaN(newQty) || newQty < 1 || newQty > 9999) {
+      toast.error("Quantity must be between 1 and 9999");
+      setInputValues({ ...inputValues, [itemId]: "" });
+      setEditingItemId(null);
+      return;
+    }
+
+    if (newQty !== currentQty) {
+      await handleQuantityChange(itemId, newQty);
+    }
+    setInputValues({ ...inputValues, [itemId]: "" });
+    setEditingItemId(null);
+  };
+
+  const handleInputKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    itemId: string
+  ) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    } else if (e.key === "Escape") {
+      setInputValues({ ...inputValues, [itemId]: "" });
+      setEditingItemId(null);
+    }
+  };
 
   const handleRemove = async (itemId: string) => {
     try {
-      await remove(itemId)
-      toast.success("Item removed from cart")
+      await remove(itemId);
+      toast.success("Item removed from cart");
     } catch (error) {
-      toast.error("Failed to remove item")
+      toast.error("Failed to remove item");
     }
-  }
+  };
 
   const handleClear = async () => {
-    if (!confirm("Are you sure you want to clear your cart?")) return
     try {
-      await clear()
-      toast.success("Cart cleared")
+      await clear();
+      setShowClearDialog(false);
+      toast.success("Cart cleared");
     } catch (error) {
-      toast.error("Failed to clear cart")
+      toast.error("Failed to clear cart");
     }
-  }
+  };
 
   if (!isHydrated) {
     return (
@@ -88,11 +149,11 @@ export function CartPage({ cart }: CartPageProps) {
           <CardDescription>Loading your cart...</CardDescription>
         </CardHeader>
       </Card>
-    )
+    );
   }
 
-  const count = itemCount()
-  const total = totalCents()
+  const count = itemCount();
+  const total = totalCents();
 
   if (count === 0) {
     return (
@@ -111,11 +172,29 @@ export function CartPage({ cart }: CartPageProps) {
           </Button>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
     <div className="space-y-6">
+      <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear your cart?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove all items from your cart. This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClear}>
+              Clear Cart
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Shopping Cart</h1>
@@ -125,7 +204,7 @@ export function CartPage({ cart }: CartPageProps) {
         </div>
         <Button
           variant="outline"
-          onClick={handleClear}
+          onClick={() => setShowClearDialog(true)}
           disabled={isLoading}
         >
           <Trash2 className="mr-2 h-4 w-4" />
@@ -151,7 +230,7 @@ export function CartPage({ cart }: CartPageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {useCartStore.getState().items.map((item) => (
+                {items.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>
                       {item.imageUrl ? (
@@ -196,7 +275,36 @@ export function CartPage({ cart }: CartPageProps) {
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
-                        <span className="w-12 text-center">{item.qty}</span>
+                        {editingItemId === item.id ? (
+                          <Input
+                            type="number"
+                            min="1"
+                            max="9999"
+                            value={inputValues[item.id] ?? ""}
+                            onChange={(e) =>
+                              handleInputChange(item.id, e.target.value)
+                            }
+                            onBlur={() => handleInputBlur(item.id, item.qty)}
+                            onKeyDown={(e) => handleInputKeyDown(e, item.id)}
+                            className="w-16 h-8 text-center"
+                            autoFocus
+                            disabled={isLoading}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setInputValues({
+                                ...inputValues,
+                                [item.id]: item.qty.toString(),
+                              });
+                              setEditingItemId(item.id);
+                            }}
+                            className="w-12 h-8 text-center hover:bg-muted rounded-md transition-colors"
+                            disabled={isLoading}
+                          >
+                            {item.qty}
+                          </button>
+                        )}
                         <Button
                           variant="outline"
                           size="icon"
@@ -204,7 +312,7 @@ export function CartPage({ cart }: CartPageProps) {
                           onClick={() =>
                             handleQuantityChange(item.id, item.qty + 1)
                           }
-                          disabled={isLoading}
+                          disabled={isLoading || item.qty >= 9999}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -257,5 +365,5 @@ export function CartPage({ cart }: CartPageProps) {
         </Card>
       </div>
     </div>
-  )
+  );
 }

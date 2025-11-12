@@ -11,13 +11,13 @@ type CartProviderProps = {
       vendorProductId: string
       qty: number
       unitPriceCents: number
-      vendorProduct: {
-        product: {
+      vendorProduct?: {
+        product?: {
           name: string
           unit: string
           imageUrl?: string | null
         }
-        vendor: {
+        vendor?: {
           name: string
         }
       }
@@ -29,20 +29,36 @@ export function CartProvider({ children, initialCart }: CartProviderProps) {
   const setItems = useCartStore((state) => state.setItems)
 
   useEffect(() => {
-    if (initialCart) {
-      const items = initialCart.items.map((item) => ({
-        id: item.id,
-        vendorProductId: item.vendorProductId,
-        qty: item.qty,
-        unitPriceCents: item.unitPriceCents,
-        productName: item.vendorProduct.product.name,
-        vendorName: item.vendorProduct.vendor.name,
-        productUnit: item.vendorProduct.product.unit,
-        imageUrl: item.vendorProduct.product.imageUrl,
-      }))
+    if (initialCart?.items) {
+      const items = initialCart.items
+        .filter((item) => {
+          const isValid = item?.vendorProduct?.product && item?.vendorProduct?.vendor
+          if (!isValid) {
+            console.warn('Filtered out invalid cart item:', {
+              id: item?.id,
+              vendorProductId: item?.vendorProductId,
+              hasVendorProduct: !!item?.vendorProduct,
+              hasProduct: !!item?.vendorProduct?.product,
+              hasVendor: !!item?.vendorProduct?.vendor,
+            })
+          }
+          return isValid
+        })
+        .map((item) => ({
+          id: item.id,
+          vendorProductId: item.vendorProductId,
+          qty: item.qty,
+          unitPriceCents: item.unitPriceCents,
+          productName: item.vendorProduct!.product!.name,
+          vendorName: item.vendorProduct!.vendor!.name,
+          productUnit: item.vendorProduct!.product!.unit,
+          imageUrl: item.vendorProduct!.product!.imageUrl,
+        }))
       setItems(items)
     }
-  }, [initialCart, setItems])
+    // Only run on mount to avoid re-renders when parent re-renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return <>{children}</>
 }

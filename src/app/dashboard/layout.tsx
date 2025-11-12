@@ -22,7 +22,7 @@ export default async function DashboardLayout({
   }
 
   // Fetch cart for CLIENT users
-  let initialCart
+  let initialCart: Awaited<ReturnType<typeof getCart>> | undefined
   if (user.role === "CLIENT" && user.clientId) {
     try {
       initialCart = await getCart()
@@ -51,7 +51,7 @@ export default async function DashboardLayout({
 
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
-            {user.role === "CLIENT" && <CartSheet />}
+            {user.role === "CLIENT" && user.clientId && <CartSheet />}
             <UserNav user={user} />
           </div>
         </div>

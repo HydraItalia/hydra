@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { ProductDrawer } from "@/components/catalog/product-drawer";
 import { ProductUnit } from "@prisma/client";
 import { vi, describe, it, expect, beforeEach } from "vitest";
+import { useCartStore } from "@/store/cart";
 
 // Mock the useMediaQuery hook
 vi.mock("@/hooks/use-media-query", () => ({
@@ -72,6 +73,10 @@ describe("ProductDrawer", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the mock to default behavior
+    (useCartStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      add: vi.fn().mockResolvedValue(undefined),
+    });
   });
 
   it("renders product information", () => {
@@ -261,7 +266,7 @@ describe("ProductDrawer", () => {
   });
 
   it("does not render when open is false", () => {
-    const { container } = render(
+    render(
       <ProductDrawer
         open={false}
         onOpenChange={mockOnOpenChange}
@@ -311,4 +316,13 @@ describe("ProductDrawer", () => {
 
     expect(screen.getByText("Compare prices from 1 vendor")).toBeInTheDocument();
   });
+
+  // TODO: Add cart interaction tests
+  // The cart store mocking is complex with vitest and requires additional setup
+  // These tests should verify:
+  // - Cart add function is called with correct parameters
+  // - Success toast is shown after adding to cart
+  // - Error toast is shown when cart operation fails
+  // - Add to cart button is disabled during async operation
+  // - Correct vendor is selected when multiple buttons exist
 });

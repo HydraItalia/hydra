@@ -10,7 +10,7 @@ export const metadata = {
 }
 
 async function CartData() {
-  const user = await requireRole("CLIENT")
+  await requireRole("CLIENT")
   const cart = await getCart()
 
   return <CartPage cart={cart} />

@@ -5,6 +5,9 @@ import { currentUser } from "@/lib/auth";
 import { getEffectivePriceCents } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
 
+// Maximum quantity per cart item to prevent abuse
+const MAX_CART_ITEM_QUANTITY = 9999;
+
 /**
  * Get or create the active cart for the current user
  */
@@ -121,46 +124,137 @@ export async function addToCart({
     throw new Error("Quantity must be at least 1");
   }
 
-  // Get effective price based on agreements
-  const unitPriceCents = await getEffectivePriceCents({
-    clientId: user.clientId,
-    vendorProductId,
-  });
-
-  // Get or create cart
-  const cart = await getCart();
-
-  // Check if item already exists in cart
-  const existingItem = cart.items.find(
-    (item) => item.vendorProductId === vendorProductId
-  );
-
-  if (existingItem) {
-    // Update quantity
-    await prisma.cartItem.update({
-      where: { id: existingItem.id },
-      data: {
-        qty: existingItem.qty + quantity,
-        unitPriceCents, // Update price in case agreement changed
-        updatedAt: new Date(),
-      },
-    });
-  } else {
-    // Add new item
-    await prisma.cartItem.create({
-      data: {
-        cartId: cart.id,
-        vendorProductId,
-        qty: quantity,
-        unitPriceCents,
-      },
-    });
+  if (quantity > MAX_CART_ITEM_QUANTITY) {
+    throw new Error(`Quantity cannot exceed ${MAX_CART_ITEM_QUANTITY}`);
   }
+
+  // Store clientId as a const to ensure type narrowing
+  const clientId = user.clientId;
+
+  // Use a transaction to prevent race conditions with concurrent addToCart calls
+  const cart = await prisma.$transaction(async (tx) => {
+    // Validate that the vendor product exists and is active (inside transaction)
+    const vendorProduct = await tx.vendorProduct.findUnique({
+      where: { id: vendorProductId },
+      select: {
+        id: true,
+        isActive: true,
+        deletedAt: true,
+      },
+    });
+
+    if (!vendorProduct) {
+      throw new Error("Product not found");
+    }
+
+    if (!vendorProduct.isActive || vendorProduct.deletedAt) {
+      throw new Error("Product is not available");
+    }
+
+    // Get effective price based on agreements
+    const unitPriceCents = await getEffectivePriceCents({
+      clientId,
+      vendorProductId,
+    });
+
+    // Get or create cart within transaction
+    let cart = await tx.cart.findFirst({
+      where: {
+        clientId,
+        status: "ACTIVE",
+      },
+      include: {
+        items: {
+          where: {
+            vendorProductId,
+          },
+        },
+      },
+    });
+
+    if (!cart) {
+      cart = await tx.cart.create({
+        data: {
+          clientId,
+          createdByUserId: user.id,
+          status: "ACTIVE",
+        },
+        include: {
+          items: {
+            where: {
+              vendorProductId,
+            },
+          },
+        },
+      });
+    }
+
+    const existingItem = cart.items[0]; // Only one item due to where filter
+
+    if (existingItem) {
+      const newQuantity = existingItem.qty + quantity;
+
+      if (newQuantity > MAX_CART_ITEM_QUANTITY) {
+        throw new Error(
+          `Total quantity cannot exceed ${MAX_CART_ITEM_QUANTITY}`
+        );
+      }
+
+      // Update quantity and refresh price in case agreement changed
+      await tx.cartItem.update({
+        where: { id: existingItem.id },
+        data: {
+          qty: newQuantity,
+          unitPriceCents, // Update price to reflect current agreement
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      // Add new item
+      await tx.cartItem.create({
+        data: {
+          cartId: cart.id,
+          vendorProductId,
+          qty: quantity,
+          unitPriceCents,
+        },
+      });
+    }
+
+    // Return cart with full item details from within transaction
+    return tx.cart.findUnique({
+      where: { id: cart.id },
+      include: {
+        items: {
+          include: {
+            vendorProduct: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    unit: true,
+                    imageUrl: true,
+                  },
+                },
+                vendor: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  });
 
   revalidatePath("/dashboard/cart");
   revalidatePath("/dashboard/catalog");
 
-  return { success: true };
+  return cart!;
 }
 
 /**
@@ -191,35 +285,98 @@ export async function updateCartItem({
     throw new Error("Quantity must be at least 1");
   }
 
-  // Verify the item belongs to the user's cart
-  const item = await prisma.cartItem.findUnique({
-    where: { id: itemId },
-    include: {
-      cart: true,
-    },
-  });
-
-  if (!item) {
-    throw new Error("Cart item not found");
+  if (quantity > MAX_CART_ITEM_QUANTITY) {
+    throw new Error(`Quantity cannot exceed ${MAX_CART_ITEM_QUANTITY}`);
   }
 
-  if (item.cart.clientId !== user.clientId) {
-    throw new Error("Unauthorized to modify this cart item");
-  }
+  // Store clientId as a const to ensure type narrowing
+  const clientId = user.clientId;
 
-  // Update quantity
-  await prisma.cartItem.update({
-    where: { id: itemId },
-    data: {
-      qty: quantity,
-      updatedAt: new Date(),
-    },
+  // Use a transaction to prevent race conditions
+  const cart = await prisma.$transaction(async (tx) => {
+    // Verify the item belongs to the user's cart
+    const item = await tx.cartItem.findUnique({
+      where: { id: itemId },
+      include: {
+        cart: true,
+      },
+    });
+
+    if (!item) {
+      throw new Error("Cart item not found");
+    }
+
+    if (item.cart.clientId !== clientId) {
+      throw new Error("Unauthorized to modify this cart item");
+    }
+
+    if (item.cart.status !== "ACTIVE") {
+      throw new Error("Cannot modify items in inactive cart");
+    }
+
+    // Verify vendor product is still active and available
+    const vendorProduct = await tx.vendorProduct.findUnique({
+      where: { id: item.vendorProductId },
+      select: {
+        isActive: true,
+        deletedAt: true,
+      },
+    });
+
+    if (!vendorProduct || !vendorProduct.isActive || vendorProduct.deletedAt) {
+      throw new Error("Product is no longer available");
+    }
+
+    // Get updated price in case agreements have changed
+    const unitPriceCents = await getEffectivePriceCents({
+      clientId,
+      vendorProductId: item.vendorProductId,
+    });
+
+    // Update quantity and price
+    await tx.cartItem.update({
+      where: { id: itemId },
+      data: {
+        qty: quantity,
+        unitPriceCents, // Update price to reflect current agreement
+        updatedAt: new Date(),
+      },
+    });
+
+    // Return cart with full item details from within transaction
+    return tx.cart.findUnique({
+      where: { id: item.cartId },
+      include: {
+        items: {
+          include: {
+            vendorProduct: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    unit: true,
+                    imageUrl: true,
+                  },
+                },
+                vendor: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
   });
 
   revalidatePath("/dashboard/cart");
   revalidatePath("/dashboard/catalog");
 
-  return { success: true };
+  return cart!;
 }
 
 /**
@@ -240,31 +397,67 @@ export async function removeCartItem({ itemId }: { itemId: string }) {
     throw new Error("User does not have an associated client");
   }
 
-  // Verify the item belongs to the user's cart
-  const item = await prisma.cartItem.findUnique({
-    where: { id: itemId },
-    include: {
-      cart: true,
-    },
-  });
+  // Use a transaction to ensure consistency
+  const cart = await prisma.$transaction(async (tx) => {
+    // Verify the item belongs to the user's cart
+    const item = await tx.cartItem.findUnique({
+      where: { id: itemId },
+      include: {
+        cart: true,
+      },
+    });
 
-  if (!item) {
-    throw new Error("Cart item not found");
-  }
+    if (!item) {
+      throw new Error("Cart item not found");
+    }
 
-  if (item.cart.clientId !== user.clientId) {
-    throw new Error("Unauthorized to modify this cart item");
-  }
+    if (item.cart.clientId !== user.clientId) {
+      throw new Error("Unauthorized to modify this cart item");
+    }
 
-  // Delete item
-  await prisma.cartItem.delete({
-    where: { id: itemId },
+    if (item.cart.status !== "ACTIVE") {
+      throw new Error("Cannot remove items from inactive cart");
+    }
+
+    // Delete item
+    await tx.cartItem.delete({
+      where: { id: itemId },
+    });
+
+    // Return cart with full item details from within transaction
+    return tx.cart.findUnique({
+      where: { id: item.cartId },
+      include: {
+        items: {
+          include: {
+            vendorProduct: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    unit: true,
+                    imageUrl: true,
+                  },
+                },
+                vendor: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
   });
 
   revalidatePath("/dashboard/cart");
   revalidatePath("/dashboard/catalog");
 
-  return { success: true };
+  return cart!;
 }
 
 /**
@@ -285,29 +478,95 @@ export async function clearCart() {
     throw new Error("User does not have an associated client");
   }
 
-  // Get active cart
-  const cart = await prisma.cart.findFirst({
-    where: {
-      clientId: user.clientId,
-      status: "ACTIVE",
-    },
-  });
+  // Store clientId as a const to ensure type narrowing
+  const clientId = user.clientId;
 
-  if (!cart) {
-    return { success: true }; // No cart to clear
-  }
+  // Use a transaction to ensure consistency
+  const cart = await prisma.$transaction(async (tx) => {
+    // Get active cart
+    const cart = await tx.cart.findFirst({
+      where: {
+        clientId,
+        status: "ACTIVE",
+      },
+    });
 
-  // Delete all items
-  await prisma.cartItem.deleteMany({
-    where: {
-      cartId: cart.id,
-    },
+    if (cart) {
+      // Delete all items
+      await tx.cartItem.deleteMany({
+        where: {
+          cartId: cart.id,
+        },
+      });
+
+      // Return cart with full item details from within transaction
+      return tx.cart.findUnique({
+        where: { id: cart.id },
+        include: {
+          items: {
+            include: {
+              vendorProduct: {
+                include: {
+                  product: {
+                    select: {
+                      id: true,
+                      name: true,
+                      unit: true,
+                      imageUrl: true,
+                    },
+                  },
+                  vendor: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // If no cart exists, create one and return it
+    return tx.cart.create({
+      data: {
+        clientId,
+        createdByUserId: user.id,
+        status: "ACTIVE",
+      },
+      include: {
+        items: {
+          include: {
+            vendorProduct: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    unit: true,
+                    imageUrl: true,
+                  },
+                },
+                vendor: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
   });
 
   revalidatePath("/dashboard/cart");
   revalidatePath("/dashboard/catalog");
 
-  return { success: true };
+  return cart!;
 }
 
 /**
@@ -350,6 +609,14 @@ export async function getCartSummary() {
     (sum, item) => sum + item.qty * item.unitPriceCents,
     0
   );
+
+  if (!Number.isFinite(totalCents) || totalCents > Number.MAX_SAFE_INTEGER) {
+    throw new Error("Cart total exceeds maximum safe value");
+  }
+
+  if (!Number.isFinite(itemCount) || itemCount > Number.MAX_SAFE_INTEGER) {
+    throw new Error("Cart item count exceeds maximum safe value");
+  }
 
   return {
     itemCount,

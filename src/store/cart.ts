@@ -42,13 +42,43 @@ export const useCartStore = create<CartStore>((set, get) => ({
   setItems: (items) => set({ items }),
 
   add: async (vendorProductId, quantity = 1) => {
+    const previousItems = get().items;
     set({ isLoading: true, error: null });
+
+    // Optimistic update: check if item exists
+    const existingItem = previousItems.find(
+      (item) => item.vendorProductId === vendorProductId
+    );
+
+    if (existingItem) {
+      // Optimistically update quantity for existing items
+      set((state) => ({
+        items: state.items.map((item) =>
+          item.vendorProductId === vendorProductId
+            ? { ...item, qty: item.qty + quantity }
+            : item
+        ),
+      }));
+    }
+
     try {
-      await addToCart({ vendorProductId, quantity });
-      // Items will be refreshed by server revalidation
-      set({ isLoading: false });
+      const updatedCart = await addToCart({ vendorProductId, quantity });
+      // Sync with server response
+      const items = updatedCart.items.map((item) => ({
+        id: item.id,
+        vendorProductId: item.vendorProductId,
+        qty: item.qty,
+        unitPriceCents: item.unitPriceCents,
+        productName: item.vendorProduct.product.name,
+        vendorName: item.vendorProduct.vendor.name,
+        productUnit: item.vendorProduct.product.unit,
+        imageUrl: item.vendorProduct.product.imageUrl,
+      }));
+      set({ items, isLoading: false });
     } catch (error) {
+      // Rollback on error
       set({
+        items: previousItems,
         isLoading: false,
         error: error instanceof Error ? error.message : "Failed to add to cart",
       });
@@ -57,18 +87,34 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
 
   update: async (itemId, quantity) => {
+    const previousItems = get().items;
     set({ isLoading: true, error: null });
+
+    // Optimistic update
+    set((state) => ({
+      items: state.items.map((item) =>
+        item.id === itemId ? { ...item, qty: quantity } : item
+      ),
+    }));
+
     try {
-      await updateCartItem({ itemId, quantity });
-      // Update local state optimistically
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === itemId ? { ...item, qty: quantity } : item
-        ),
-        isLoading: false,
+      const updatedCart = await updateCartItem({ itemId, quantity });
+      // Sync with server response
+      const items = updatedCart.items.map((item) => ({
+        id: item.id,
+        vendorProductId: item.vendorProductId,
+        qty: item.qty,
+        unitPriceCents: item.unitPriceCents,
+        productName: item.vendorProduct.product.name,
+        vendorName: item.vendorProduct.vendor.name,
+        productUnit: item.vendorProduct.product.unit,
+        imageUrl: item.vendorProduct.product.imageUrl,
       }));
+      set({ items, isLoading: false });
     } catch (error) {
+      // Rollback on error
       set({
+        items: previousItems,
         isLoading: false,
         error: error instanceof Error ? error.message : "Failed to update cart",
       });
@@ -77,16 +123,32 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
 
   remove: async (itemId) => {
+    const previousItems = get().items;
     set({ isLoading: true, error: null });
+
+    // Optimistic update
+    set((state) => ({
+      items: state.items.filter((item) => item.id !== itemId),
+    }));
+
     try {
-      await removeCartItem({ itemId });
-      // Update local state optimistically
-      set((state) => ({
-        items: state.items.filter((item) => item.id !== itemId),
-        isLoading: false,
+      const updatedCart = await removeCartItem({ itemId });
+      // Sync with server response
+      const items = updatedCart.items.map((item) => ({
+        id: item.id,
+        vendorProductId: item.vendorProductId,
+        qty: item.qty,
+        unitPriceCents: item.unitPriceCents,
+        productName: item.vendorProduct.product.name,
+        vendorName: item.vendorProduct.vendor.name,
+        productUnit: item.vendorProduct.product.unit,
+        imageUrl: item.vendorProduct.product.imageUrl,
       }));
+      set({ items, isLoading: false });
     } catch (error) {
+      // Rollback on error
       set({
+        items: previousItems,
         isLoading: false,
         error:
           error instanceof Error ? error.message : "Failed to remove from cart",
@@ -96,12 +158,30 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
 
   clear: async () => {
+    const previousItems = get().items;
     set({ isLoading: true, error: null });
+
+    // Optimistic update
+    set({ items: [] });
+
     try {
-      await clearCart();
-      set({ items: [], isLoading: false });
+      const updatedCart = await clearCart();
+      // Sync with server response (should be empty)
+      const items = updatedCart.items.map((item) => ({
+        id: item.id,
+        vendorProductId: item.vendorProductId,
+        qty: item.qty,
+        unitPriceCents: item.unitPriceCents,
+        productName: item.vendorProduct.product.name,
+        vendorName: item.vendorProduct.vendor.name,
+        productUnit: item.vendorProduct.product.unit,
+        imageUrl: item.vendorProduct.product.imageUrl,
+      }));
+      set({ items, isLoading: false });
     } catch (error) {
+      // Rollback on error
       set({
+        items: previousItems,
         isLoading: false,
         error: error instanceof Error ? error.message : "Failed to clear cart",
       });

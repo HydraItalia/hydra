@@ -1,9 +1,8 @@
-"use client"
+"use client";
 
-import { ShoppingCart, X, Minus, Plus } from "lucide-react"
-import Link from "next/link"
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
+import { ShoppingCart } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -12,37 +11,45 @@ import {
   SheetTitle,
   SheetTrigger,
   SheetFooter,
-} from "@/components/ui/sheet"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
-import { useCartStore } from "@/store/cart"
-import { formatCurrency } from "@/lib/utils"
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { useCartStore } from "@/store/cart";
+import { formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
+import { CartSheetItem } from "./cart-sheet-item";
 
 export function CartSheet() {
-  const items = useCartStore((state) => state.items)
-  const itemCount = useCartStore((state) => state.itemCount())
-  const totalCents = useCartStore((state) => state.totalCents())
-  const update = useCartStore((state) => state.update)
-  const remove = useCartStore((state) => state.remove)
-  const isLoading = useCartStore((state) => state.isLoading)
+  const items = useCartStore((state) => state.items);
+  const itemCount = useCartStore((state) => state.itemCount());
+  const totalCents = useCartStore((state) => state.totalCents());
+  const update = useCartStore((state) => state.update);
+  const remove = useCartStore((state) => state.remove);
+  const isLoading = useCartStore((state) => state.isLoading);
 
   const handleQuantityChange = async (itemId: string, newQty: number) => {
-    if (newQty < 1) return
-    try {
-      await update(itemId, newQty)
-    } catch (error) {
-      console.error("Failed to update cart item:", error)
+    if (newQty < 1 || newQty > 9999) {
+      toast.error("Quantity must be between 1 and 9999");
+      return;
     }
-  }
+    try {
+      await update(itemId, newQty);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update cart"
+      );
+    }
+  };
 
   const handleRemove = async (itemId: string) => {
     try {
-      await remove(itemId)
+      await remove(itemId);
+      toast.success("Item removed from cart");
     } catch (error) {
-      console.error("Failed to remove cart item:", error)
+      toast.error("Failed to remove item");
     }
-  }
+  };
 
   return (
     <Sheet>
@@ -57,7 +64,9 @@ export function CartSheet() {
               {itemCount > 99 ? "99+" : itemCount}
             </Badge>
           )}
-          <span className="sr-only">Shopping Cart ({itemCount} items)</span>
+          <span className="sr-only">
+            Shopping Cart ({itemCount} {itemCount === 1 ? "item" : "items"})
+          </span>
         </Button>
       </SheetTrigger>
       <SheetContent className="flex flex-col w-full sm:max-w-lg">
@@ -66,7 +75,9 @@ export function CartSheet() {
           <SheetDescription>
             {itemCount === 0
               ? "Your cart is empty"
-              : `${itemCount} ${itemCount === 1 ? "item" : "items"} in your cart`}
+              : `${itemCount} ${
+                  itemCount === 1 ? "item" : "items"
+                } in your cart`}
           </SheetDescription>
         </SheetHeader>
 
@@ -83,73 +94,13 @@ export function CartSheet() {
             <ScrollArea className="flex-1 -mx-6 px-6">
               <div className="space-y-4">
                 {items.map((item) => (
-                  <div key={item.id} className="flex gap-4">
-                    {item.imageUrl && (
-                      <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted">
-                        <Image
-                          src={item.imageUrl}
-                          alt={item.productName}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    )}
-                    <div className="flex-1 space-y-1">
-                      <h4 className="text-sm font-medium leading-none">
-                        {item.productName}
-                      </h4>
-                      <p className="text-xs text-muted-foreground">
-                        {item.vendorName}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1 border rounded-md">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() =>
-                              handleQuantityChange(item.id, item.qty - 1)
-                            }
-                            disabled={isLoading || item.qty <= 1}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="text-sm w-8 text-center">
-                            {item.qty}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() =>
-                              handleQuantityChange(item.id, item.qty + 1)
-                            }
-                            disabled={isLoading}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {item.productUnit}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <p className="text-sm font-medium">
-                        {formatCurrency(item.qty * item.unitPriceCents)}
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => handleRemove(item.id)}
-                        disabled={isLoading}
-                      >
-                        <X className="h-4 w-4" />
-                        <span className="sr-only">Remove</span>
-                      </Button>
-                    </div>
-                  </div>
+                  <CartSheetItem
+                    key={item.id}
+                    item={item}
+                    onQuantityChange={handleQuantityChange}
+                    onRemove={handleRemove}
+                    isLoading={isLoading}
+                  />
                 ))}
               </div>
             </ScrollArea>
@@ -173,5 +124,5 @@ export function CartSheet() {
         )}
       </SheetContent>
     </Sheet>
-  )
+  );
 }

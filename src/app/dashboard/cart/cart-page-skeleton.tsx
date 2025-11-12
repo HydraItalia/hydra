@@ -1,9 +1,10 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function CartPageSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy="true" aria-label="Loading cart">
+      <span className="sr-only">Loading cart...</span>
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <Skeleton className="h-9 w-48" />
@@ -51,5 +52,5 @@ export function CartPageSkeleton() {
         </Card>
       </div>
     </div>
-  )
+  );
 }
