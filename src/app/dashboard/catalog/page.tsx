@@ -23,18 +23,21 @@ type SearchParams = {
   pageSize?: string;
 };
 
+type VendorOffer = {
+  vendorProductId: string;
+  vendorId: string;
+  vendorName: string;
+  priceCents: number;
+  inStock: boolean;
+  leadTimeDays: number | null;
+};
+
 type ProductResult = {
   productId: string;
   productName: string;
   unit: ProductUnit;
   categorySlug: string;
-  bestOffer?: {
-    vendorId: string;
-    vendorName: string;
-    priceCents: number;
-    inStock: boolean;
-    leadTimeDays: number | null;
-  };
+  bestOffer?: VendorOffer;
   offersCount: number;
 };
 
@@ -107,7 +110,7 @@ export default async function CatalogPage({
 
   // Build ProductResult array with pricing and offers map
   const productResults: ProductResult[] = [];
-  const productOffersMap: Record<string, any[]> = {};
+  const productOffersMap: Record<string, VendorOffer[]> = {};
 
   for (const product of catalogResult.data) {
     if (product.vendorProducts.length === 0) continue;
@@ -126,6 +129,7 @@ export default async function CatalogPage({
         );
 
         return {
+          vendorProductId: vp.id,
           vendorId: vp.vendor.id,
           vendorName: vp.vendor.name,
           priceCents,

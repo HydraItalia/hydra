@@ -6,6 +6,7 @@ import { ProductDrawer } from "./product-drawer";
 import { ProductUnit } from "@prisma/client";
 
 type VendorOffer = {
+  vendorProductId: string;
   vendorId: string;
   vendorName: string;
   priceCents: number;
