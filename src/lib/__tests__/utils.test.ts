@@ -27,8 +27,9 @@ describe('utils', () => {
 
     it('should handle large amounts', () => {
       const formatted = formatCurrency(123456)
-      // Italian locale uses dots as thousand separators: 1.234,56 €
-      expect(formatted).toMatch(/1[.,]234/)
+      // Italian locale: 1.234,56 € (123456 cents = 1234.56 EUR)
+      expect(formatted).toMatch(/1[.,]234[.,]56/)
+      expect(formatted).toContain('€')
     })
   })
 })
