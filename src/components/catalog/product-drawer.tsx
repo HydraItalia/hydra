@@ -199,9 +199,18 @@ export function ProductDrawer({
                         max="9999"
                         value={quantity}
                         onChange={(e) => {
+                          if (e.target.value === "") {
+                            // Reset to 1 when input is cleared
+                            setQuantity(offer.vendorProductId, 1);
+                            return;
+                          }
                           const val = parseInt(e.target.value);
-                          if (!isNaN(val)) {
+                          if (!isNaN(val) && val >= 1 && val <= 9999) {
                             setQuantity(offer.vendorProductId, val);
+                          } else if (!isNaN(val)) {
+                            // Clamp to valid range
+                            const clamped = Math.min(Math.max(val, 1), 9999);
+                            setQuantity(offer.vendorProductId, clamped);
                           }
                         }}
                         className="w-16 h-8 text-center"

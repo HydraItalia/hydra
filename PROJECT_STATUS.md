@@ -60,7 +60,7 @@
 
 ### Phase 1: Base Setup ✅
 **Status**: Complete
-**Commit**: `feat: completed Step 3 – RBAC dashboard shell and role-based navigation`
+**Commit**: `feat: completed Phase 3 – RBAC dashboard shell and role-based navigation`
 **Tag**: v0.3.0
 
 - ✅ Next.js 15 with App Router
@@ -345,7 +345,7 @@ pnpm db:reset         # Reset & seed database
 - `main` - Production-ready code
 - `dev` - Development branch
 
-**Latest Commit**: "feat: completed Step 3 – RBAC dashboard shell and role-based navigation"
+**Latest Commit**: "feat: completed Phase 3 – RBAC dashboard shell and role-based navigation"
 **Tag**: v0.3.0
 
 **Files Committed**: 52 files, 16,456+ lines
