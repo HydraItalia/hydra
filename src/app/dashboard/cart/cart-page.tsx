@@ -46,6 +46,7 @@ export function CartPage({ cart }: CartPageProps) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const {
     items,
     setItems,
@@ -122,10 +123,12 @@ export function CartPage({ cart }: CartPageProps) {
     }
   };
 
-  const handleRemove = async (itemId: string) => {
+  const handleRemoveConfirm = async () => {
+    if (!itemToDelete) return;
     try {
-      await remove(itemId);
+      await remove(itemToDelete);
       toast.success("Item removed from cart");
+      setItemToDelete(null);
     } catch (error) {
       toast.error("Failed to remove item");
     }
@@ -177,6 +180,7 @@ export function CartPage({ cart }: CartPageProps) {
 
   return (
     <div className="space-y-6">
+      {/* Clear Cart Dialog */}
       <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -190,6 +194,27 @@ export function CartPage({ cart }: CartPageProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleClear}>
               Clear Cart
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Item Dialog */}
+      <AlertDialog
+        open={!!itemToDelete}
+        onOpenChange={(open) => !open && setItemToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove item from cart?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this item from your cart?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveConfirm}>
+              Remove Item
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -325,7 +350,7 @@ export function CartPage({ cart }: CartPageProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleRemove(item.id)}
+                        onClick={() => setItemToDelete(item.id)}
                         disabled={isLoading}
                       >
                         <Trash2 className="h-4 w-4" />

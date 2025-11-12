@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -30,7 +31,7 @@ import {
 } from "@/components/ui/table";
 import { ProductUnit } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
-import { Star, ShoppingCart } from "lucide-react";
+import { Star, ShoppingCart, Plus, Minus } from "lucide-react";
 import { useCartStore } from "@/store/cart";
 import { toast } from "sonner";
 
@@ -65,6 +66,8 @@ export function ProductDrawer({
 }: ProductDrawerProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
+  // Track quantities for each vendor
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const addToCart = useCartStore((state) => state.add);
 
   // Sort offers: in-stock first, then by price
@@ -76,13 +79,27 @@ export function ProductDrawer({
     return a.priceCents - b.priceCents;
   });
 
+  // Get quantity for a vendor (default to 1)
+  const getQuantity = (vendorProductId: string) =>
+    quantities[vendorProductId] || 1;
+
+  // Set quantity for a vendor
+  const setQuantity = (vendorProductId: string, qty: number) => {
+    if (qty >= 1 && qty <= 9999) {
+      setQuantities((prev) => ({ ...prev, [vendorProductId]: qty }));
+    }
+  };
+
   const handleAddToCart = async (vendorProductId: string) => {
+    const quantity = getQuantity(vendorProductId);
     setAddingToCart(vendorProductId);
     try {
-      await addToCart(vendorProductId, 1);
-      toast.success("Added to cart!");
+      await addToCart(vendorProductId, quantity);
+      toast.success(`Added ${quantity} to cart!`);
     } catch (error) {
-      toast.error("Failed to add to cart");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to add to cart"
+      );
       console.error(error);
     } finally {
       setAddingToCart(null);
@@ -115,6 +132,7 @@ export function ProductDrawer({
               <TableHead>Vendor</TableHead>
               <TableHead>Price / {product.unit}</TableHead>
               <TableHead>Availability</TableHead>
+              <TableHead>Quantity</TableHead>
               <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -122,6 +140,7 @@ export function ProductDrawer({
             {sortedOffers.map((offer) => {
               const isBestOffer =
                 product.bestOffer?.vendorId === offer.vendorId;
+              const quantity = getQuantity(offer.vendorProductId);
 
               return (
                 <TableRow
@@ -160,11 +179,55 @@ export function ProductDrawer({
                       </Badge>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() =>
+                          setQuantity(offer.vendorProductId, quantity - 1)
+                        }
+                        disabled={!offer.inStock || quantity <= 1}
+                        aria-label="Decrease quantity"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="9999"
+                        value={quantity}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (!isNaN(val)) {
+                            setQuantity(offer.vendorProductId, val);
+                          }
+                        }}
+                        className="w-16 h-8 text-center"
+                        disabled={!offer.inStock}
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() =>
+                          setQuantity(offer.vendorProductId, quantity + 1)
+                        }
+                        disabled={!offer.inStock || quantity >= 9999}
+                        aria-label="Increase quantity"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={!offer.inStock || addingToCart === offer.vendorProductId}
+                      disabled={
+                        !offer.inStock || addingToCart === offer.vendorProductId
+                      }
                       onClick={() => handleAddToCart(offer.vendorProductId)}
                     >
                       {addingToCart === offer.vendorProductId ? (
