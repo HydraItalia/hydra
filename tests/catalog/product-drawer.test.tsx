@@ -9,6 +9,21 @@ vi.mock("@/hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => true), // Default to desktop
 }));
 
+// Mock the cart store
+vi.mock("@/store/cart", () => ({
+  useCartStore: vi.fn(() => ({
+    add: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+// Mock sonner toast
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 describe("ProductDrawer", () => {
   const mockProduct = {
     productId: "prod-1",
@@ -16,6 +31,7 @@ describe("ProductDrawer", () => {
     unit: ProductUnit.L,
     categorySlug: "aceite",
     bestOffer: {
+      vendorProductId: "vp-1",
       vendorId: "vendor-1",
       vendorName: "Vendor A",
       priceCents: 1250,
@@ -27,6 +43,7 @@ describe("ProductDrawer", () => {
 
   const mockOffers = [
     {
+      vendorProductId: "vp-1",
       vendorId: "vendor-1",
       vendorName: "Vendor A",
       priceCents: 1250,
@@ -34,6 +51,7 @@ describe("ProductDrawer", () => {
       leadTimeDays: null,
     },
     {
+      vendorProductId: "vp-2",
       vendorId: "vendor-2",
       vendorName: "Vendor B",
       priceCents: 1300,
@@ -41,6 +59,7 @@ describe("ProductDrawer", () => {
       leadTimeDays: null,
     },
     {
+      vendorProductId: "vp-3",
       vendorId: "vendor-3",
       vendorName: "Vendor C",
       priceCents: 1200,
@@ -163,6 +182,7 @@ describe("ProductDrawer", () => {
     const offersWithNoLeadTime = [
       ...mockOffers.slice(0, 2),
       {
+        vendorProductId: "vp-3",
         vendorId: "vendor-3",
         vendorName: "Vendor C",
         priceCents: 1200,

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   Drawer,
@@ -29,9 +30,12 @@ import {
 } from "@/components/ui/table";
 import { ProductUnit } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
-import { Star } from "lucide-react";
+import { Star, ShoppingCart } from "lucide-react";
+import { useCartStore } from "@/store/cart";
+import { toast } from "sonner";
 
 type VendorOffer = {
+  vendorProductId: string;
   vendorId: string;
   vendorName: string;
   priceCents: number;
@@ -60,6 +64,8 @@ export function ProductDrawer({
   allOffers,
 }: ProductDrawerProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [addingToCart, setAddingToCart] = useState<string | null>(null);
+  const addToCart = useCartStore((state) => state.add);
 
   // Sort offers: in-stock first, then by price
   const sortedOffers = [...allOffers].sort((a, b) => {
@@ -69,6 +75,19 @@ export function ProductDrawer({
     // Then by price
     return a.priceCents - b.priceCents;
   });
+
+  const handleAddToCart = async (vendorProductId: string) => {
+    setAddingToCart(vendorProductId);
+    try {
+      await addToCart(vendorProductId, 1);
+      toast.success("Added to cart!");
+    } catch (error) {
+      toast.error("Failed to add to cart");
+      console.error(error);
+    } finally {
+      setAddingToCart(null);
+    }
+  };
 
   const content = (
     <>
@@ -145,9 +164,17 @@ export function ProductDrawer({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={!offer.inStock}
+                      disabled={!offer.inStock || addingToCart === offer.vendorProductId}
+                      onClick={() => handleAddToCart(offer.vendorProductId)}
                     >
-                      Add to Cart
+                      {addingToCart === offer.vendorProductId ? (
+                        "Adding..."
+                      ) : (
+                        <>
+                          <ShoppingCart className="mr-2 h-4 w-4" />
+                          Add to Cart
+                        </>
+                      )}
                     </Button>
                   </TableCell>
                 </TableRow>

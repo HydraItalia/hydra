@@ -29,6 +29,7 @@ type ProductResult = {
   unit: ProductUnit;
   categorySlug: string;
   bestOffer?: {
+    vendorProductId: string;
     vendorId: string;
     vendorName: string;
     priceCents: number;
@@ -126,6 +127,7 @@ export default async function CatalogPage({
         );
 
         return {
+          vendorProductId: vp.id,
           vendorId: vp.vendor.id,
           vendorName: vp.vendor.name,
           priceCents,
