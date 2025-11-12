@@ -8,6 +8,32 @@ import { revalidatePath } from "next/cache";
 // Maximum quantity per cart item to prevent abuse
 const MAX_CART_ITEM_QUANTITY = 9999;
 
+// Shared include configuration for cart queries with full item details
+const CART_WITH_ITEMS_INCLUDE = {
+  items: {
+    include: {
+      vendorProduct: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              unit: true,
+              imageUrl: true,
+            },
+          },
+          vendor: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 /**
  * Get or create the active cart for the current user
  */
@@ -32,30 +58,7 @@ export async function getCart() {
       clientId: user.clientId,
       status: "ACTIVE",
     },
-    include: {
-      items: {
-        include: {
-          vendorProduct: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  unit: true,
-                  imageUrl: true,
-                },
-              },
-              vendor: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+    include: CART_WITH_ITEMS_INCLUDE,
   });
 
   // Create cart if it doesn't exist
@@ -66,30 +69,7 @@ export async function getCart() {
         createdByUserId: user.id,
         status: "ACTIVE",
       },
-      include: {
-        items: {
-          include: {
-            vendorProduct: {
-              include: {
-                product: {
-                  select: {
-                    id: true,
-                    name: true,
-                    unit: true,
-                    imageUrl: true,
-                  },
-                },
-                vendor: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      include: CART_WITH_ITEMS_INCLUDE,
     });
   }
 
@@ -224,30 +204,7 @@ export async function addToCart({
     // Return cart with full item details from within transaction
     return tx.cart.findUnique({
       where: { id: cart.id },
-      include: {
-        items: {
-          include: {
-            vendorProduct: {
-              include: {
-                product: {
-                  select: {
-                    id: true,
-                    name: true,
-                    unit: true,
-                    imageUrl: true,
-                  },
-                },
-                vendor: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      include: CART_WITH_ITEMS_INCLUDE,
     });
   });
 
@@ -346,30 +303,7 @@ export async function updateCartItem({
     // Return cart with full item details from within transaction
     return tx.cart.findUnique({
       where: { id: item.cartId },
-      include: {
-        items: {
-          include: {
-            vendorProduct: {
-              include: {
-                product: {
-                  select: {
-                    id: true,
-                    name: true,
-                    unit: true,
-                    imageUrl: true,
-                  },
-                },
-                vendor: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      include: CART_WITH_ITEMS_INCLUDE,
     });
   });
 
@@ -427,30 +361,7 @@ export async function removeCartItem({ itemId }: { itemId: string }) {
     // Return cart with full item details from within transaction
     return tx.cart.findUnique({
       where: { id: item.cartId },
-      include: {
-        items: {
-          include: {
-            vendorProduct: {
-              include: {
-                product: {
-                  select: {
-                    id: true,
-                    name: true,
-                    unit: true,
-                    imageUrl: true,
-                  },
-                },
-                vendor: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      include: CART_WITH_ITEMS_INCLUDE,
     });
   });
 
@@ -502,30 +413,7 @@ export async function clearCart() {
       // Return cart with full item details from within transaction
       return tx.cart.findUnique({
         where: { id: cart.id },
-        include: {
-          items: {
-            include: {
-              vendorProduct: {
-                include: {
-                  product: {
-                    select: {
-                      id: true,
-                      name: true,
-                      unit: true,
-                      imageUrl: true,
-                    },
-                  },
-                  vendor: {
-                    select: {
-                      id: true,
-                      name: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
+        include: CART_WITH_ITEMS_INCLUDE,
       });
     }
 
@@ -536,30 +424,7 @@ export async function clearCart() {
         createdByUserId: user.id,
         status: "ACTIVE",
       },
-      include: {
-        items: {
-          include: {
-            vendorProduct: {
-              include: {
-                product: {
-                  select: {
-                    id: true,
-                    name: true,
-                    unit: true,
-                    imageUrl: true,
-                  },
-                },
-                vendor: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      include: CART_WITH_ITEMS_INCLUDE,
     });
   });
 

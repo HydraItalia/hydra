@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { ProductUnit } from "@prisma/client";
 import {
   addToCart,
   updateCartItem,
@@ -13,8 +14,8 @@ export type CartItem = {
   unitPriceCents: number;
   productName: string;
   vendorName: string;
-  productUnit: string;
-  imageUrl?: string | null;
+  productUnit: ProductUnit;
+  imageUrl: string | null;
 };
 
 type CartStore = {
@@ -63,17 +64,44 @@ export const useCartStore = create<CartStore>((set, get) => ({
 
     try {
       const updatedCart = await addToCart({ vendorProductId, quantity });
-      // Sync with server response
-      const items = updatedCart.items.map((item) => ({
-        id: item.id,
-        vendorProductId: item.vendorProductId,
-        qty: item.qty,
-        unitPriceCents: item.unitPriceCents,
-        productName: item.vendorProduct.product.name,
-        vendorName: item.vendorProduct.vendor.name,
-        productUnit: item.vendorProduct.product.unit,
-        imageUrl: item.vendorProduct.product.imageUrl,
-      }));
+
+      // Sync with server response while preserving order
+      const serverItemsMap = new Map(
+        updatedCart.items.map((item) => [
+          item.id,
+          {
+            id: item.id,
+            vendorProductId: item.vendorProductId,
+            qty: item.qty,
+            unitPriceCents: item.unitPriceCents,
+            productName: item.vendorProduct.product.name,
+            vendorName: item.vendorProduct.vendor.name,
+            productUnit: item.vendorProduct.product.unit,
+            imageUrl: item.vendorProduct.product.imageUrl,
+          },
+        ])
+      );
+
+      // Preserve original order for existing items, add new items at the end
+      const existingItemsUpdated = previousItems
+        .map((item) => serverItemsMap.get(item.id))
+        .filter((item): item is CartItem => item !== undefined);
+
+      // Find new items (not in previousItems)
+      const newItems = updatedCart.items
+        .filter((item) => !previousItems.some((prev) => prev.id === item.id))
+        .map((item) => ({
+          id: item.id,
+          vendorProductId: item.vendorProductId,
+          qty: item.qty,
+          unitPriceCents: item.unitPriceCents,
+          productName: item.vendorProduct.product.name,
+          vendorName: item.vendorProduct.vendor.name,
+          productUnit: item.vendorProduct.product.unit,
+          imageUrl: item.vendorProduct.product.imageUrl,
+        }));
+
+      const items = [...existingItemsUpdated, ...newItems];
       set({ items, isLoading: false });
     } catch (error) {
       // Rollback on error
@@ -99,17 +127,29 @@ export const useCartStore = create<CartStore>((set, get) => ({
 
     try {
       const updatedCart = await updateCartItem({ itemId, quantity });
-      // Sync with server response
-      const items = updatedCart.items.map((item) => ({
-        id: item.id,
-        vendorProductId: item.vendorProductId,
-        qty: item.qty,
-        unitPriceCents: item.unitPriceCents,
-        productName: item.vendorProduct.product.name,
-        vendorName: item.vendorProduct.vendor.name,
-        productUnit: item.vendorProduct.product.unit,
-        imageUrl: item.vendorProduct.product.imageUrl,
-      }));
+
+      // Sync with server response while preserving order
+      const serverItemsMap = new Map(
+        updatedCart.items.map((item) => [
+          item.id,
+          {
+            id: item.id,
+            vendorProductId: item.vendorProductId,
+            qty: item.qty,
+            unitPriceCents: item.unitPriceCents,
+            productName: item.vendorProduct.product.name,
+            vendorName: item.vendorProduct.vendor.name,
+            productUnit: item.vendorProduct.product.unit,
+            imageUrl: item.vendorProduct.product.imageUrl,
+          },
+        ])
+      );
+
+      // Preserve original order, update with server data
+      const items = previousItems
+        .map((item) => serverItemsMap.get(item.id))
+        .filter((item): item is CartItem => item !== undefined);
+
       set({ items, isLoading: false });
     } catch (error) {
       // Rollback on error
@@ -133,17 +173,29 @@ export const useCartStore = create<CartStore>((set, get) => ({
 
     try {
       const updatedCart = await removeCartItem({ itemId });
-      // Sync with server response
-      const items = updatedCart.items.map((item) => ({
-        id: item.id,
-        vendorProductId: item.vendorProductId,
-        qty: item.qty,
-        unitPriceCents: item.unitPriceCents,
-        productName: item.vendorProduct.product.name,
-        vendorName: item.vendorProduct.vendor.name,
-        productUnit: item.vendorProduct.product.unit,
-        imageUrl: item.vendorProduct.product.imageUrl,
-      }));
+
+      // Sync with server response while preserving order
+      const serverItemsMap = new Map(
+        updatedCart.items.map((item) => [
+          item.id,
+          {
+            id: item.id,
+            vendorProductId: item.vendorProductId,
+            qty: item.qty,
+            unitPriceCents: item.unitPriceCents,
+            productName: item.vendorProduct.product.name,
+            vendorName: item.vendorProduct.vendor.name,
+            productUnit: item.vendorProduct.product.unit,
+            imageUrl: item.vendorProduct.product.imageUrl,
+          },
+        ])
+      );
+
+      // Preserve original order for remaining items
+      const items = previousItems
+        .map((item) => serverItemsMap.get(item.id))
+        .filter((item): item is CartItem => item !== undefined);
+
       set({ items, isLoading: false });
     } catch (error) {
       // Rollback on error

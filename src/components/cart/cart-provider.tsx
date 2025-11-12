@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect } from "react"
-import { useCartStore } from "@/store/cart"
+import { ProductUnit } from "@prisma/client"
+import { useCartStore, type CartItem } from "@/store/cart"
 
 type CartProviderProps = {
   children: React.ReactNode
@@ -44,15 +45,15 @@ export function CartProvider({ children, initialCart }: CartProviderProps) {
           }
           return isValid
         })
-        .map((item) => ({
+        .map((item): CartItem => ({
           id: item.id,
           vendorProductId: item.vendorProductId,
           qty: item.qty,
           unitPriceCents: item.unitPriceCents,
           productName: item.vendorProduct!.product!.name,
           vendorName: item.vendorProduct!.vendor!.name,
-          productUnit: item.vendorProduct!.product!.unit,
-          imageUrl: item.vendorProduct!.product!.imageUrl,
+          productUnit: item.vendorProduct!.product!.unit as ProductUnit,
+          imageUrl: item.vendorProduct!.product!.imageUrl ?? null,
         }))
       setItems(items)
     }
