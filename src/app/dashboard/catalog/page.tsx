@@ -177,6 +177,9 @@ export default async function CatalogPage({
   // Check if any filters are active
   const hasActiveFilters = !!(searchQuery || inStockOnly || categorySlug);
 
+  // Create a unique key for Suspense based on search params to trigger loading state on filter changes
+  const suspenseKey = `${selectedGroup}-${categorySlug || "all"}-${searchQuery || "none"}-${inStockOnly ? "instock" : "all"}-${page}`;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -210,8 +213,8 @@ export default async function CatalogPage({
             }}
           />
 
-          {/* Product Grid */}
-          <Suspense fallback={<CatalogSkeleton />}>
+          {/* Product Grid - key prop triggers loading state on filter changes */}
+          <Suspense key={suspenseKey} fallback={<CatalogSkeleton />}>
             {productResults.length > 0 ? (
               <ProductGridWithDrawer
                 products={productResults}
