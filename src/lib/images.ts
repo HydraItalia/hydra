@@ -186,7 +186,7 @@ function hashString(str: string): number {
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32-bit integer
+    hash = hash | 0; // Convert to 32-bit integer
   }
   return Math.abs(hash);
 }
@@ -213,9 +213,6 @@ export function getProductImageUrl(
     return imageUrl;
   }
 
-  // Debug: log category slug to see what's being passed
-  console.log(`Product: ${productName}, Category: ${categorySlug}`);
-
   // Get category-specific images array from Pexels
   const imageArray = categoryImageMap[categorySlug];
 
@@ -225,15 +222,11 @@ export function getProductImageUrl(
     const index = hash % imageArray.length;
     const baseUrl = imageArray[index];
 
-    console.log(`  → Using category image ${index + 1}/${imageArray.length}`);
-
     // Add Pexels size parameters for optimization
     return `${baseUrl}?auto=compress&cs=tinysrgb&w=${size}`;
   }
 
   // Fallback: use all beverage/food/service images combined
-  console.log(`  → Category "${categorySlug}" not found, using combined fallback`);
-
   // Combine all images from all categories for maximum variety
   const allImages = Object.values(categoryImageMap).flat();
   const hash = hashString(productName + categorySlug);

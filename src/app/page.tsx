@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FeatureCard } from "@/components/home/feature-card";
 
 export default function HomePage() {
   return (
@@ -76,71 +77,38 @@ export default function HomePage() {
 
           {/* Features Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
-            <div className="group bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border border-gray-200 dark:border-slate-700 hover:scale-105">
-              <div className="text-5xl mb-4">🍴</div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3">
-                For Restaurants
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                One platform, multiple vendors. Compare prices, check
-                availability, and order from all your suppliers in seconds.
-              </p>
-              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span> Real-time inventory
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span> Price comparison
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span> Quick reordering
-                </li>
-              </ul>
-            </div>
+            <FeatureCard
+              icon="🍴"
+              title="For Restaurants"
+              description="One platform, multiple vendors. Compare prices, check availability, and order from all your suppliers in seconds."
+              features={[
+                "Real-time inventory",
+                "Price comparison",
+                "Quick reordering",
+              ]}
+            />
 
-            <div className="group bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border border-gray-200 dark:border-slate-700 hover:scale-105">
-              <div className="text-5xl mb-4">🚚</div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3">
-                For Vendors
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Reach more restaurants with less effort. Manage your catalog,
-                update pricing, and fulfill orders all from one dashboard.
-              </p>
-              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span> Easy inventory sync
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span> Order management
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span> Analytics insights
-                </li>
-              </ul>
-            </div>
+            <FeatureCard
+              icon="🚚"
+              title="For Vendors"
+              description="Reach more restaurants with less effort. Manage your catalog, update pricing, and fulfill orders all from one dashboard."
+              features={[
+                "Easy inventory sync",
+                "Order management",
+                "Analytics insights",
+              ]}
+            />
 
-            <div className="group bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all border border-gray-200 dark:border-slate-700 hover:scale-105">
-              <div className="text-5xl mb-4">⚡</div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3">
-                For Admins
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Complete control and visibility. Route orders intelligently,
-                manage relationships, and optimize the entire supply chain.
-              </p>
-              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span> Smart routing
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span> Vendor oversight
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span> Full transparency
-                </li>
-              </ul>
-            </div>
+            <FeatureCard
+              icon="⚡"
+              title="For Admins"
+              description="Complete control and visibility. Route orders intelligently, manage relationships, and optimize the entire supply chain."
+              features={[
+                "Smart routing",
+                "Vendor oversight",
+                "Full transparency",
+              ]}
+            />
           </div>
 
           {/* How It Works */}

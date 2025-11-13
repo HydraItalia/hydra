@@ -3,7 +3,12 @@ import { CatalogSkeleton } from "@/components/catalog/catalog-skeleton";
 
 export default function CatalogLoading() {
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      role="status"
+      aria-busy="true"
+      aria-label="Loading product catalog"
+    >
       <PageHeader title="Product Catalog" subtitle="Loading products..." />
 
       <div className="flex flex-col lg:flex-row gap-6">
