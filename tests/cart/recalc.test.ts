@@ -142,6 +142,8 @@ describe('recalcCartPricesForUser', () => {
 
     vi.mocked(getEffectivePriceCents).mockResolvedValue(1000)
 
+    const mockUpdate = vi.fn()
+
     // Mock transaction
     vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
       const tx = {
@@ -160,7 +162,7 @@ describe('recalcCartPricesForUser', () => {
           }),
         },
         cartItem: {
-          update: vi.fn(),
+          update: mockUpdate,
         },
       }
       return callback(tx)
@@ -176,7 +178,7 @@ describe('recalcCartPricesForUser', () => {
     })
 
     // Should not update when price hasn't changed
-    expect(vi.mocked(prisma.$transaction).mock.calls[0][0]).toBeDefined()
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 
   it('should return diffs with one price decrease', async () => {
