@@ -44,6 +44,7 @@ const categoryGroupMap: Record<string, CategoryGroupType> = {
   "Packaging": "SERVICES",
   "Supplies": "SERVICES",
   "Disposables": "SERVICES",
+  "Cleaning & Disposables": "SERVICES",
 };
 
 // Normalize unit strings to ProductUnit enum

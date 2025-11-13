@@ -175,6 +175,14 @@ const categoryImageMap: Record<string, string[]> = {
     "https://images.pexels.com/photos/7735656/pexels-photo-7735656.jpeg",
     "https://images.pexels.com/photos/6476589/pexels-photo-6476589.jpeg",
   ],
+  "cleaning-disposables": [
+    "https://images.pexels.com/photos/6347888/pexels-photo-6347888.jpeg", // Disposables
+    "https://images.pexels.com/photos/4099354/pexels-photo-4099354.jpeg", // Paper products
+    "https://images.pexels.com/photos/6256004/pexels-photo-6256004.jpeg", // Eco disposables
+    "https://images.pexels.com/photos/3735218/pexels-photo-3735218.jpeg", // Cleaning supplies
+    "https://images.pexels.com/photos/4099093/pexels-photo-4099093.jpeg", // Disposable items
+    "https://images.pexels.com/photos/6530877/pexels-photo-6530877.jpeg", // Cleaning products
+  ],
 };
 
 /**
