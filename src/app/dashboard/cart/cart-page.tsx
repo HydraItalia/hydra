@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, Trash2, Plus, Minus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ShoppingCart, Trash2, Plus, Minus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,17 +37,28 @@ import { Separator } from "@/components/ui/separator";
 import { useCartStore } from "@/store/cart";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  recalcCartPricesForUser,
+  type PriceChangeDiff,
+} from "@/data/cart-recalc";
+import { PriceChangeBadge } from "@/components/cart/PriceChangeBadge";
 
 type CartPageProps = {
   cart: Awaited<ReturnType<typeof import("@/data/cart").getCart>>;
 };
 
 export function CartPage({ cart }: CartPageProps) {
+  const router = useRouter();
   const [isHydrated, setIsHydrated] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [priceChanges, setPriceChanges] = useState<
+    Map<string, PriceChangeDiff>
+  >(new Map());
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
   const {
     items,
     setItems,
@@ -144,6 +156,76 @@ export function CartPage({ cart }: CartPageProps) {
     }
   };
 
+  const handleRecalculatePrices = async () => {
+    setIsRecalculating(true);
+    setPriceChanges(new Map());
+
+    try {
+      const diffs = await recalcCartPricesForUser();
+
+      // Build map of changes by itemId
+      const changesMap = new Map(diffs.map((diff) => [diff.itemId, diff]));
+      setPriceChanges(changesMap);
+
+      // Count how many prices actually changed
+      const changedCount = diffs.filter(
+        (diff) => diff.oldPriceCents !== diff.newPriceCents
+      ).length;
+
+      if (changedCount === 0) {
+        toast.success("All prices are up to date");
+      } else {
+        toast.success(
+          `${changedCount} price${changedCount === 1 ? "" : "s"} updated`
+        );
+        // Refresh to get updated prices from server
+        router.refresh();
+      }
+    } catch (error) {
+      toast.error("Failed to recalculate prices");
+      console.error("Price recalculation error:", error);
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    // Always recalculate prices before checkout
+    setIsRecalculating(true);
+
+    try {
+      const diffs = await recalcCartPricesForUser();
+
+      // Check if any prices changed
+      const hasChanges = diffs.some(
+        (diff) => diff.oldPriceCents !== diff.newPriceCents
+      );
+
+      if (hasChanges) {
+        // Build map of changes
+        const changesMap = new Map(diffs.map((diff) => [diff.itemId, diff]));
+        setPriceChanges(changesMap);
+        setShowCheckoutConfirm(true);
+
+        // Refresh to get updated prices
+        router.refresh();
+      } else {
+        // No price changes, proceed to checkout
+        proceedToCheckout();
+      }
+    } catch (error) {
+      toast.error("Failed to verify prices");
+      console.error("Pre-checkout recalculation error:", error);
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
+  const proceedToCheckout = () => {
+    // TODO: Navigate to checkout page when implemented
+    toast.info("Checkout flow coming in Phase 5.3");
+  };
+
   if (!isHydrated) {
     return (
       <Card>
@@ -168,7 +250,7 @@ export function CartPage({ cart }: CartPageProps) {
         <CardContent className="flex flex-col items-center justify-center py-12">
           <ShoppingCart className="h-16 w-16 text-muted-foreground mb-4" />
           <p className="text-lg text-muted-foreground mb-4">
-            You haven't added any items yet
+            You haven&apos;t added any items yet
           </p>
           <Button asChild>
             <Link href="/dashboard/catalog">Browse Catalog</Link>
@@ -220,6 +302,34 @@ export function CartPage({ cart }: CartPageProps) {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Checkout Confirmation Dialog (when prices changed) */}
+      <AlertDialog
+        open={showCheckoutConfirm}
+        onOpenChange={setShowCheckoutConfirm}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Prices have been updated</AlertDialogTitle>
+            <AlertDialogDescription>
+              Some prices in your cart have changed since you last viewed it.
+              The cart has been updated with current prices. Do you want to
+              continue to checkout?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Review Cart</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowCheckoutConfirm(false);
+                proceedToCheckout();
+              }}
+            >
+              Continue to Checkout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Shopping Cart</h1>
@@ -227,14 +337,28 @@ export function CartPage({ cart }: CartPageProps) {
             {count} {count === 1 ? "item" : "items"} in your cart
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => setShowClearDialog(true)}
-          disabled={isLoading}
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Clear Cart
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRecalculatePrices}
+            disabled={isLoading || isRecalculating}
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${
+                isRecalculating ? "animate-spin" : ""
+              }`}
+            />
+            Recalculate Prices
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowClearDialog(true)}
+            disabled={isLoading}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Clear Cart
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -285,7 +409,19 @@ export function CartPage({ cart }: CartPageProps) {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(item.unitPriceCents)}
+                      <div className="flex flex-col items-end gap-1">
+                        <span>{formatCurrency(item.unitPriceCents)}</span>
+                        {priceChanges.has(item.id) && (
+                          <PriceChangeBadge
+                            oldPriceCents={
+                              priceChanges.get(item.id)!.oldPriceCents
+                            }
+                            newPriceCents={
+                              priceChanges.get(item.id)!.newPriceCents
+                            }
+                          />
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-2">
@@ -380,8 +516,13 @@ export function CartPage({ cart }: CartPageProps) {
             </div>
           </CardContent>
           <CardFooter className="flex-col gap-2">
-            <Button className="w-full" size="lg" disabled>
-              Checkout (Coming Soon)
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handleCheckout}
+              disabled={isLoading || isRecalculating}
+            >
+              {isRecalculating ? "Verifying prices..." : "Checkout"}
             </Button>
             <Button asChild variant="outline" className="w-full">
               <Link href="/dashboard/catalog">Continue Shopping</Link>
