@@ -70,7 +70,7 @@ export function CartPage({ cart }: CartPageProps) {
     isLoading,
   } = useCartStore();
 
-  // Initialize store with server data only once
+  // Sync store with server data whenever cart changes
   useEffect(() => {
     const cartItems = cart.items.map((item) => ({
       id: item.id,
@@ -84,8 +84,7 @@ export function CartPage({ cart }: CartPageProps) {
     }));
     setItems(cartItems);
     setIsHydrated(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cart, setItems]);
 
   const handleQuantityChange = async (itemId: string, newQty: number) => {
     if (newQty < 1 || newQty > 9999) return;
@@ -156,16 +155,28 @@ export function CartPage({ cart }: CartPageProps) {
     }
   };
 
+  const recalculateAndUpdatePrices = async () => {
+    const diffs = await recalcCartPricesForUser();
+    const changesMap = new Map(diffs.map((diff) => [diff.itemId, diff]));
+    setPriceChanges(changesMap);
+
+    const hasChanges = diffs.some(
+      (diff) => diff.oldPriceCents !== diff.newPriceCents
+    );
+
+    if (hasChanges) {
+      router.refresh();
+    }
+
+    return { diffs, hasChanges, changesMap };
+  };
+
   const handleRecalculatePrices = async () => {
     setIsRecalculating(true);
     setPriceChanges(new Map());
 
     try {
-      const diffs = await recalcCartPricesForUser();
-
-      // Build map of changes by itemId
-      const changesMap = new Map(diffs.map((diff) => [diff.itemId, diff]));
-      setPriceChanges(changesMap);
+      const { diffs } = await recalculateAndUpdatePrices();
 
       // Count how many prices actually changed
       const changedCount = diffs.filter(
@@ -178,8 +189,6 @@ export function CartPage({ cart }: CartPageProps) {
         toast.success(
           `${changedCount} price${changedCount === 1 ? "" : "s"} updated`
         );
-        // Refresh to get updated prices from server
-        router.refresh();
       }
     } catch (error) {
       toast.error("Failed to recalculate prices");
@@ -194,21 +203,10 @@ export function CartPage({ cart }: CartPageProps) {
     setIsRecalculating(true);
 
     try {
-      const diffs = await recalcCartPricesForUser();
-
-      // Check if any prices changed
-      const hasChanges = diffs.some(
-        (diff) => diff.oldPriceCents !== diff.newPriceCents
-      );
+      const { hasChanges } = await recalculateAndUpdatePrices();
 
       if (hasChanges) {
-        // Build map of changes
-        const changesMap = new Map(diffs.map((diff) => [diff.itemId, diff]));
-        setPriceChanges(changesMap);
         setShowCheckoutConfirm(true);
-
-        // Refresh to get updated prices
-        router.refresh();
       } else {
         // No price changes, proceed to checkout
         proceedToCheckout();
@@ -317,7 +315,9 @@ export function CartPage({ cart }: CartPageProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Review Cart</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setPriceChanges(new Map())}>
+              Review Cart
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setShowCheckoutConfirm(false);
@@ -411,16 +411,15 @@ export function CartPage({ cart }: CartPageProps) {
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-1">
                         <span>{formatCurrency(item.unitPriceCents)}</span>
-                        {priceChanges.has(item.id) && (
-                          <PriceChangeBadge
-                            oldPriceCents={
-                              priceChanges.get(item.id)!.oldPriceCents
-                            }
-                            newPriceCents={
-                              priceChanges.get(item.id)!.newPriceCents
-                            }
-                          />
-                        )}
+                        {(() => {
+                          const priceChange = priceChanges.get(item.id);
+                          return priceChange ? (
+                            <PriceChangeBadge
+                              oldPriceCents={priceChange.oldPriceCents}
+                              newPriceCents={priceChange.newPriceCents}
+                            />
+                          ) : null;
+                        })()}
                       </div>
                     </TableCell>
                     <TableCell>

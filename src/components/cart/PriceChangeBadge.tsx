@@ -1,6 +1,5 @@
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 type PriceChangeBadgeProps = {
   oldPriceCents: number;
@@ -19,6 +18,17 @@ export function PriceChangeBadge({
   newPriceCents,
   className,
 }: PriceChangeBadgeProps) {
+  // Validate price inputs
+  if (
+    oldPriceCents < 0 ||
+    newPriceCents < 0 ||
+    !Number.isFinite(oldPriceCents) ||
+    !Number.isFinite(newPriceCents)
+  ) {
+    console.warn("PriceChangeBadge received invalid price values");
+    return null;
+  }
+
   const deltaCents = newPriceCents - oldPriceCents;
   const isIncrease = deltaCents > 0;
   const isDecrease = deltaCents < 0;
@@ -27,6 +37,8 @@ export function PriceChangeBadge({
   if (isUnchanged) {
     return (
       <div
+        aria-label="Price unchanged"
+        role="status"
         className={cn(
           "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium",
           "bg-muted text-muted-foreground",
@@ -41,6 +53,10 @@ export function PriceChangeBadge({
 
   return (
     <div
+      aria-label={`Price ${isIncrease ? "increased" : "decreased"} by ${formatCurrency(
+        Math.abs(deltaCents)
+      )}`}
+      role="status"
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium",
         isIncrease &&

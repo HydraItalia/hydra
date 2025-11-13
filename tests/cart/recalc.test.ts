@@ -11,9 +11,6 @@ vi.mock('@/lib/prisma', () => ({
     cart: {
       findFirst: vi.fn(),
     },
-    cartItem: {
-      update: vi.fn(),
-    },
   },
 }))
 
@@ -83,20 +80,16 @@ describe('recalcCartPricesForUser', () => {
       vendorId: null,
     })
 
-    // Mock transaction to execute the callback immediately
-    vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
-      const tx = {
-        cart: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'cart1',
-            clientId: 'client1',
-            status: 'ACTIVE',
-            items: [],
-          }),
-        },
-      }
-      return callback(tx)
-    })
+    // Mock cart query with empty items
+    vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+      id: 'cart1',
+      clientId: 'client1',
+      createdByUserId: 'user1',
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [],
+    } as any)
 
     const diffs = await recalcCartPricesForUser()
 
@@ -114,15 +107,8 @@ describe('recalcCartPricesForUser', () => {
       vendorId: null,
     })
 
-    // Mock transaction to execute the callback immediately
-    vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
-      const tx = {
-        cart: {
-          findFirst: vi.fn().mockResolvedValue(null),
-        },
-      }
-      return callback(tx)
-    })
+    // Mock cart query to return null
+    vi.mocked(prisma.cart.findFirst).mockResolvedValue(null)
 
     const diffs = await recalcCartPricesForUser()
 
@@ -144,23 +130,26 @@ describe('recalcCartPricesForUser', () => {
 
     const mockUpdate = vi.fn()
 
+    // Mock cart query
+    vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+      id: 'cart1',
+      clientId: 'client1',
+      createdByUserId: 'user1',
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [
+        {
+          id: 'item1',
+          vendorProductId: 'vp1',
+          unitPriceCents: 1000, // Same as current price
+        },
+      ],
+    } as any)
+
     // Mock transaction
     vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
       const tx = {
-        cart: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'cart1',
-            clientId: 'client1',
-            status: 'ACTIVE',
-            items: [
-              {
-                id: 'item1',
-                vendorProductId: 'vp1',
-                unitPriceCents: 1000, // Same as current price
-              },
-            ],
-          }),
-        },
         cartItem: {
           update: mockUpdate,
         },
@@ -179,6 +168,12 @@ describe('recalcCartPricesForUser', () => {
 
     // Should not update when price hasn't changed
     expect(mockUpdate).not.toHaveBeenCalled()
+
+    // Verify getEffectivePriceCents was called with correct parameters
+    expect(getEffectivePriceCents).toHaveBeenCalledWith({
+      clientId: 'client1',
+      vendorProductId: 'vp1',
+    })
   })
 
   it('should return diffs with one price decrease', async () => {
@@ -196,23 +191,26 @@ describe('recalcCartPricesForUser', () => {
 
     const mockUpdate = vi.fn()
 
+    // Mock cart query
+    vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+      id: 'cart1',
+      clientId: 'client1',
+      createdByUserId: 'user1',
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [
+        {
+          id: 'item1',
+          vendorProductId: 'vp1',
+          unitPriceCents: 1000, // Old price
+        },
+      ],
+    } as any)
+
     // Mock transaction
     vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
       const tx = {
-        cart: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'cart1',
-            clientId: 'client1',
-            status: 'ACTIVE',
-            items: [
-              {
-                id: 'item1',
-                vendorProductId: 'vp1',
-                unitPriceCents: 1000, // Old price
-              },
-            ],
-          }),
-        },
         cartItem: {
           update: mockUpdate,
         },
@@ -237,6 +235,12 @@ describe('recalcCartPricesForUser', () => {
         updatedAt: expect.any(Date),
       },
     })
+
+    // Verify getEffectivePriceCents was called with correct parameters
+    expect(getEffectivePriceCents).toHaveBeenCalledWith({
+      clientId: 'client1',
+      vendorProductId: 'vp1',
+    })
   })
 
   it('should return diffs with one price increase', async () => {
@@ -254,23 +258,26 @@ describe('recalcCartPricesForUser', () => {
 
     const mockUpdate = vi.fn()
 
+    // Mock cart query
+    vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+      id: 'cart1',
+      clientId: 'client1',
+      createdByUserId: 'user1',
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [
+        {
+          id: 'item1',
+          vendorProductId: 'vp1',
+          unitPriceCents: 1000, // Old price
+        },
+      ],
+    } as any)
+
     // Mock transaction
     vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
       const tx = {
-        cart: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'cart1',
-            clientId: 'client1',
-            status: 'ACTIVE',
-            items: [
-              {
-                id: 'item1',
-                vendorProductId: 'vp1',
-                unitPriceCents: 1000, // Old price
-              },
-            ],
-          }),
-        },
         cartItem: {
           update: mockUpdate,
         },
@@ -295,6 +302,12 @@ describe('recalcCartPricesForUser', () => {
         updatedAt: expect.any(Date),
       },
     })
+
+    // Verify getEffectivePriceCents was called with correct parameters
+    expect(getEffectivePriceCents).toHaveBeenCalledWith({
+      clientId: 'client1',
+      vendorProductId: 'vp1',
+    })
   })
 
   it('should handle multiple items with mixed price changes', async () => {
@@ -316,33 +329,36 @@ describe('recalcCartPricesForUser', () => {
 
     const mockUpdate = vi.fn()
 
+    // Mock cart query
+    vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+      id: 'cart1',
+      clientId: 'client1',
+      createdByUserId: 'user1',
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [
+        {
+          id: 'item1',
+          vendorProductId: 'vp1',
+          unitPriceCents: 1000, // Will decrease to 800
+        },
+        {
+          id: 'item2',
+          vendorProductId: 'vp2',
+          unitPriceCents: 1000, // Will increase to 1500
+        },
+        {
+          id: 'item3',
+          vendorProductId: 'vp3',
+          unitPriceCents: 2000, // Will stay 2000
+        },
+      ],
+    } as any)
+
     // Mock transaction
     vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
       const tx = {
-        cart: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'cart1',
-            clientId: 'client1',
-            status: 'ACTIVE',
-            items: [
-              {
-                id: 'item1',
-                vendorProductId: 'vp1',
-                unitPriceCents: 1000, // Will decrease to 800
-              },
-              {
-                id: 'item2',
-                vendorProductId: 'vp2',
-                unitPriceCents: 1000, // Will increase to 1500
-              },
-              {
-                id: 'item3',
-                vendorProductId: 'vp3',
-                unitPriceCents: 2000, // Will stay 2000
-              },
-            ],
-          }),
-        },
         cartItem: {
           update: mockUpdate,
         },
@@ -385,6 +401,20 @@ describe('recalcCartPricesForUser', () => {
         updatedAt: expect.any(Date),
       },
     })
+
+    // Verify getEffectivePriceCents was called with correct parameters for each item
+    expect(getEffectivePriceCents).toHaveBeenCalledWith({
+      clientId: 'client1',
+      vendorProductId: 'vp1',
+    })
+    expect(getEffectivePriceCents).toHaveBeenCalledWith({
+      clientId: 'client1',
+      vendorProductId: 'vp2',
+    })
+    expect(getEffectivePriceCents).toHaveBeenCalledWith({
+      clientId: 'client1',
+      vendorProductId: 'vp3',
+    })
   })
 
   it('should correctly compute totals after recalculation', async () => {
@@ -405,28 +435,31 @@ describe('recalcCartPricesForUser', () => {
 
     const mockUpdate = vi.fn()
 
+    // Mock cart query
+    vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+      id: 'cart1',
+      clientId: 'client1',
+      createdByUserId: 'user1',
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [
+        {
+          id: 'item1',
+          vendorProductId: 'vp1',
+          unitPriceCents: 1000,
+        },
+        {
+          id: 'item2',
+          vendorProductId: 'vp2',
+          unitPriceCents: 2000,
+        },
+      ],
+    } as any)
+
     // Mock transaction
     vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
       const tx = {
-        cart: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: 'cart1',
-            clientId: 'client1',
-            status: 'ACTIVE',
-            items: [
-              {
-                id: 'item1',
-                vendorProductId: 'vp1',
-                unitPriceCents: 1000,
-              },
-              {
-                id: 'item2',
-                vendorProductId: 'vp2',
-                unitPriceCents: 2000,
-              },
-            ],
-          }),
-        },
         cartItem: {
           update: mockUpdate,
         },
@@ -444,5 +477,15 @@ describe('recalcCartPricesForUser', () => {
     expect(totalOld).toBe(3000) // 1000 + 2000
     expect(totalNew).toBe(2700) // 900 + 1800
     expect(savings).toBe(300) // 10% average discount
+
+    // Verify getEffectivePriceCents was called with correct parameters for each item
+    expect(getEffectivePriceCents).toHaveBeenCalledWith({
+      clientId: 'client1',
+      vendorProductId: 'vp1',
+    })
+    expect(getEffectivePriceCents).toHaveBeenCalledWith({
+      clientId: 'client1',
+      vendorProductId: 'vp2',
+    })
   })
 })

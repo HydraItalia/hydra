@@ -13,7 +13,8 @@ export type PriceChangeDiff = {
 
 /**
  * Recalculate all cart item prices based on current agreements
- * Returns a list of line diffs showing which prices changed
+ * Returns a list of line diffs for all cart items (both changed and unchanged)
+ * showing old and new prices for comparison
  */
 export async function recalcCartPricesForUser(): Promise<PriceChangeDiff[]> {
   const user = await currentUser();
@@ -31,55 +32,53 @@ export async function recalcCartPricesForUser(): Promise<PriceChangeDiff[]> {
   }
 
   const clientId = user.clientId;
-  const diffs: PriceChangeDiff[] = [];
 
-  // Use transaction to ensure atomicity
-  await prisma.$transaction(async (tx) => {
-    // Get active cart with all items
-    const cart = await tx.cart.findFirst({
-      where: {
-        clientId,
-        status: "ACTIVE",
-      },
-      include: {
-        items: {
-          select: {
-            id: true,
-            vendorProductId: true,
-            unitPriceCents: true,
-          },
+  // Fetch cart and items first (outside transaction)
+  const cart = await prisma.cart.findFirst({
+    where: {
+      clientId,
+      status: "ACTIVE",
+    },
+    include: {
+      items: {
+        select: {
+          id: true,
+          vendorProductId: true,
+          unitPriceCents: true,
         },
       },
-    });
+    },
+  });
 
-    // No cart or empty cart = nothing to recalculate
-    if (!cart || cart.items.length === 0) {
-      return;
-    }
+  // No cart or empty cart = nothing to recalculate
+  if (!cart || cart.items.length === 0) {
+    return [];
+  }
 
-    // Recalculate price for each item
-    for (const item of cart.items) {
-      const oldPriceCents = item.unitPriceCents;
-
-      // Get current effective price based on agreements
+  // Fetch all prices outside transaction to avoid long-running transactions
+  const priceUpdates = await Promise.all(
+    cart.items.map(async (item) => {
       const newPriceCents = await getEffectivePriceCents({
         clientId,
         vendorProductId: item.vendorProductId,
       });
 
-      // Track the diff
-      diffs.push({
+      return {
         itemId: item.id,
-        oldPriceCents,
+        oldPriceCents: item.unitPriceCents,
         newPriceCents,
-      });
+      };
+    })
+  );
 
-      // Update cart item with new price if it changed
-      if (oldPriceCents !== newPriceCents) {
+  // Apply updates in a single transaction
+  await prisma.$transaction(async (tx) => {
+    for (const update of priceUpdates) {
+      if (update.oldPriceCents !== update.newPriceCents) {
         await tx.cartItem.update({
-          where: { id: item.id },
+          where: { id: update.itemId },
           data: {
-            unitPriceCents: newPriceCents,
+            unitPriceCents: update.newPriceCents,
             updatedAt: new Date(),
           },
         });
@@ -90,5 +89,5 @@ export async function recalcCartPricesForUser(): Promise<PriceChangeDiff[]> {
   // Revalidate cart page
   revalidatePath("/dashboard/cart");
 
-  return diffs;
+  return priceUpdates;
 }
