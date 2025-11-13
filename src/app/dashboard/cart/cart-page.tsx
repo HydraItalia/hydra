@@ -315,12 +315,11 @@ export function CartPage({ cart }: CartPageProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPriceChanges(new Map())}>
-              Review Cart
-            </AlertDialogCancel>
+            <AlertDialogCancel>Review Cart</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setShowCheckoutConfirm(false);
+                setPriceChanges(new Map());
                 proceedToCheckout();
               }}
             >
