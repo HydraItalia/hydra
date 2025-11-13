@@ -37,6 +37,7 @@ type ProductResult = {
   productName: string;
   unit: ProductUnit;
   categorySlug: string;
+  imageUrl?: string | null;
   bestOffer?: VendorOffer;
   offersCount: number;
 };
@@ -167,6 +168,7 @@ export default async function CatalogPage({
       productName: product.name,
       unit: product.unit as ProductUnit,
       categorySlug: product.category.slug,
+      imageUrl: product.imageUrl,
       bestOffer,
       offersCount: offers.length,
     });

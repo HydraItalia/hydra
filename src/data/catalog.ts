@@ -16,6 +16,7 @@ const productSelect = {
   id: true,
   name: true,
   unit: true,
+  imageUrl: true,
   category: {
     select: {
       slug: true,
@@ -46,6 +47,7 @@ export type CatalogProduct = {
   id: string;
   name: string;
   unit: string;
+  imageUrl: string | null;
   category: {
     slug: string;
     name: string;

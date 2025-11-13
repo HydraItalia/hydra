@@ -6,6 +6,16 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '2mb',
     },
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.pexels.com',
+        port: '',
+        pathname: '/photos/**',
+      },
+    ],
+  },
 }
 
 export default nextConfig
