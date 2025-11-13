@@ -37,6 +37,7 @@ type ProductResult = {
   productName: string;
   unit: ProductUnit;
   categorySlug: string;
+  imageUrl?: string | null;
   bestOffer?: VendorOffer;
   offersCount: number;
 };
@@ -167,6 +168,7 @@ export default async function CatalogPage({
       productName: product.name,
       unit: product.unit as ProductUnit,
       categorySlug: product.category.slug,
+      imageUrl: product.imageUrl,
       bestOffer,
       offersCount: offers.length,
     });
@@ -174,6 +176,9 @@ export default async function CatalogPage({
 
   // Check if any filters are active
   const hasActiveFilters = !!(searchQuery || inStockOnly || categorySlug);
+
+  // Create a unique key for Suspense based on search params to trigger loading state on filter changes
+  const suspenseKey = `${selectedGroup}-${categorySlug || "all"}-${searchQuery || "none"}-${inStockOnly ? "instock" : "all"}-${page}`;
 
   return (
     <div className="space-y-6">
@@ -208,8 +213,8 @@ export default async function CatalogPage({
             }}
           />
 
-          {/* Product Grid */}
-          <Suspense fallback={<CatalogSkeleton />}>
+          {/* Product Grid - key prop triggers loading state on filter changes */}
+          <Suspense key={suspenseKey} fallback={<CatalogSkeleton />}>
             {productResults.length > 0 ? (
               <ProductGridWithDrawer
                 products={productResults}

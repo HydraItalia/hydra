@@ -3,8 +3,9 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProductUnit } from "@prisma/client";
-import { Package } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { getProductImageUrlOptimized } from "@/lib/images";
+import Image from "next/image";
 
 type ProductCardProps = {
   product: {
@@ -12,6 +13,7 @@ type ProductCardProps = {
     productName: string;
     unit: ProductUnit;
     categorySlug: string;
+    imageUrl?: string | null;
     bestOffer?: {
       vendorId: string;
       vendorName: string;
@@ -25,7 +27,15 @@ type ProductCardProps = {
 };
 
 export function ProductCard({ product, onClick }: ProductCardProps) {
-  const { productName, unit, bestOffer, offersCount } = product;
+  const { productName, unit, bestOffer, offersCount, categorySlug, imageUrl } =
+    product;
+
+  const imageSrc = getProductImageUrlOptimized(
+    imageUrl,
+    productName,
+    categorySlug,
+    "card"
+  );
 
   return (
     <Card
@@ -42,9 +52,15 @@ export function ProductCard({ product, onClick }: ProductCardProps) {
       aria-label={`View details for ${productName}`}
     >
       <CardContent className="p-4">
-        {/* Product Image Placeholder */}
-        <div className="aspect-square bg-muted rounded-md mb-4 flex items-center justify-center group-hover:bg-muted/80 transition-colors">
-          <Package className="h-12 w-12 text-muted-foreground" />
+        {/* Product Image */}
+        <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 rounded-md mb-4 overflow-hidden relative group-hover:opacity-90 transition-opacity">
+          <Image
+            src={imageSrc}
+            alt={productName}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          />
         </div>
 
         {/* Product Name */}
