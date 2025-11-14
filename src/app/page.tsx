@@ -3,25 +3,25 @@ import { FeatureCard } from "@/components/home/feature-card";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-rose-50 to-pink-50 dark:from-slate-950 dark:via-slate-900 dark:to-red-950">
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-1/2 -right-1/2 w-96 h-96 bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-3xl"></div>
-          <div className="absolute -bottom-1/2 -left-1/2 w-96 h-96 bg-purple-400/20 dark:bg-purple-600/10 rounded-full blur-3xl"></div>
+          <div className="absolute -top-1/2 -right-1/2 w-96 h-96 bg-red-400/20 dark:bg-red-600/10 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-1/2 -left-1/2 w-96 h-96 bg-pink-400/20 dark:bg-pink-600/10 rounded-full blur-3xl"></div>
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-24">
           {/* Main Hero Content */}
           <div className="text-center space-y-8 mb-20">
             <div className="space-y-6">
-              <h1 className="text-7xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400">
+              <h1 className="text-7xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 dark:from-red-400 dark:via-rose-400 dark:to-pink-400">
                 Hydra
               </h1>
               <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-100">
                 Restaurant Procurement,{" "}
-                <span className="text-blue-600 dark:text-blue-400">
+                <span className="text-red-600 dark:text-red-400">
                   Simplified
                 </span>
               </p>
@@ -36,7 +36,7 @@ export default function HomePage() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
               <Link
                 href="/dashboard/catalog"
-                className="group relative px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
+                className="group relative px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-red-600 to-rose-600 rounded-xl hover:from-red-700 hover:to-rose-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
               >
                 Browse Catalog
                 <span className="ml-2 inline-block transition-transform group-hover:translate-x-1">
@@ -45,7 +45,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/signin"
-                className="px-8 py-4 text-lg font-semibold text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 border-2 border-blue-600 dark:border-blue-400 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
+                className="px-8 py-4 text-lg font-semibold text-red-600 dark:text-red-400 bg-white dark:bg-slate-800 border-2 border-red-600 dark:border-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-slate-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
               >
                 Sign In
               </Link>
@@ -118,7 +118,7 @@ export default function HomePage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="text-center">
-                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-blue-600 dark:text-blue-400">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-red-600 dark:text-red-400">
                   1
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
@@ -130,7 +130,7 @@ export default function HomePage() {
                 </p>
               </div>
               <div className="text-center">
-                <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                <div className="w-16 h-16 bg-rose-100 dark:bg-rose-900 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-rose-600 dark:text-rose-400">
                   2
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
@@ -142,7 +142,7 @@ export default function HomePage() {
                 </p>
               </div>
               <div className="text-center">
-                <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-purple-600 dark:text-purple-400">
+                <div className="w-16 h-16 bg-pink-100 dark:bg-pink-900 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-pink-600 dark:text-pink-400">
                   3
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
@@ -163,7 +163,7 @@ export default function HomePage() {
             </p>
             <Link
               href="/dashboard/catalog"
-              className="inline-block px-10 py-4 text-xl font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-xl hover:shadow-2xl hover:scale-105"
+              className="inline-block px-10 py-4 text-xl font-bold text-white bg-gradient-to-r from-red-600 to-pink-600 rounded-xl hover:from-red-700 hover:to-pink-700 transition-all shadow-xl hover:shadow-2xl hover:scale-105"
             >
               Start Exploring Now
             </Link>
