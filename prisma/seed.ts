@@ -438,7 +438,9 @@ async function main() {
     data: {
       clientId: demoRistorante.id,
       submitterUserId: clientDemoUser.id,
+      orderNumber: 'HYD-20241101-0001',
       status: OrderStatus.SUBMITTED,
+      totalCents: 13950, // Will be calculated: 10*405 + 5*900 + 3*1550
       region: 'Sardegna',
       assignedAgentUserId: andreaAgent.id,
       notes: 'Weekly order for restaurant supplies',
@@ -448,14 +450,26 @@ async function main() {
   // Get vendor products for order items
   const ghiaccioVP = await prisma.vendorProduct.findFirst({
     where: { vendorId: ghiaccioFacile.id, productId: ghiaccioAlimentare.id },
+    include: {
+      product: true,
+      vendor: true,
+    },
   })
 
   const acquaVP = await prisma.vendorProduct.findFirst({
     where: { vendorId: freezco.id, productId: acquaFrizzante.id },
+    include: {
+      product: true,
+      vendor: true,
+    },
   })
 
   const pastaVP = await prisma.vendorProduct.findFirst({
     where: { vendorId: freezco.id, productId: pastaTrafilata.id },
+    include: {
+      product: true,
+      vendor: true,
+    },
   })
 
   // Create order items with price snapshots
@@ -469,6 +483,8 @@ async function main() {
         qty: 10,
         unitPriceCents: effectivePrice, // €4.05 after 10% discount
         lineTotalCents: effectivePrice * 10,
+        productName: ghiaccioVP.product.name,
+        vendorName: ghiaccioVP.vendor.name,
       },
     })
   }
@@ -481,6 +497,8 @@ async function main() {
         qty: 5,
         unitPriceCents: acquaVP.basePriceCents, // €9.00
         lineTotalCents: acquaVP.basePriceCents * 5,
+        productName: acquaVP.product.name,
+        vendorName: acquaVP.vendor.name,
       },
     })
   }
@@ -493,6 +511,8 @@ async function main() {
         qty: 3,
         unitPriceCents: pastaVP.basePriceCents, // €15.50
         lineTotalCents: pastaVP.basePriceCents * 3,
+        productName: pastaVP.product.name,
+        vendorName: pastaVP.vendor.name,
       },
     })
   }

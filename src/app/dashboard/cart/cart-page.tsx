@@ -220,8 +220,7 @@ export function CartPage({ cart }: CartPageProps) {
   };
 
   const proceedToCheckout = () => {
-    // TODO: Navigate to checkout page when implemented
-    toast.info("Checkout flow coming in Phase 5.3");
+    router.push("/dashboard/checkout");
   };
 
   if (!isHydrated) {
