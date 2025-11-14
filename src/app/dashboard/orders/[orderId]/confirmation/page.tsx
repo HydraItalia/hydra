@@ -68,11 +68,6 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
           },
         },
       },
-      client: {
-        select: {
-          name: true,
-        },
-      },
     },
   });
 
@@ -96,14 +91,15 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
   }).format(order.createdAt);
 
   // Get status color
-  const statusColor = {
-    DRAFT: "bg-gray-500",
-    SUBMITTED: "bg-blue-500",
-    CONFIRMED: "bg-green-500",
-    FULFILLING: "bg-yellow-500",
-    DELIVERED: "bg-purple-500",
-    CANCELED: "bg-red-500",
-  }[order.status];
+  const statusColor =
+    {
+      DRAFT: "bg-gray-500",
+      SUBMITTED: "bg-blue-500",
+      CONFIRMED: "bg-green-500",
+      FULFILLING: "bg-yellow-500",
+      DELIVERED: "bg-purple-500",
+      CANCELED: "bg-red-500",
+    }[order.status] || "bg-gray-500";
 
   return (
     <div className="space-y-6">

@@ -1,8 +1,20 @@
 "use server";
 
+import { randomInt } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
 import { recalcCartPricesForUser } from "@/data/cart-recalc";
+
+/**
+ * Calculate line total for an order item
+ * Handles null prices by treating them as 0
+ */
+function calculateLineTotal(
+  unitPriceCents: number | null,
+  qty: number
+): number {
+  return (unitPriceCents ?? 0) * qty;
+}
 
 /**
  * Generate a unique order number in the format: HYD-YYYYMMDD-XXXX
@@ -13,7 +25,7 @@ function generateOrderNumber(): string {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
-  const random = Math.floor(1000 + Math.random() * 9000); // 4-digit random number
+  const random = randomInt(1000, 10000); // 4-digit random number (1000-9999)
 
   return `HYD-${year}${month}${day}-${random}`;
 }
@@ -94,18 +106,22 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
         `Cart item ${item.id} has null or zero price, treating as 0`
       );
     }
-    return sum + priceCents * item.qty;
+    return sum + calculateLineTotal(item.unitPriceCents, item.qty);
   }, 0);
 
   // Validate total is safe
-  if (!Number.isFinite(totalCents) || totalCents > Number.MAX_SAFE_INTEGER) {
-    throw new Error("Order total exceeds maximum safe value");
+  if (
+    !Number.isFinite(totalCents) ||
+    totalCents < 0 ||
+    totalCents > Number.MAX_SAFE_INTEGER
+  ) {
+    throw new Error("Order total is invalid or exceeds safe limits");
   }
 
   // 5. Create order in a transaction
   const result = await prisma.$transaction(async (tx) => {
     // Generate unique order number (with retry logic for uniqueness)
-    let orderNumber: string;
+    let orderNumber = "";
     let attempts = 0;
     const maxAttempts = 5;
 
@@ -133,7 +149,7 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
       data: {
         clientId,
         submitterUserId: userId,
-        orderNumber: orderNumber!,
+        orderNumber,
         status: "SUBMITTED",
         totalCents,
       },
@@ -145,7 +161,7 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
       vendorProductId: item.vendorProductId,
       qty: item.qty,
       unitPriceCents: item.unitPriceCents ?? 0,
-      lineTotalCents: (item.unitPriceCents ?? 0) * item.qty,
+      lineTotalCents: calculateLineTotal(item.unitPriceCents, item.qty),
       productName: item.vendorProduct.product.name,
       vendorName: item.vendorProduct.vendor.name,
     }));

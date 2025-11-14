@@ -11,11 +11,7 @@ export default async function Checkout() {
     redirect("/signin?callbackUrl=/dashboard/checkout");
   }
 
-  if (user.role !== "CLIENT") {
-    redirect("/dashboard");
-  }
-
-  if (!user.clientId) {
+  if (user.role !== "CLIENT" || !user.clientId) {
     redirect("/dashboard");
   }
 

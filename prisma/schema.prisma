@@ -317,7 +317,6 @@ model Order {
   @@index([clientId])
   @@index([status])
   @@index([assignedAgentUserId])
-  @@index([orderNumber])
 }
 
 model OrderItem {
@@ -325,10 +324,10 @@ model OrderItem {
   orderId         String
   vendorProductId String
   qty             Int
-  unitPriceCents  Int    // Snapshot of effective price
-  lineTotalCents  Int    // qty * unitPriceCents (computed)
-  productName     String // Snapshot of product name at time of order
-  vendorName      String // Snapshot of vendor name at time of order
+  unitPriceCents  Int        // Snapshot of effective price
+  lineTotalCents  Int        // qty * unitPriceCents (computed)
+  productName     String     @db.Text // Snapshot of product name at time of order
+  vendorName      String     @db.Text // Snapshot of vendor name at time of order
 
   order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   vendorProduct VendorProduct @relation(fields: [vendorProductId], references: [id])

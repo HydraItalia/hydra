@@ -51,7 +51,9 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
       // Redirect to confirmation page
       router.push(`/dashboard/orders/${orderId}/confirmation`);
     } catch (error) {
-      console.error("Checkout error:", error);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Checkout error:", error);
+      }
 
       if (error instanceof Error) {
         if (error.message === "Cart is empty") {
