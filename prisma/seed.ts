@@ -119,14 +119,28 @@ async function main() {
     },
   });
 
+  // Create CLIENT demo user with configurable email
+  // Use HYDRA_DEMO_CLIENT_EMAIL to seed a real email for testing, or default to demo email
+  const clientDemoEmail =
+    process.env.HYDRA_DEMO_CLIENT_EMAIL?.trim() || "client.demo@hydra.local";
+
+  // Basic email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(clientDemoEmail)) {
+    throw new Error(
+      `Invalid HYDRA_DEMO_CLIENT_EMAIL: "${clientDemoEmail}". Must be a valid email address format (e.g., user@example.com).`
+    );
+  }
+
   const clientDemoUser = await prisma.user.create({
     data: {
-      email: "client.demo@hydra.local",
+      email: clientDemoEmail,
       name: "Demo Restaurant Manager",
       role: Role.CLIENT,
       clientId: demoRistorante.id,
     },
   });
+  console.log(`👤 Created CLIENT user: ${clientDemoEmail}`);
 
   // ===== CATEGORY GROUPS =====
   console.log("📂 Creating category groups...");
