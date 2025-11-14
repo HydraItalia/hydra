@@ -4,6 +4,10 @@ import { randomInt } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
 import { recalcCartPricesForUser } from "@/data/cart-recalc";
+import {
+  buildOrderConfirmationEmail,
+  sendOrderConfirmationEmail,
+} from "@/lib/email";
 
 /**
  * Calculate line total for an order item
@@ -177,8 +181,64 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
       },
     });
 
-    return { orderId: order.id };
+    return { orderId: order.id, orderNumber };
   });
+
+  // 6. Send order confirmation email (best-effort, non-blocking)
+  // Email sending happens AFTER the transaction completes successfully
+  // If email fails, it won't affect the order creation
+  try {
+    // Load full order details for email
+    const fullOrder = await prisma.order.findUnique({
+      where: { id: result.orderId },
+      include: {
+        items: {
+          include: {
+            vendorProduct: {
+              include: {
+                product: {
+                  select: {
+                    name: true,
+                  },
+                },
+                vendor: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (fullOrder) {
+      // Build email payload
+      const emailPayload = buildOrderConfirmationEmail({
+        orderNumber: result.orderNumber,
+        createdAt: fullOrder.createdAt,
+        totalCents: fullOrder.totalCents,
+        clientEmail: user.email!,
+        clientName: user.name,
+        items: fullOrder.items.map((item) => ({
+          productName: item.productName,
+          vendorName: item.vendorName,
+          quantity: item.qty,
+          priceCents: item.unitPriceCents,
+        })),
+      });
+
+      // Send email (non-blocking, logs to console in dev mode)
+      await sendOrderConfirmationEmail(emailPayload);
+    }
+  } catch (emailError) {
+    // Log email error but don't throw - order creation should succeed
+    console.error(
+      `[Hydra] Failed to send order confirmation email for order ${result.orderId}:`,
+      emailError instanceof Error ? emailError.message : emailError
+    );
+  }
 
   return result;
 }

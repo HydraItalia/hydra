@@ -118,6 +118,17 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
               order details and you can track its progress from your orders
               page.
             </p>
+            {process.env.AUTH_EMAIL_DEV_MODE?.toLowerCase() !== "false" ||
+            process.env.NODE_ENV === "development" ? (
+              <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                📧 Order confirmation email has been logged to the server
+                console (DEV MODE)
+              </p>
+            ) : (
+              <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                📧 A confirmation email has been sent to your email address
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

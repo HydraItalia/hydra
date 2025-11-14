@@ -251,8 +251,11 @@ describe("createOrderFromCart", () => {
       },
     });
 
-    // Verify result
-    expect(result).toEqual({ orderId: "order1" });
+    // Verify result includes orderId and orderNumber
+    expect(result).toEqual({
+      orderId: "order1",
+      orderNumber: expect.stringMatching(/^HYD-\d{8}-\d{4}$/),
+    });
 
     // Verify recalcCartPricesForUser was called
     expect(recalcCartPricesForUser).toHaveBeenCalled();
