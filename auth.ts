@@ -4,6 +4,17 @@ import EmailProvider from 'next-auth/providers/email'
 import { authConfig } from './auth.config'
 import { prisma } from '@/lib/prisma'
 
+/**
+ * NextAuth Configuration for Hydra
+ *
+ * Email Authentication:
+ * - AUTH_EMAIL_DEV_MODE not set or "true" (default): Magic links are logged to terminal only
+ * - AUTH_EMAIL_DEV_MODE="false" (case-insensitive): Magic links are logged AND sent via EMAIL_SERVER
+ *
+ * All user roles (ADMIN, AGENT, VENDOR, CLIENT) can sign in via magic link.
+ * Role-specific access is controlled by RoleGate components and auth callbacks.
+ */
+
 export const {
   handlers: { GET, POST },
   auth,
@@ -18,15 +29,26 @@ export const {
       server: process.env.EMAIL_SERVER || 'smtp://localhost:25',
       from: process.env.EMAIL_FROM || 'hydra@localhost.dev',
       sendVerificationRequest: async ({ identifier: email, url, provider }) => {
-        if (process.env.NODE_ENV === 'development' && !process.env.EMAIL_SERVER) {
-          // In development without SMTP, just log the URL
+        // Check if dev mode is enabled
+        // Defaults to true if not set or if NODE_ENV is development
+        // Only when explicitly set to "false" (case-insensitive) will emails be sent
+        const isDevMode =
+          process.env.AUTH_EMAIL_DEV_MODE?.toLowerCase() !== 'false' ||
+          process.env.NODE_ENV === 'development'
+
+        // Always log the magic link in development for debugging
+        if (isDevMode) {
           console.log('\n📧 Magic Link for', email)
           console.log('🔗 Click here to sign in:', url)
           console.log('\n')
+        }
+
+        // If dev mode is enabled, only log (don't send email)
+        if (isDevMode) {
           return
         }
 
-        // Otherwise use default nodemailer
+        // Production mode: send actual email
         const nodemailer = await import('nodemailer')
         const transport = nodemailer.createTransport(provider.server)
         await transport.sendMail({
