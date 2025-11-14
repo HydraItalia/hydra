@@ -298,7 +298,9 @@ model Order {
   id                  String      @id @default(cuid())
   clientId            String
   submitterUserId     String
+  orderNumber         String      @unique
   status              OrderStatus @default(DRAFT)
+  totalCents          Int         // Total order amount in cents
   region              String?
   assignedAgentUserId String?
   notes               String?     @db.Text
@@ -322,8 +324,10 @@ model OrderItem {
   orderId         String
   vendorProductId String
   qty             Int
-  unitPriceCents  Int    // Snapshot of effective price
-  lineTotalCents  Int    // qty * unitPriceCents (computed)
+  unitPriceCents  Int        // Snapshot of effective price
+  lineTotalCents  Int        // qty * unitPriceCents (computed)
+  productName     String     @db.Text // Snapshot of product name at time of order
+  vendorName      String     @db.Text // Snapshot of vendor name at time of order
 
   order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   vendorProduct VendorProduct @relation(fields: [vendorProductId], references: [id])
