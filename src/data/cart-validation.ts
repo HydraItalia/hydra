@@ -18,7 +18,8 @@ export type CartValidationCode =
   | "INSUFFICIENT_STOCK"
   | "VENDOR_INACTIVE"
   | "VENDOR_MISSING"
-  | "UNKNOWN_PRODUCT";
+  | "UNKNOWN_PRODUCT"
+  | "INVALID_QUANTITY";
 
 /**
  * A single validation issue for a cart item
@@ -120,6 +121,19 @@ export async function validateCartForCurrentUser(): Promise<CartValidationResult
 
   for (const item of cart.items) {
     const quantityRequested = item.qty;
+
+    // Validate quantity is positive
+    if (quantityRequested <= 0) {
+      issues.push({
+        cartItemId: item.id,
+        vendorProductId: item.vendorProductId,
+        severity: "error",
+        code: "INVALID_QUANTITY",
+        message: "Invalid quantity in cart. Please remove this item and re-add it.",
+        quantityRequested,
+      });
+      continue;
+    }
 
     // Check if vendor product still exists
     if (!item.vendorProduct) {

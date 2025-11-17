@@ -52,8 +52,7 @@ function mapUnit(csvUnit: string): ProductUnit {
   if (unitLower.includes("kg") || unitLower === "g") return "KG";
   if (unitLower.includes("lt") || unitLower.includes("l ")) return "L";
   if (unitLower.includes("unit")) return "PIECE";
-  if (unitLower.includes("box") || unitLower.includes("crt"))
-    return "BOX";
+  if (unitLower.includes("box") || unitLower.includes("crt")) return "BOX";
   if (unitLower.includes("service")) return "SERVICE";
 
   // Default to PIECE for anything else
@@ -87,12 +86,7 @@ async function main() {
   for (const csvFile of csvFiles) {
     console.log(`📄 Processing ${csvFile}...`);
 
-    const filePath = join(
-      __dirname,
-      "seed-data",
-      "vendors",
-      csvFile
-    );
+    const filePath = join(__dirname, "seed-data", "vendors", csvFile);
     const content = readFileSync(filePath, "utf-8");
     const rows = parseCSV(content);
 
@@ -148,7 +142,7 @@ async function main() {
           }
 
           const categoryGroup = await prisma.categoryGroup.findFirst({
-            where: { name: groupName },
+            where: { name: groupName as any },
           });
 
           if (categoryGroup) {

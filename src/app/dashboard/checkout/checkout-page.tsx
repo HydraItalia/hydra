@@ -64,6 +64,19 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
 
   const totalCents = subtotalCents;
 
+  // Helper function to map validation codes to user-friendly titles
+  const getValidationTitle = (code: string): string => {
+    const titles: Record<string, string> = {
+      OUT_OF_STOCK: "Out of Stock",
+      INSUFFICIENT_STOCK: "Insufficient Stock",
+      UNKNOWN_PRODUCT: "Product Unavailable",
+      VENDOR_MISSING: "Vendor Unavailable",
+      INVALID_QUANTITY: "Invalid Quantity",
+      VENDOR_INACTIVE: "Vendor Inactive",
+    };
+    return titles[code] || "Validation Error";
+  };
+
   const handleConfirmOrder = async () => {
     setIsSubmitting(true);
 
@@ -281,13 +294,7 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
               .map((issue, index) => (
                 <Alert key={index} variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>
-                    {issue.code === "OUT_OF_STOCK" && "Out of Stock"}
-                    {issue.code === "INSUFFICIENT_STOCK" &&
-                      "Insufficient Stock"}
-                    {issue.code === "UNKNOWN_PRODUCT" && "Product Unavailable"}
-                    {issue.code === "VENDOR_MISSING" && "Vendor Unavailable"}
-                  </AlertTitle>
+                  <AlertTitle>{getValidationTitle(issue.code)}</AlertTitle>
                   <AlertDescription>
                     <p>{issue.message}</p>
                     {issue.quantityRequested && (
@@ -307,21 +314,13 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
               .map((issue, index) => (
                 <Alert key={`warning-${index}`}>
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>
-                    {issue.code === "VENDOR_INACTIVE" && "Vendor Inactive"}
-                  </AlertTitle>
+                  <AlertTitle>{getValidationTitle(issue.code)}</AlertTitle>
                   <AlertDescription>{issue.message}</AlertDescription>
                 </Alert>
               ))}
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowValidationDialog(false)}
-            >
-              Review Cart
-            </Button>
             <Button asChild>
               <Link href="/dashboard/cart">Back to Cart</Link>
             </Button>

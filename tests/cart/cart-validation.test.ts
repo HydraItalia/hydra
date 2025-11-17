@@ -380,6 +380,112 @@ describe("validateCartForCurrentUser", () => {
     });
   });
 
+  describe("Quantity Validation", () => {
+    it("should return INVALID_QUANTITY error when qty is 0", async () => {
+      vi.mocked(currentUser).mockResolvedValue({
+        id: "user1",
+        email: "client@test.com",
+        role: "CLIENT",
+        clientId: "client1",
+        name: "Client",
+        agentCode: null,
+        vendorId: null,
+      });
+
+      vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+        id: "cart1",
+        clientId: "client1",
+        createdByUserId: "user1",
+        status: "ACTIVE",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        items: [
+          {
+            id: "item1",
+            cartId: "cart1",
+            vendorProductId: "vp1",
+            qty: 0,
+            unitPriceCents: 1000,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            vendorProduct: {
+              id: "vp1",
+              stockQty: 100,
+              isActive: true,
+              product: {
+                name: "Test Product",
+              },
+              vendor: {
+                name: "Test Vendor",
+              },
+            },
+          },
+        ],
+      } as any);
+
+      const result = await validateCartForCurrentUser();
+
+      expect(result.ok).toBe(false);
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0]).toMatchObject({
+        cartItemId: "item1",
+        severity: "error",
+        code: "INVALID_QUANTITY",
+        message: "Invalid quantity in cart. Please remove this item and re-add it.",
+        quantityRequested: 0,
+      });
+    });
+
+    it("should return INVALID_QUANTITY error when qty is negative", async () => {
+      vi.mocked(currentUser).mockResolvedValue({
+        id: "user1",
+        email: "client@test.com",
+        role: "CLIENT",
+        clientId: "client1",
+        name: "Client",
+        agentCode: null,
+        vendorId: null,
+      });
+
+      vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+        id: "cart1",
+        clientId: "client1",
+        createdByUserId: "user1",
+        status: "ACTIVE",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        items: [
+          {
+            id: "item1",
+            cartId: "cart1",
+            vendorProductId: "vp1",
+            qty: -5,
+            unitPriceCents: 1000,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            vendorProduct: {
+              id: "vp1",
+              stockQty: 100,
+              isActive: true,
+              product: {
+                name: "Test Product",
+              },
+              vendor: {
+                name: "Test Vendor",
+              },
+            },
+          },
+        ],
+      } as any);
+
+      const result = await validateCartForCurrentUser();
+
+      expect(result.ok).toBe(false);
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0].code).toBe("INVALID_QUANTITY");
+    });
+  });
+
   describe("Product Availability Validation", () => {
     it("should return UNKNOWN_PRODUCT error when vendorProduct is null", async () => {
       vi.mocked(currentUser).mockResolvedValue({
