@@ -366,17 +366,9 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
                 {delivery.deliveredAt
                   ? format(new Date(delivery.deliveredAt), "PPP p")
                   : (() => {
-                      // Inconsistent state: status is DELIVERED but deliveredAt is missing.
-                      // Log for debugging/telemetry while avoiding thrown exceptions in the UI.
-                      try {
-                        // eslint-disable-next-line no-console
-                        console.warn(
-                          `Delivery ${delivery.id} is DELIVERED but deliveredAt is missing`
-                        );
-                      } catch (e) {
-                        // ignore logging failures
-                      }
-
+                      console.warn(
+                        `Delivery ${delivery.id} is DELIVERED but deliveredAt is missing`
+                      );
                       return "Delivered date unavailable";
                     })()}
               </p>

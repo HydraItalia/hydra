@@ -50,16 +50,21 @@ export async function canManageVendor(
 
   // Agent: check assignment (would need to query AgentVendor)
   if (user.role === "AGENT") {
-    const { prisma } = await import("./prisma");
-    const assignment = await prisma.agentVendor.findUnique({
-      where: {
-        userId_vendorId: {
-          userId: user.id,
-          vendorId,
+    try {
+      const { prisma } = await import("./prisma");
+      const assignment = await prisma.agentVendor.findUnique({
+        where: {
+          userId_vendorId: {
+            userId: user.id,
+            vendorId,
+          },
         },
-      },
-    });
-    return !!assignment;
+      });
+      return !!assignment;
+    } catch (error) {
+      console.error("Error checking vendor permissions:", error);
+      return false;
+    }
   }
 
   return false;
@@ -85,16 +90,21 @@ export async function canManageClient(
 
   // Agent: check assignment
   if (user.role === "AGENT") {
-    const { prisma } = await import("./prisma");
-    const assignment = await prisma.agentClient.findUnique({
-      where: {
-        userId_clientId: {
-          userId: user.id,
-          clientId,
+    try {
+      const { prisma } = await import("./prisma");
+      const assignment = await prisma.agentClient.findUnique({
+        where: {
+          userId_clientId: {
+            userId: user.id,
+            clientId,
+          },
         },
-      },
-    });
-    return !!assignment;
+      });
+      return !!assignment;
+    } catch (error) {
+      console.error("Error checking client permissions:", error);
+      return false;
+    }
   }
 
   return false;

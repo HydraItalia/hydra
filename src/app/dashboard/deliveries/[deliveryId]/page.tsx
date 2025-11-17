@@ -40,6 +40,10 @@ export default async function DeliveryDetailPage({
     notFound();
   }
 
+  if (!delivery) {
+    notFound();
+  }
+
   // Verify the delivery belongs to this driver
   if (delivery.driverId !== user.driverId) {
     console.warn(
