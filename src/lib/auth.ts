@@ -1,15 +1,15 @@
-import { auth } from '@/../../auth'
-import { redirect } from 'next/navigation'
+import { auth } from "@/../../auth";
+import { redirect } from "next/navigation";
 
-type Role = 'ADMIN' | 'AGENT' | 'VENDOR' | 'CLIENT'
+type Role = "ADMIN" | "AGENT" | "VENDOR" | "CLIENT" | "DRIVER";
 
 /**
  * Get the current authenticated user
  * Returns null if not authenticated
  */
 export async function currentUser() {
-  const session = await auth()
-  return session?.user ?? null
+  const session = await auth();
+  return session?.user ?? null;
 }
 
 /**
@@ -17,17 +17,17 @@ export async function currentUser() {
  * Redirects to signin if not authenticated or not authorized
  */
 export async function requireRole(...allowedRoles: Role[]) {
-  const user = await currentUser()
+  const user = await currentUser();
 
   if (!user) {
-    redirect('/signin')
+    redirect("/signin");
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    redirect('/unauthorized')
+    redirect("/unauthorized");
   }
 
-  return user
+  return user;
 }
 
 /**
@@ -40,29 +40,34 @@ export async function canManageVendor(
   user: Awaited<ReturnType<typeof currentUser>>,
   vendorId: string
 ): Promise<boolean> {
-  if (!user) return false
+  if (!user) return false;
 
   // Admin can manage all vendors
-  if (user.role === 'ADMIN') return true
+  if (user.role === "ADMIN") return true;
 
   // Vendor can only manage their own
-  if (user.role === 'VENDOR' && user.vendorId === vendorId) return true
+  if (user.role === "VENDOR" && user.vendorId === vendorId) return true;
 
   // Agent: check assignment (would need to query AgentVendor)
-  if (user.role === 'AGENT') {
-    const { prisma } = await import('./prisma')
-    const assignment = await prisma.agentVendor.findUnique({
-      where: {
-        userId_vendorId: {
-          userId: user.id,
-          vendorId,
+  if (user.role === "AGENT") {
+    try {
+      const { prisma } = await import("./prisma");
+      const assignment = await prisma.agentVendor.findUnique({
+        where: {
+          userId_vendorId: {
+            userId: user.id,
+            vendorId,
+          },
         },
-      },
-    })
-    return !!assignment
+      });
+      return !!assignment;
+    } catch (error) {
+      console.error("Error checking vendor permissions:", error);
+      return false;
+    }
   }
 
-  return false
+  return false;
 }
 
 /**
@@ -75,27 +80,65 @@ export async function canManageClient(
   user: Awaited<ReturnType<typeof currentUser>>,
   clientId: string
 ): Promise<boolean> {
-  if (!user) return false
+  if (!user) return false;
 
   // Admin can manage all clients
-  if (user.role === 'ADMIN') return true
+  if (user.role === "ADMIN") return true;
 
   // Client can only manage their own
-  if (user.role === 'CLIENT' && user.clientId === clientId) return true
+  if (user.role === "CLIENT" && user.clientId === clientId) return true;
 
   // Agent: check assignment
-  if (user.role === 'AGENT') {
-    const { prisma } = await import('./prisma')
-    const assignment = await prisma.agentClient.findUnique({
-      where: {
-        userId_clientId: {
-          userId: user.id,
-          clientId,
+  if (user.role === "AGENT") {
+    try {
+      const { prisma } = await import("./prisma");
+      const assignment = await prisma.agentClient.findUnique({
+        where: {
+          userId_clientId: {
+            userId: user.id,
+            clientId,
+          },
         },
-      },
-    })
-    return !!assignment
+      });
+      return !!assignment;
+    } catch (error) {
+      console.error("Error checking client permissions:", error);
+      return false;
+    }
   }
 
-  return false
+  return false;
+}
+
+/**
+ * Check if user can manage a specific delivery
+ * Admin: all deliveries
+ * Agent: all deliveries
+ * Driver: their own deliveries only
+ */
+export async function canManageDelivery(
+  user: Awaited<ReturnType<typeof currentUser>>,
+  deliveryId: string
+): Promise<boolean> {
+  if (!user) return false;
+
+  // Admin and Agent can manage all deliveries
+  if (user.role === "ADMIN" || user.role === "AGENT") return true;
+
+  // Driver can only manage their own deliveries
+  if (user.role === "DRIVER" && user.driverId) {
+    try {
+      const { prisma } = await import("./prisma");
+      const delivery = await prisma.delivery.findUnique({
+        where: { id: deliveryId },
+        select: { driverId: true },
+      });
+      return delivery?.driverId === user.driverId;
+    } catch (error) {
+      console.error("Error checking delivery permissions:", error);
+      return false;
+    }
+  }
+
+  return false;
 }

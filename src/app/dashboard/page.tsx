@@ -18,6 +18,9 @@ import {
   Users,
   TrendingUp,
   AlertTriangle,
+  Truck,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -37,6 +40,8 @@ export default async function DashboardPage() {
       return <VendorDashboard user={user} />;
     case "CLIENT":
       return <ClientDashboard user={user} />;
+    case "DRIVER":
+      return <DriverDashboard user={user} />;
     default:
       return <div>Unauthorized</div>;
   }
@@ -338,6 +343,166 @@ async function ClientDashboard({
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// Driver Dashboard
+async function DriverDashboard({
+  user,
+}: {
+  user: { driverId?: string | null; name?: string | null; email: string };
+}) {
+  if (!user.driverId) {
+    return <div>No driver associated with this account</div>;
+  }
+
+  // Fetch driver statistics
+  const [
+    assignedCount,
+    pickedUpCount,
+    inTransitCount,
+    deliveredTodayCount,
+    totalDeliveries,
+  ] = await Promise.all([
+    prisma.delivery.count({
+      where: { driverId: user.driverId, status: "ASSIGNED" },
+    }),
+    prisma.delivery.count({
+      where: { driverId: user.driverId, status: "PICKED_UP" },
+    }),
+    prisma.delivery.count({
+      where: { driverId: user.driverId, status: "IN_TRANSIT" },
+    }),
+    prisma.delivery.count({
+      where: {
+        driverId: user.driverId,
+        status: "DELIVERED",
+        deliveredAt: {
+          gte: new Date(new Date().setHours(0, 0, 0, 0)), // Start of today
+        },
+      },
+    }),
+    prisma.delivery.count({
+      where: { driverId: user.driverId },
+    }),
+  ]);
+
+  // Get next deliveries (assigned or picked up)
+  const nextDeliveries = await prisma.delivery.findMany({
+    where: {
+      driverId: user.driverId,
+      status: { in: ["ASSIGNED", "PICKED_UP", "IN_TRANSIT"] },
+    },
+    take: 5,
+    orderBy: { assignedAt: "asc" },
+    include: {
+      order: {
+        include: {
+          client: true,
+        },
+      },
+    },
+  });
+
+  const activeDeliveries = assignedCount + pickedUpCount + inTransitCount;
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        title="Driver Dashboard"
+        subtitle={`Welcome back, ${user.name || user.email}`}
+        action={
+          <Button asChild>
+            <Link href="/dashboard/deliveries">View All Deliveries</Link>
+          </Button>
+        }
+      />
+
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <DataCard
+          title="Active Deliveries"
+          value={activeDeliveries}
+          icon={Truck}
+        />
+        <DataCard
+          title="Delivered Today"
+          value={deliveredTodayCount}
+          icon={CheckCircle2}
+        />
+        <DataCard title="In Transit" value={inTransitCount} icon={Clock} />
+        <DataCard
+          title="Total Deliveries"
+          value={totalDeliveries}
+          icon={Package}
+        />
+      </div>
+
+      {/* Next Deliveries */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Next Deliveries</CardTitle>
+            <CardDescription>
+              Your upcoming deliveries in priority order
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {nextDeliveries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No active deliveries
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {nextDeliveries.map((delivery) => (
+                  <div
+                    key={delivery.id}
+                    className="flex items-center justify-between border-b pb-2 last:border-0"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">
+                        {delivery.order.orderNumber}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {delivery.order.client.name} •{" "}
+                        {delivery.status.replace(/_/g, " ")}
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/dashboard/deliveries/${delivery.id}`}>
+                        View
+                      </Link>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Manage your deliveries</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button className="w-full" asChild>
+              <Link href="/dashboard/deliveries">View All Deliveries</Link>
+            </Button>
+            <Button className="w-full" variant="outline" asChild>
+              <Link href="/dashboard/deliveries?status=ASSIGNED">
+                Pending Pickups ({assignedCount})
+              </Link>
+            </Button>
+            <Button className="w-full" variant="outline" asChild>
+              <Link href="/dashboard/deliveries?status=IN_TRANSIT">
+                In Transit ({inTransitCount})
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

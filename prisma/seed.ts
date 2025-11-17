@@ -5,6 +5,8 @@ import {
   ProductUnit,
   PriceMode,
   OrderStatus,
+  DeliveryStatus,
+  DriverStatus,
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -15,6 +17,7 @@ async function main() {
   // Clean existing data (in order to avoid FK constraints)
   console.log("🧹 Cleaning existing data...");
   await prisma.auditLog.deleteMany();
+  await prisma.delivery.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.cartItem.deleteMany();
@@ -28,6 +31,7 @@ async function main() {
   await prisma.categoryGroup.deleteMany();
   await prisma.client.deleteMany();
   await prisma.vendor.deleteMany();
+  await prisma.driver.deleteMany();
   await prisma.account.deleteMany();
   await prisma.session.deleteMany();
   await prisma.verificationToken.deleteMany();
@@ -558,25 +562,156 @@ async function main() {
     });
   }
 
+  // ===== DRIVERS =====
+  console.log("🚚 Creating drivers...");
+
+  const marcoDriver = await prisma.driver.create({
+    data: {
+      name: "Marco Rossi",
+      phone: "+39 333 1234567",
+      status: DriverStatus.ONLINE,
+    },
+  });
+
+  const giuliaDriver = await prisma.driver.create({
+    data: {
+      name: "Giulia Bianchi",
+      phone: "+39 334 7654321",
+      status: DriverStatus.OFFLINE,
+    },
+  });
+
+  // Create driver users
+  const driverMarcoUser = await prisma.user.create({
+    data: {
+      email: "driver.marco@hydra.local",
+      name: "Marco Rossi",
+      role: Role.DRIVER,
+      driverId: marcoDriver.id,
+    },
+  });
+
+  const driverGiuliaUser = await prisma.user.create({
+    data: {
+      email: "driver.giulia@hydra.local",
+      name: "Giulia Bianchi",
+      role: Role.DRIVER,
+      driverId: giuliaDriver.id,
+    },
+  });
+
+  // ===== DELIVERIES =====
+  console.log("📦 Creating deliveries...");
+
+  // Assign delivery to demo order
+  const delivery1 = await prisma.delivery.create({
+    data: {
+      orderId: demoOrder.id,
+      driverId: marcoDriver.id,
+      status: DeliveryStatus.ASSIGNED,
+      notes: "First delivery - demo order",
+    },
+  });
+
+  // Create additional orders for more delivery scenarios
+  const order2 = await prisma.order.create({
+    data: {
+      clientId: demoRistorante.id,
+      submitterUserId: clientDemoUser.id,
+      orderNumber: "HYD-20241115-0002",
+      status: OrderStatus.CONFIRMED,
+      totalCents: 8100, // 20 * 405 (discounted ghiaccio)
+      region: "Sardegna",
+      assignedAgentUserId: andreaAgent.id,
+      notes: "Weekly fresh produce order",
+    },
+  });
+
+  if (ghiaccioVP) {
+    await prisma.orderItem.create({
+      data: {
+        orderId: order2.id,
+        vendorProductId: ghiaccioVP.id,
+        qty: 20,
+        unitPriceCents: Math.round(ghiaccioVP.basePriceCents * 0.9),
+        lineTotalCents: Math.round(ghiaccioVP.basePriceCents * 0.9) * 20,
+        productName: ghiaccioVP.product.name,
+        vendorName: ghiaccioVP.vendor.name,
+      },
+    });
+  }
+
+  const delivery2 = await prisma.delivery.create({
+    data: {
+      orderId: order2.id,
+      driverId: marcoDriver.id,
+      status: DeliveryStatus.PICKED_UP,
+      notes: "Picked up from warehouse",
+      pickedUpAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+    },
+  });
+
+  const order3 = await prisma.order.create({
+    data: {
+      clientId: demoRistorante.id,
+      submitterUserId: clientDemoUser.id,
+      orderNumber: "HYD-20241115-0003",
+      status: OrderStatus.FULFILLING,
+      totalCents: 10800, // 12 * 900 (acqua)
+      region: "Sardegna",
+      assignedAgentUserId: manueleAgent.id,
+      notes: "Urgent beverage restocking",
+    },
+  });
+
+  if (acquaVP) {
+    await prisma.orderItem.create({
+      data: {
+        orderId: order3.id,
+        vendorProductId: acquaVP.id,
+        qty: 12,
+        unitPriceCents: acquaVP.basePriceCents,
+        lineTotalCents: acquaVP.basePriceCents * 12,
+        productName: acquaVP.product.name,
+        vendorName: acquaVP.vendor.name,
+      },
+    });
+  }
+
+  const delivery3 = await prisma.delivery.create({
+    data: {
+      orderId: order3.id,
+      driverId: giuliaDriver.id,
+      status: DeliveryStatus.IN_TRANSIT,
+      notes: "On the way to customer",
+      pickedUpAt: new Date(Date.now() - 90 * 60 * 1000), // 90 minutes ago
+      inTransitAt: new Date(Date.now() - 60 * 60 * 1000), // 60 minutes ago
+    },
+  });
+
   console.log("✅ Seed completed successfully!");
   console.log("\n📊 Summary:");
-  console.log(`- Users: 6 (1 admin, 2 agents, 2 vendors, 1 client)`);
+  console.log(`- Users: 8 (1 admin, 2 agents, 2 vendors, 1 client, 2 drivers)`);
   console.log(`- Vendors: 3`);
   console.log(`- Clients: 1`);
+  console.log(`- Drivers: 2`);
   console.log(`- Category Groups: 3`);
   console.log(`- Categories: 16`);
   console.log(`- Products: 8`);
   console.log(`- Vendor Products: 7`);
   console.log(`- Agreements: 1`);
   console.log(`- Agent Assignments: 3`);
-  console.log(`- Demo Orders: 1 with 3 items`);
+  console.log(`- Demo Orders: 3 with items`);
+  console.log(`- Deliveries: 3 (1 assigned, 1 picked up, 1 in transit)`);
   console.log("\n🔐 Test Users:");
   console.log("- admin@hydra.local (ADMIN)");
   console.log("- andrea@hydra.local (AGENT)");
   console.log("- manuele@hydra.local (AGENT)");
   console.log("- vendor.freezco@hydra.local (VENDOR)");
   console.log("- vendor.ghiaccio@hydra.local (VENDOR)");
-  console.log("- client.demo@hydra.local (CLIENT)");
+  console.log(`- ${clientDemoEmail} (CLIENT)`);
+  console.log("- driver.marco@hydra.local (DRIVER - has 2 deliveries)");
+  console.log("- driver.giulia@hydra.local (DRIVER - has 1 delivery)");
 }
 
 main()
