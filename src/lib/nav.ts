@@ -7,7 +7,6 @@ import {
   FileText,
   BarChart3,
   Warehouse,
-  Handshake,
   GitBranch,
   type LucideIcon,
 } from 'lucide-react'
@@ -95,11 +94,6 @@ export function getNavItems(role: Role): NavItem[] {
           label: 'Catalog',
           href: '/dashboard/catalog',
           icon: Package,
-        },
-        {
-          label: 'My Agreements',
-          href: '/dashboard/agreements',
-          icon: Handshake,
         },
         {
           label: 'My Cart',
