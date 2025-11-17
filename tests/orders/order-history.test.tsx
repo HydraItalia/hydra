@@ -140,7 +140,7 @@ describe("Order History - fetchOrdersForClient", () => {
         {
           id: "order1",
           orderNumber: "HYD-20241114-1234",
-          createdAt: new Date("2024-11-14T10:00:00Z"),
+          createdAt: "2024-11-14T10:00:00.000Z",
           status: "SUBMITTED",
           totalCents: 10000,
           itemCount: 3,
@@ -148,7 +148,7 @@ describe("Order History - fetchOrdersForClient", () => {
         {
           id: "order2",
           orderNumber: "HYD-20241113-5678",
-          createdAt: new Date("2024-11-13T15:30:00Z"),
+          createdAt: "2024-11-13T15:30:00.000Z",
           status: "CONFIRMED",
           totalCents: 25000,
           itemCount: 5,
@@ -365,7 +365,7 @@ describe("Order History - fetchOrderById", () => {
       vendorId: null,
     });
 
-    const mockOrder = {
+    const mockOrderFromDb = {
       id: "order1",
       orderNumber: "HYD-20241114-1234",
       createdAt: new Date("2024-11-14T10:00:00Z"),
@@ -392,9 +392,14 @@ describe("Order History - fetchOrderById", () => {
       ],
     };
 
-    vi.mocked(prisma.order.findFirst).mockResolvedValue(mockOrder as any);
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(mockOrderFromDb as any);
 
     const result = await fetchOrderById("order1");
+
+    const expectedResult = {
+      ...mockOrderFromDb,
+      createdAt: "2024-11-14T10:00:00.000Z",
+    };
 
     // Verify authorization in query
     expect(prisma.order.findFirst).toHaveBeenCalledWith({
@@ -427,7 +432,7 @@ describe("Order History - fetchOrderById", () => {
     });
 
     // Verify result
-    expect(result).toEqual(mockOrder);
+    expect(result).toEqual(expectedResult);
   });
 
   it("should enforce authorization - CLIENT cannot view other CLIENT's orders", async () => {

@@ -4,13 +4,36 @@ import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
 
 /**
+ * Shared authorization helper for CLIENT users
+ * @returns clientId for the authenticated CLIENT user
+ * @throws Error if user is not authenticated, not a CLIENT, or has no clientId
+ */
+async function requireClientUser(): Promise<string> {
+  const user = await currentUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  if (user.role !== "CLIENT") {
+    throw new Error("Only CLIENT users can access orders");
+  }
+
+  if (!user.clientId) {
+    throw new Error("User does not have an associated client");
+  }
+
+  return user.clientId;
+}
+
+/**
  * Paginated orders result
  */
 export type OrdersResult = {
   data: {
     id: string;
     orderNumber: string;
-    createdAt: Date;
+    createdAt: string;
     status: string;
     totalCents: number;
     itemCount: number;
@@ -27,7 +50,7 @@ export type OrdersResult = {
 export type OrderDetail = {
   id: string;
   orderNumber: string;
-  createdAt: Date;
+  createdAt: string;
   status: string;
   totalCents: number;
   clientId: string;
@@ -56,21 +79,7 @@ export async function fetchOrdersForClient(params: {
   pageSize: number;
 }): Promise<OrdersResult> {
   // 1. Authorization check
-  const user = await currentUser();
-
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  if (user.role !== "CLIENT") {
-    throw new Error("Only CLIENT users can access orders");
-  }
-
-  if (!user.clientId) {
-    throw new Error("User does not have an associated client");
-  }
-
-  const clientId = user.clientId;
+  const clientId = await requireClientUser();
 
   // 2. Parse and validate pagination params
   const page = Math.max(params.page, 1);
@@ -114,7 +123,7 @@ export async function fetchOrdersForClient(params: {
   const data = orders.map((order) => ({
     id: order.id,
     orderNumber: order.orderNumber,
-    createdAt: order.createdAt,
+    createdAt: order.createdAt.toISOString(),
     status: order.status,
     totalCents: order.totalCents,
     itemCount: order._count.items,
@@ -142,21 +151,7 @@ export async function fetchOrdersForClient(params: {
  */
 export async function fetchOrderById(orderId: string): Promise<OrderDetail> {
   // 1. Authorization check
-  const user = await currentUser();
-
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  if (user.role !== "CLIENT") {
-    throw new Error("Only CLIENT users can access orders");
-  }
-
-  if (!user.clientId) {
-    throw new Error("User does not have an associated client");
-  }
-
-  const clientId = user.clientId;
+  const clientId = await requireClientUser();
 
   // 2. Fetch order with authorization
   const order = await prisma.order.findFirst({
@@ -193,5 +188,8 @@ export async function fetchOrderById(orderId: string): Promise<OrderDetail> {
     throw new Error("Order not found");
   }
 
-  return order;
+  return {
+    ...order,
+    createdAt: order.createdAt.toISOString(),
+  };
 }

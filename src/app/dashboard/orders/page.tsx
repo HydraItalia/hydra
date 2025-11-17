@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
@@ -24,7 +23,6 @@ import {
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Package, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { OrdersListSkeleton } from "./orders-list-skeleton";
 
 type SearchParams = {
   page?: string;
@@ -87,9 +85,9 @@ export default async function OrdersPage({
 
   // 2. Parse search params
   const params = await searchParams;
-  const page = Math.max(parseInt(params.page || "1"), 1);
+  const page = Math.max(parseInt(params.page || "1", 10) || 1, 1);
   const pageSize = Math.min(
-    Math.max(parseInt(params.pageSize || "20"), 10),
+    Math.max(parseInt(params.pageSize || "20", 10) || 20, 10),
     100
   );
 
@@ -103,89 +101,87 @@ export default async function OrdersPage({
         subtitle="View and track your past orders"
       />
 
-      <Suspense fallback={<OrdersListSkeleton />}>
-        {ordersResult.data.length > 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Orders</CardTitle>
-              <CardDescription>
-                {ordersResult.total} order{ordersResult.total !== 1 ? "s" : ""}{" "}
-                total
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order Number</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-center">Items</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+      {ordersResult.data.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Orders</CardTitle>
+            <CardDescription>
+              {ordersResult.total} order{ordersResult.total !== 1 ? "s" : ""}{" "}
+              total
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order Number</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-center">Items</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ordersResult.data.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell>
+                      <Link
+                        href={`/dashboard/orders/${order.id}`}
+                        className="font-mono font-medium hover:underline"
+                      >
+                        {order.orderNumber}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{formatDate(order.createdAt)}</TableCell>
+                    <TableCell className="text-center">
+                      {order.itemCount}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(order.totalCents)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={getStatusVariant(order.status)}>
+                        {getStatusDisplay(order.status)}
+                      </Badge>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ordersResult.data.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell>
-                        <Link
-                          href={`/dashboard/orders/${order.id}`}
-                          className="font-mono font-medium hover:underline"
-                        >
-                          {order.orderNumber}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{formatDate(order.createdAt)}</TableCell>
-                      <TableCell className="text-center">
-                        {order.itemCount}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(order.totalCents)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={getStatusVariant(order.status)}>
-                          {getStatusDisplay(order.status)}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                ))}
+              </TableBody>
+            </Table>
 
-              {/* Pagination */}
-              {ordersResult.total > ordersResult.pageSize && (
-                <div className="mt-4">
-                  <Pagination
-                    page={ordersResult.currentPage}
-                    pageSize={ordersResult.pageSize}
-                    total={ordersResult.total}
-                    totalPages={ordersResult.totalPages}
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="rounded-full bg-muted p-6 mb-4">
-                <Package className="h-12 w-12 text-muted-foreground" />
+            {/* Pagination */}
+            {ordersResult.total > ordersResult.pageSize && (
+              <div className="mt-4">
+                <Pagination
+                  page={ordersResult.currentPage}
+                  pageSize={ordersResult.pageSize}
+                  total={ordersResult.total}
+                  totalPages={ordersResult.totalPages}
+                />
               </div>
-              <h3 className="text-xl font-semibold mb-2">No orders yet</h3>
-              <p className="text-muted-foreground mb-6 text-center max-w-md">
-                You haven&apos;t placed any orders yet. Browse our catalog and
-                start ordering!
-              </p>
-              <Button asChild>
-                <Link href="/dashboard/catalog">
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  Browse Catalog
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </Suspense>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="rounded-full bg-muted p-6 mb-4">
+              <Package className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No orders yet</h3>
+            <p className="text-muted-foreground mb-6 text-center max-w-md">
+              You haven&apos;t placed any orders yet. Browse our catalog and
+              start ordering!
+            </p>
+            <Button asChild>
+              <Link href="/dashboard/catalog">
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Browse Catalog
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

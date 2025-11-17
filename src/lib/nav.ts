@@ -7,7 +7,6 @@ import {
   FileText,
   BarChart3,
   Warehouse,
-  Handshake,
   GitBranch,
   type LucideIcon,
 } from 'lucide-react'
