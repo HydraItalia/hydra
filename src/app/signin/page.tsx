@@ -151,6 +151,14 @@ export default function SignInPage() {
                 >
                   Client
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDevLogin('driver.marco@hydra.local')}
+                  disabled={isLoading}
+                >
+                  Driver
+                </Button>
               </div>
               <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-2">
                 Note: You&apos;ll still need to click the magic link in the console/email
