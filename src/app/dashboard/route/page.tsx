@@ -4,7 +4,7 @@ import { getOptimizedDriverRoute } from "@/lib/route-calculator";
 import { PageHeader } from "@/components/shared/page-header";
 import { RouteSummary } from "@/components/route/route-summary";
 import { RouteStopList } from "@/components/route/route-stop-list";
-import { RouteMapPlaceholder } from "@/components/route/route-map-placeholder";
+import { RouteMap } from "@/components/route/route-map";
 import { RecalculateRouteButton } from "@/components/route/recalculate-route-button";
 
 export default async function RoutePage() {
@@ -88,9 +88,9 @@ export default async function RoutePage() {
           <RouteStopList stops={route.stops} />
         </div>
 
-        {/* Right column: Map placeholder */}
+        {/* Right column: Interactive map */}
         <div className="lg:sticky lg:top-6 lg:self-start">
-          <RouteMapPlaceholder stops={route.stops} polyline={route.polyline} />
+          <RouteMap stops={route.stops} polyline={route.polyline} />
         </div>
       </div>
     </div>

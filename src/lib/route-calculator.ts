@@ -11,8 +11,8 @@ import { DriverRoute, RouteStop, DeliveryForRoute } from "@/types/route";
 import { getOptimizedRoute, buildDirectionsRequest } from "./google-directions";
 
 // Default origin (stub for now - can be made configurable per driver)
-const DEFAULT_ORIGIN_LAT = 39.2238; // Cagliari, Sardinia
-const DEFAULT_ORIGIN_LNG = 9.1217;
+const DEFAULT_ORIGIN_LAT = 41.9028; // Rome, Italy (Colosseum)
+const DEFAULT_ORIGIN_LNG = 12.4964;
 
 /**
  * Get optimized route for a specific driver
@@ -46,7 +46,12 @@ export async function getOptimizedDriverRoute(
     },
     include: {
       order: {
-        include: {
+        select: {
+          id: true,
+          orderNumber: true,
+          deliveryLat: true,
+          deliveryLng: true,
+          deliveryAddress: true,
           client: {
             select: {
               name: true,
@@ -56,6 +61,8 @@ export async function getOptimizedDriverRoute(
       },
     },
   });
+
+  console.log(`[Route Calculator] Found ${deliveries.length} deliveries for driver ${driverId}`);
 
   // Handle empty case
   if (deliveries.length === 0) {
@@ -76,6 +83,20 @@ export async function getOptimizedDriverRoute(
       order.deliveryAddress !== null
     );
   }) as unknown as DeliveryForRoute[];
+
+  console.log(`[Route Calculator] ${validDeliveries.length} deliveries have valid coordinates`);
+
+  if (validDeliveries.length > 0) {
+    const firstDelivery = deliveries[0];
+    console.log(`[Route Calculator] Raw first delivery order:`, JSON.stringify(firstDelivery.order, null, 2));
+
+    const sampleCoords = (validDeliveries[0].order as any);
+    console.log(`[Route Calculator] Sample coordinates after cast:`, {
+      lat: sampleCoords.deliveryLat,
+      lng: sampleCoords.deliveryLng,
+      address: sampleCoords.deliveryAddress,
+    });
+  }
 
   if (validDeliveries.length === 0) {
     // All deliveries lack coordinates
@@ -98,10 +119,15 @@ export async function getOptimizedDriverRoute(
   }
 
   // Build destinations array
-  const destinations = validDeliveries.map((d) => ({
-    lat: d.order.deliveryLat,
-    lng: d.order.deliveryLng,
-  }));
+  const destinations = validDeliveries.map((d) => {
+    const order = d.order as any;
+    return {
+      lat: order.deliveryLat as number,
+      lng: order.deliveryLng as number,
+    };
+  });
+
+  console.log(`[Route Calculator] Destinations for Google API:`, destinations);
 
   // Get optimized route from Google Directions API
   try {
@@ -142,13 +168,14 @@ export async function getOptimizedDriverRoute(
     const stops: RouteStop[] = orderedDeliveries.map((delivery, index) => {
       const leg = route.legs[index];
 
+      const order = delivery.order as any;
       return {
         deliveryId: delivery.id,
         orderId: delivery.orderId,
         clientName: delivery.order.client.name,
-        address: delivery.order.deliveryAddress,
-        lat: delivery.order.deliveryLat,
-        lng: delivery.order.deliveryLng,
+        address: order.deliveryAddress as string,
+        lat: order.deliveryLat as number,
+        lng: order.deliveryLng as number,
         status: delivery.status,
         etaMinutes: leg ? Math.round(leg.duration.value / 60) : undefined,
         legDistanceKm: leg ? leg.distance.value / 1000 : undefined,
@@ -175,15 +202,18 @@ export async function getOptimizedDriverRoute(
     console.error("Error calculating optimized route:", error);
 
     // Fallback: return deliveries in their current order without optimization
-    const stops: RouteStop[] = validDeliveries.map((delivery) => ({
-      deliveryId: delivery.id,
-      orderId: delivery.orderId,
-      clientName: delivery.order.client.name,
-      address: delivery.order.deliveryAddress,
-      lat: delivery.order.deliveryLat,
-      lng: delivery.order.deliveryLng,
-      status: delivery.status,
-    }));
+    const stops: RouteStop[] = validDeliveries.map((delivery) => {
+      const order = delivery.order as any;
+      return {
+        deliveryId: delivery.id,
+        orderId: delivery.orderId,
+        clientName: delivery.order.client.name,
+        address: order.deliveryAddress as string,
+        lat: order.deliveryLat as number,
+        lng: order.deliveryLng as number,
+        status: delivery.status,
+      };
+    });
 
     return {
       stops,

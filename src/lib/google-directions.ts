@@ -52,6 +52,14 @@ export async function getOptimizedRoute(
 
   const url = `${DIRECTIONS_API_URL}?${params.toString()}`;
 
+  // Debug logging
+  console.log("[Google Directions] Request URL:", url);
+  console.log("[Google Directions] Request params:", {
+    origin: request.origin,
+    destination: request.destination,
+    waypointsCount: request.waypoints?.length || 0,
+  });
+
   try {
     const response = await fetch(url, {
       method: "GET",
@@ -70,7 +78,14 @@ export async function getOptimizedRoute(
 
     const data: DirectionsResponse = await response.json();
 
+    console.log("[Google Directions] API Response:", {
+      status: data.status,
+      routesCount: data.routes?.length || 0,
+      error_message: data.error_message,
+    });
+
     if (data.status !== "OK") {
+      console.error("[Google Directions] Full API response:", JSON.stringify(data, null, 2));
       throw new Error(
         `Google Directions API error: ${data.status}${
           data.error_message ? ` - ${data.error_message}` : ""
