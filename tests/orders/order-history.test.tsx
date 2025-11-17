@@ -17,6 +17,28 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/auth", () => ({
   currentUser: vi.fn(),
 }));
+// Test helper for creating mock users
+type MockUser = {
+  id: string;
+  email: string;
+  role: "ADMIN" | "AGENT" | "VENDOR" | "CLIENT";
+  clientId: string | null;
+  name: string;
+  agentCode: string | null;
+  vendorId: string | null;
+};
+
+const createMockClientUser = (overrides: Partial<MockUser> = {}): MockUser => ({
+  id: "user1",
+  email: "client@test.com",
+  role: "CLIENT",
+  clientId: "client1",
+  name: "Client",
+  agentCode: null,
+  vendorId: null,
+  ...overrides,
+});
+
 
 describe("Order History - fetchOrdersForClient", () => {
   beforeEach(() => {
@@ -32,15 +54,14 @@ describe("Order History - fetchOrdersForClient", () => {
   });
 
   it("should throw error when user is not CLIENT role", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "agent@test.com",
-      role: "AGENT",
-      clientId: null,
-      name: "Agent",
-      agentCode: "AGENT1",
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(
+      createMockClientUser({
+        email: "agent@test.com",
+        role: "AGENT",
+        clientId: null,
+        agentCode: "AGENT1",
+      })
+    );
 
     await expect(
       fetchOrdersForClient({ page: 1, pageSize: 20 })
@@ -48,15 +69,9 @@ describe("Order History - fetchOrdersForClient", () => {
   });
 
   it("should throw error when CLIENT user has no clientId", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: null,
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(
+      createMockClientUser({ clientId: null })
+    );
 
     await expect(
       fetchOrdersForClient({ page: 1, pageSize: 20 })
@@ -64,15 +79,7 @@ describe("Order History - fetchOrdersForClient", () => {
   });
 
   it("should fetch orders for authenticated CLIENT user", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     const mockOrders = [
       {
@@ -162,15 +169,7 @@ describe("Order History - fetchOrdersForClient", () => {
   });
 
   it("should handle pagination correctly", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     vi.mocked(prisma.order.findMany).mockResolvedValue([]);
     vi.mocked(prisma.order.count).mockResolvedValue(45);
@@ -192,15 +191,7 @@ describe("Order History - fetchOrdersForClient", () => {
   });
 
   it("should clamp page to minimum of 1", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     vi.mocked(prisma.order.findMany).mockResolvedValue([]);
     vi.mocked(prisma.order.count).mockResolvedValue(0);
@@ -215,15 +206,7 @@ describe("Order History - fetchOrdersForClient", () => {
   });
 
   it("should clamp pageSize between 10 and 100", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     vi.mocked(prisma.order.findMany).mockResolvedValue([]);
     vi.mocked(prisma.order.count).mockResolvedValue(0);
@@ -242,15 +225,7 @@ describe("Order History - fetchOrdersForClient", () => {
   });
 
   it("should return empty data for CLIENT with no orders", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     vi.mocked(prisma.order.findMany).mockResolvedValue([]);
     vi.mocked(prisma.order.count).mockResolvedValue(0);
@@ -267,15 +242,7 @@ describe("Order History - fetchOrdersForClient", () => {
   });
 
   it("should only fetch orders for the authenticated CLIENT (authorization)", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     vi.mocked(prisma.order.findMany).mockResolvedValue([]);
     vi.mocked(prisma.order.count).mockResolvedValue(0);
@@ -305,15 +272,14 @@ describe("Order History - fetchOrderById", () => {
   });
 
   it("should throw error when user is not CLIENT role", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "vendor@test.com",
-      role: "VENDOR",
-      clientId: null,
-      vendorId: "vendor1",
-      name: "Vendor",
-      agentCode: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(
+      createMockClientUser({
+        email: "vendor@test.com",
+        role: "VENDOR",
+        vendorId: "vendor1",
+        clientId: null,
+      })
+    );
 
     await expect(fetchOrderById("order1")).rejects.toThrow(
       "Only CLIENT users can access orders"
@@ -321,15 +287,9 @@ describe("Order History - fetchOrderById", () => {
   });
 
   it("should throw error when CLIENT user has no clientId", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: null,
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(
+      createMockClientUser({ clientId: null })
+    );
 
     await expect(fetchOrderById("order1")).rejects.toThrow(
       "User does not have an associated client"
@@ -337,15 +297,7 @@ describe("Order History - fetchOrderById", () => {
   });
 
   it("should throw error when order is not found", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     vi.mocked(prisma.order.findFirst).mockResolvedValue(null);
 
@@ -355,15 +307,7 @@ describe("Order History - fetchOrderById", () => {
   });
 
   it("should fetch order with items for authorized CLIENT", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     const mockOrderFromDb = {
       id: "order1",
@@ -436,15 +380,9 @@ describe("Order History - fetchOrderById", () => {
   });
 
   it("should enforce authorization - CLIENT cannot view other CLIENT's orders", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client1@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client 1",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(
+      createMockClientUser({ email: "client1@test.com", name: "Client 1" })
+    );
 
     // Order belongs to client2, not client1
     vi.mocked(prisma.order.findFirst).mockResolvedValue(null);
@@ -464,15 +402,7 @@ describe("Order History - fetchOrderById", () => {
   });
 
   it("should include all order items with correct formatting", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     const mockOrder = {
       id: "order1",
@@ -519,15 +449,7 @@ describe("Order History - fetchOrderById", () => {
   });
 
   it("should return items ordered by creation time", async () => {
-    vi.mocked(currentUser).mockResolvedValue({
-      id: "user1",
-      email: "client@test.com",
-      role: "CLIENT",
-      clientId: "client1",
-      name: "Client",
-      agentCode: null,
-      vendorId: null,
-    });
+    vi.mocked(currentUser).mockResolvedValue(createMockClientUser());
 
     vi.mocked(prisma.order.findFirst).mockResolvedValue({
       id: "order1",

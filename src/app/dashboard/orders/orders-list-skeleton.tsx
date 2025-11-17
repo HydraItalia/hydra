@@ -17,7 +17,7 @@ import {
 
 export function OrdersListSkeleton() {
   return (
-    <Card>
+    <Card aria-busy="true" aria-label="Loading orders">
       <CardHeader>
         <CardTitle>Your Orders</CardTitle>
         <CardDescription>
