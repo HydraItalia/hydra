@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, ArrowLeft, CheckCircle } from "lucide-react";
+import {
+  ShoppingCart,
+  ArrowLeft,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,10 +27,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { createOrderFromCart } from "@/data/order";
+import {
+  validateCartForCurrentUser,
+  type CartValidationIssue,
+} from "@/data/cart-validation";
 
 type CheckoutPageProps = {
   cart: Awaited<ReturnType<typeof import("@/data/cart").getCart>>;
@@ -34,6 +52,10 @@ type CheckoutPageProps = {
 export function CheckoutPage({ cart }: CheckoutPageProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationIssues, setValidationIssues] = useState<
+    CartValidationIssue[]
+  >([]);
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
 
   // Calculate totals
   const subtotalCents = cart.items.reduce((sum, item) => {
@@ -46,9 +68,21 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
     setIsSubmitting(true);
 
     try {
+      // Step 1: Validate cart before creating order
+      const validation = await validateCartForCurrentUser();
+
+      if (!validation.ok) {
+        // Show validation errors in dialog
+        setValidationIssues(validation.issues);
+        setShowValidationDialog(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Step 2: If validation passed, create order
       const { orderId } = await createOrderFromCart();
 
-      // Redirect to confirmation page
+      // Step 3: Redirect to confirmation page
       router.push(`/dashboard/orders/${orderId}/confirmation`);
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
@@ -223,6 +257,77 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
           </CardFooter>
         </Card>
       </div>
+
+      {/* Validation Issues Dialog */}
+      <Dialog
+        open={showValidationDialog}
+        onOpenChange={setShowValidationDialog}
+      >
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Cannot Complete Checkout
+            </DialogTitle>
+            <DialogDescription>
+              Some items in your cart have issues that must be resolved before
+              you can proceed with your order.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-4">
+            {validationIssues
+              .filter((issue) => issue.severity === "error")
+              .map((issue, index) => (
+                <Alert key={index} variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>
+                    {issue.code === "OUT_OF_STOCK" && "Out of Stock"}
+                    {issue.code === "INSUFFICIENT_STOCK" &&
+                      "Insufficient Stock"}
+                    {issue.code === "UNKNOWN_PRODUCT" && "Product Unavailable"}
+                    {issue.code === "VENDOR_MISSING" && "Vendor Unavailable"}
+                  </AlertTitle>
+                  <AlertDescription>
+                    <p>{issue.message}</p>
+                    {issue.quantityRequested && (
+                      <p className="text-sm mt-1">
+                        Requested: {issue.quantityRequested}
+                        {issue.quantityAvailable !== undefined &&
+                          issue.quantityAvailable !== null &&
+                          ` • Available: ${issue.quantityAvailable}`}
+                      </p>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ))}
+
+            {validationIssues
+              .filter((issue) => issue.severity === "warning")
+              .map((issue, index) => (
+                <Alert key={`warning-${index}`}>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>
+                    {issue.code === "VENDOR_INACTIVE" && "Vendor Inactive"}
+                  </AlertTitle>
+                  <AlertDescription>{issue.message}</AlertDescription>
+                </Alert>
+              ))}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowValidationDialog(false)}
+            >
+              Review Cart
+            </Button>
+            <Button asChild>
+              <Link href="/dashboard/cart">Back to Cart</Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
