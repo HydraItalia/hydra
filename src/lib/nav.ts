@@ -97,11 +97,6 @@ export function getNavItems(role: Role): NavItem[] {
           icon: Package,
         },
         {
-          label: 'My Agreements',
-          href: '/dashboard/agreements',
-          icon: Handshake,
-        },
-        {
           label: 'My Cart',
           href: '/dashboard/cart',
           icon: ShoppingCart,
