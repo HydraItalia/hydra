@@ -1,24 +1,24 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   markAsPickedUp,
   markAsInTransit,
   markAsDelivered,
   markAsException,
-} from "@/data/deliveries"
-import { toast } from "sonner"
+} from "@/data/deliveries";
+import { toast } from "sonner";
 import {
   Package,
   MapPin,
@@ -27,52 +27,52 @@ import {
   CheckCircle2,
   Truck,
   AlertCircle,
-} from "lucide-react"
-import { format } from "date-fns"
+} from "lucide-react";
+import { format } from "date-fns";
 
 type DeliveryStatus =
   | "ASSIGNED"
   | "PICKED_UP"
   | "IN_TRANSIT"
   | "DELIVERED"
-  | "EXCEPTION"
+  | "EXCEPTION";
 
 interface DeliveryDetailProps {
   delivery: {
-    id: string
-    status: DeliveryStatus
-    notes: string | null
-    exceptionReason: string | null
-    assignedAt: Date
-    pickedUpAt: Date | null
-    inTransitAt: Date | null
-    deliveredAt: Date | null
-    exceptionAt: Date | null
+    id: string;
+    status: DeliveryStatus;
+    notes: string | null;
+    exceptionReason: string | null;
+    assignedAt: Date;
+    pickedUpAt: Date | null;
+    inTransitAt: Date | null;
+    deliveredAt: Date | null;
+    exceptionAt: Date | null;
     order: {
-      id: string
-      orderNumber: string
-      totalCents: number
-      notes: string | null
+      id: string;
+      orderNumber: string;
+      totalCents: number;
+      notes: string | null;
       client: {
-        name: string
-        region: string | null
-      }
+        name: string;
+        region: string | null;
+      };
       items: Array<{
-        id: string
-        qty: number
-        productName: string
-        vendorName: string
-        unitPriceCents: number
-        lineTotalCents: number
+        id: string;
+        qty: number;
+        productName: string;
+        vendorName: string;
+        unitPriceCents: number;
+        lineTotalCents: number;
         vendorProduct: {
           product: {
-            name: string
-            unit: string
-          }
-        }
-      }>
-    }
-  }
+            name: string;
+            unit: string;
+          };
+        };
+      }>;
+    };
+  };
 }
 
 const statusColors: Record<DeliveryStatus, string> = {
@@ -81,34 +81,38 @@ const statusColors: Record<DeliveryStatus, string> = {
   IN_TRANSIT: "bg-orange-500",
   DELIVERED: "bg-green-500",
   EXCEPTION: "bg-red-500",
-}
+};
 
 export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
-  const router = useRouter()
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [exceptionReason, setExceptionReason] = useState("")
-  const [deliveryNotes, setDeliveryNotes] = useState("")
+  const router = useRouter();
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [exceptionReason, setExceptionReason] = useState("");
+  const [deliveryNotes, setDeliveryNotes] = useState("");
 
   const handleStatusUpdate = async (
     action: () => Promise<any>,
     successMessage: string
   ) => {
-    setIsUpdating(true)
+    setIsUpdating(true);
     try {
-      await action()
-      toast.success(successMessage)
-      router.refresh()
+      await action();
+      toast.success(successMessage);
+      router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update status")
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update status"
+      );
     } finally {
-      setIsUpdating(false)
+      setIsUpdating(false);
     }
-  }
+  };
 
-  const canPickUp = delivery.status === "ASSIGNED"
-  const canMarkInTransit = delivery.status === "PICKED_UP"
-  const canDeliver = delivery.status === "IN_TRANSIT"
-  const canMarkException = !["DELIVERED", "EXCEPTION"].includes(delivery.status)
+  const canPickUp = delivery.status === "ASSIGNED";
+  const canMarkInTransit = delivery.status === "PICKED_UP";
+  const canDeliver = delivery.status === "IN_TRANSIT";
+  const canMarkException = !["DELIVERED", "EXCEPTION"].includes(
+    delivery.status
+  );
 
   return (
     <div className="space-y-6">
@@ -314,7 +318,8 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
                 disabled={isUpdating}
                 onClick={() =>
                   handleStatusUpdate(
-                    () => markAsDelivered(delivery.id, deliveryNotes || undefined),
+                    () =>
+                      markAsDelivered(delivery.id, deliveryNotes || undefined),
                     "Marked as delivered"
                   )
                 }
@@ -358,15 +363,29 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
               <p className="font-medium text-green-700">Delivery Completed</p>
               <p className="text-sm text-green-600">
                 Delivered on{" "}
-                {delivery.deliveredAt &&
-                  format(new Date(delivery.deliveredAt), "PPP p")}
+                {delivery.deliveredAt
+                  ? format(new Date(delivery.deliveredAt), "PPP p")
+                  : (() => {
+                      // Inconsistent state: status is DELIVERED but deliveredAt is missing.
+                      // Log for debugging/telemetry while avoiding thrown exceptions in the UI.
+                      try {
+                        // eslint-disable-next-line no-console
+                        console.warn(
+                          `Delivery ${delivery.id} is DELIVERED but deliveredAt is missing`
+                        );
+                      } catch (e) {
+                        // ignore logging failures
+                      }
+
+                      return "Delivered date unavailable";
+                    })()}
               </p>
             </div>
           )}
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 function TimelineItem({
@@ -376,11 +395,11 @@ function TimelineItem({
   active,
   alert,
 }: {
-  icon: any
-  label: string
-  timestamp: Date
-  active?: boolean
-  alert?: boolean
+  icon: any;
+  label: string;
+  timestamp: Date;
+  active?: boolean;
+  alert?: boolean;
 }) {
   return (
     <div className="flex items-start gap-3">
@@ -402,5 +421,5 @@ function TimelineItem({
         </p>
       </div>
     </div>
-  )
+  );
 }

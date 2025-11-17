@@ -25,7 +25,7 @@ interface DeliveryListProps {
     data: Array<{
       id: string;
       status: DeliveryStatus;
-      assignedAt: Date;
+      assignedAt: string | Date;
       order: {
         id: string;
         orderNumber: string;

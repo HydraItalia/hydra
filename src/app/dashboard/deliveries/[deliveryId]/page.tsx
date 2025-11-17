@@ -1,22 +1,22 @@
-import { currentUser } from "@/lib/auth"
-import { redirect, notFound } from "next/navigation"
-import { getDeliveryById } from "@/data/deliveries"
-import { DeliveryDetail } from "@/components/deliveries/delivery-detail"
-import { PageHeader } from "@/components/shared/page-header"
+import { currentUser } from "@/lib/auth";
+import { redirect, notFound } from "next/navigation";
+import { getDeliveryById } from "@/data/deliveries";
+import { DeliveryDetail } from "@/components/deliveries/delivery-detail";
+import { PageHeader } from "@/components/shared/page-header";
 
 export default async function DeliveryDetailPage({
   params,
 }: {
-  params: Promise<{ deliveryId: string }>
+  params: Promise<{ deliveryId: string }>;
 }) {
-  const user = await currentUser()
+  const user = await currentUser();
 
   if (!user) {
-    redirect("/signin")
+    redirect("/signin");
   }
 
   if (user.role !== "DRIVER") {
-    redirect("/dashboard")
+    redirect("/dashboard");
   }
 
   if (!user.driverId) {
@@ -27,16 +27,25 @@ export default async function DeliveryDetailPage({
           subtitle="Error: User is not associated with a driver account"
         />
       </div>
-    )
+    );
   }
 
-  const { deliveryId } = await params
+  const { deliveryId } = await params;
 
-  let delivery
+  let delivery;
   try {
-    delivery = await getDeliveryById(deliveryId)
+    delivery = await getDeliveryById(deliveryId);
   } catch (error) {
-    notFound()
+    console.error("Failed to fetch delivery:", error);
+    notFound();
+  }
+
+  // Verify the delivery belongs to this driver
+  if (delivery.driverId !== user.driverId) {
+    console.warn(
+      `Driver ${user.driverId} attempted to access delivery ${deliveryId} assigned to driver ${delivery.driverId}`
+    );
+    notFound(); // or redirect("/dashboard") for better UX
   }
 
   return (
@@ -48,5 +57,5 @@ export default async function DeliveryDetailPage({
 
       <DeliveryDetail delivery={delivery} />
     </div>
-  )
+  );
 }

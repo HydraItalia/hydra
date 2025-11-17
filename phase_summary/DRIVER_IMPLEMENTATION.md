@@ -9,6 +9,7 @@ This document outlines the complete implementation of the Driver role in the Hyd
 ### ✅ Completed Features
 
 1. **Database Schema**
+
    - Added `DRIVER` role to the `Role` enum
    - Created `Driver` model with status tracking (ONLINE/OFFLINE/BUSY)
    - Created `Delivery` model with delivery status workflow
@@ -16,12 +17,14 @@ This document outlines the complete implementation of the Driver role in the Hyd
    - Linked `User` model to `Driver` via `driverId` foreign key
 
 2. **Authentication & Authorization**
+
    - Extended NextAuth session/JWT types to include `driverId`
    - Updated auth callbacks to populate driver information in session
    - Added `canManageDelivery()` helper function for RBAC
    - Drivers can only access their own deliveries
 
 3. **API Layer (Server Actions)**
+
    - `getMyDeliveries()` - Fetch deliveries assigned to current driver
    - `getDeliveryById()` - Get single delivery with order details
    - `markAsPickedUp()` - Update status to PICKED_UP
@@ -31,6 +34,7 @@ This document outlines the complete implementation of the Driver role in the Hyd
    - `getDeliveryStats()` - Get driver statistics dashboard
 
 4. **Frontend UI**
+
    - Driver dashboard home page (`/dashboard`)
    - Deliveries list page (`/dashboard/deliveries`)
    - Delivery detail page (`/dashboard/deliveries/[deliveryId]`)
@@ -52,6 +56,7 @@ This document outlines the complete implementation of the Driver role in the Hyd
 ### Database Models
 
 #### Driver
+
 ```prisma
 model Driver {
   id     String       @id @default(cuid())
@@ -69,6 +74,7 @@ model Driver {
 ```
 
 #### Delivery
+
 ```prisma
 model Delivery {
   id               String         @id @default(cuid())
@@ -94,6 +100,7 @@ model Delivery {
 ```
 
 #### Enums
+
 ```prisma
 enum DeliveryStatus {
   ASSIGNED      // Order assigned to driver
@@ -115,6 +122,7 @@ enum DriverStatus {
 ## File Structure
 
 ### Backend
+
 ```
 prisma/
 ├── schema.prisma                           # Updated with Driver, Delivery models
@@ -134,6 +142,7 @@ src/
 ```
 
 ### Frontend
+
 ```
 src/
 ├── app/
@@ -155,14 +164,17 @@ src/
 ## API Reference (Server Actions)
 
 ### `getMyDeliveries(params?)`
+
 Fetch deliveries assigned to the current driver.
 
 **Parameters:**
+
 - `page?: number` - Page number (default: 1)
 - `pageSize?: number` - Items per page (default: 20)
 - `status?: DeliveryStatus` - Filter by status
 
 **Returns:**
+
 ```typescript
 {
   data: Delivery[],
@@ -178,6 +190,7 @@ Fetch deliveries assigned to the current driver.
 ---
 
 ### `getDeliveryById(deliveryId: string)`
+
 Get detailed information about a specific delivery.
 
 **Returns:** Full delivery object with order, client, items, and vendor details
@@ -187,11 +200,13 @@ Get detailed information about a specific delivery.
 ---
 
 ### `markAsPickedUp(deliveryId: string)`
+
 Update delivery status to PICKED_UP.
 
 **Pre-condition:** Status must be ASSIGNED
 
 **Side effects:**
+
 - Sets `pickedUpAt` timestamp
 - Updates status to PICKED_UP
 
@@ -200,11 +215,13 @@ Update delivery status to PICKED_UP.
 ---
 
 ### `markAsInTransit(deliveryId: string)`
+
 Update delivery status to IN_TRANSIT.
 
 **Pre-condition:** Status must be PICKED_UP
 
 **Side effects:**
+
 - Sets `inTransitAt` timestamp
 - Updates status to IN_TRANSIT
 
@@ -213,15 +230,18 @@ Update delivery status to IN_TRANSIT.
 ---
 
 ### `markAsDelivered(deliveryId: string, notes?: string)`
+
 Update delivery status to DELIVERED and mark order as complete.
 
 **Parameters:**
+
 - `deliveryId: string` - Delivery ID
 - `notes?: string` - Optional delivery notes
 
 **Pre-condition:** Status must be IN_TRANSIT
 
 **Side effects:**
+
 - Sets `deliveredAt` timestamp
 - Updates Delivery status to DELIVERED
 - Updates Order status to DELIVERED
@@ -232,15 +252,18 @@ Update delivery status to DELIVERED and mark order as complete.
 ---
 
 ### `markAsException(deliveryId: string, exceptionReason: string)`
+
 Report a delivery exception (e.g., customer unavailable, wrong address).
 
 **Parameters:**
+
 - `deliveryId: string` - Delivery ID
 - `exceptionReason: string` - **Required** description of the issue
 
 **Pre-condition:** Status must NOT be DELIVERED
 
 **Side effects:**
+
 - Sets `exceptionAt` timestamp
 - Updates status to EXCEPTION
 - Saves exception reason
@@ -250,9 +273,11 @@ Report a delivery exception (e.g., customer unavailable, wrong address).
 ---
 
 ### `getDeliveryStats()`
+
 Get statistics for the current driver.
 
 **Returns:**
+
 ```typescript
 {
   assigned: number,        // Deliveries awaiting pickup
@@ -272,6 +297,7 @@ Get statistics for the current driver.
 ## User Flows
 
 ### Driver Login & Dashboard
+
 1. Driver logs in with email (magic link authentication)
 2. Redirected to `/dashboard` (driver-specific dashboard)
 3. Dashboard shows:
@@ -280,21 +306,26 @@ Get statistics for the current driver.
    - Quick action buttons
 
 ### Delivery Workflow
+
 1. **View Deliveries**
+
    - Navigate to `/dashboard/deliveries`
    - See list of assigned deliveries with status badges
    - Filter by status (optional)
 
 2. **Start Delivery**
+
    - Click on delivery to view details
    - Review order items, client info, delivery address
    - Click "Mark as Picked Up" when ready
 
 3. **Mark In Transit**
+
    - After picking up order, click "Mark as In Transit"
    - Status updates automatically
 
 4. **Complete Delivery**
+
    - Upon arrival, optionally add delivery notes
    - Click "Mark as Delivered"
    - Both Delivery and Order status update to DELIVERED
@@ -309,6 +340,7 @@ Get statistics for the current driver.
 ## Testing
 
 ### Test Accounts (from seed)
+
 ```
 Email: driver.marco@hydra.local
 Role: DRIVER
@@ -324,23 +356,27 @@ Deliveries: 1 (in transit)
 ### Manual Testing Checklist
 
 #### Authentication
+
 - [ ] Driver can log in via magic link
 - [ ] Session includes `driverId`
 - [ ] Cannot access admin/client/vendor routes
 - [ ] Cannot access other drivers' deliveries
 
 #### Dashboard
+
 - [ ] Statistics display correctly
 - [ ] Next deliveries shown in order
 - [ ] Quick action buttons link correctly
 
 #### Deliveries List
+
 - [ ] Shows only driver's own deliveries
 - [ ] Status badges display correctly
 - [ ] Pagination works (if >20 deliveries)
 - [ ] Filter by status works
 
 #### Delivery Detail
+
 - [ ] Order details display correctly
 - [ ] Client information shown
 - [ ] Order items list complete
@@ -348,6 +384,7 @@ Deliveries: 1 (in transit)
 - [ ] Status update buttons appear based on current status
 
 #### Status Updates
+
 - [ ] Can mark ASSIGNED → PICKED_UP
 - [ ] Can mark PICKED_UP → IN_TRANSIT
 - [ ] Can mark IN_TRANSIT → DELIVERED
@@ -362,11 +399,13 @@ Deliveries: 1 (in transit)
 ## Future Enhancements (Out of Scope for Phase 7.1)
 
 ### Phase 7.2 - Admin Assignment UI
+
 - Admin/Agent interface to assign deliveries to drivers
 - Auto-assignment based on region, driver availability
 - Batch assignment for multiple orders
 
 ### Phase 7.3 - Advanced Driver Features
+
 - GPS tracking and live location
 - Route optimization
 - Photo/signature capture on delivery
@@ -374,6 +413,7 @@ Deliveries: 1 (in transit)
 - Driver performance metrics
 
 ### Phase 7.4 - Customer Features
+
 - Real-time delivery tracking for clients
 - Estimated arrival time
 - Driver contact (call/message)
@@ -404,16 +444,19 @@ npx prisma db seed
 ## Security Considerations
 
 ### Authorization
+
 - All driver server actions validate `role === 'DRIVER'`
 - Drivers can only access deliveries where `driverId === user.driverId`
 - Admin/Agent can access all deliveries via `canManageDelivery()` helper
 
 ### Input Validation
+
 - Exception reason is required and validated
 - Delivery notes are optional but sanitized
 - Status transitions enforce workflow rules
 
 ### Data Access
+
 - Drivers never see other drivers' deliveries
 - Drivers see full order details but cannot modify order data
 - Delivery updates revalidate cached pages
@@ -433,14 +476,17 @@ npx prisma db seed
 ## Troubleshooting
 
 ### TypeScript Errors for `prisma.delivery`
+
 If you see errors like "Property 'delivery' does not exist on type 'PrismaClient'":
 
 1. Regenerate Prisma client:
+
    ```bash
    npx prisma generate
    ```
 
 2. Restart TypeScript server in VS Code:
+
    - Press `Cmd+Shift+P` (Mac) or `Ctrl+Shift+P` (Windows/Linux)
    - Type "TypeScript: Restart TS Server"
    - Select the command
@@ -448,6 +494,7 @@ If you see errors like "Property 'delivery' does not exist on type 'PrismaClient
 3. If errors persist, restart your IDE
 
 ### Seed Fails
+
 If `npx prisma db seed` fails:
 
 1. Check `.env` file has correct `DATABASE_URL`
@@ -456,6 +503,7 @@ If `npx prisma db seed` fails:
 4. Reset database if needed: `npx prisma migrate reset` (WARNING: deletes data)
 
 ### Driver Can't Login
+
 1. Check user exists in database: `npx prisma studio`
 2. Ensure `role` is set to `DRIVER`
 3. Ensure `driverId` is linked to a Driver record
@@ -463,6 +511,7 @@ If `npx prisma db seed` fails:
 5. Verify NextAuth callbacks include `driverId`
 
 ### Deliveries Not Showing
+
 1. Verify user has `driverId` in session (check browser DevTools → Application → Cookies)
 2. Ensure deliveries exist for that driver: `npx prisma studio`
 3. Check browser console for errors
@@ -485,5 +534,5 @@ Implementation completed for **Phase 7.1 - Driver Role Implementation**.
 
 ---
 
-**Last Updated:** November 17, 2024
+**Last Updated:** November 17, 2025
 **Implementation Status:** ✅ Complete

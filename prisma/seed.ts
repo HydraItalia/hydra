@@ -620,7 +620,7 @@ async function main() {
       submitterUserId: clientDemoUser.id,
       orderNumber: "HYD-20241115-0002",
       status: OrderStatus.CONFIRMED,
-      totalCents: 8500,
+      totalCents: 8100, // 20 * 405 (discounted ghiaccio)
       region: "Sardegna",
       assignedAgentUserId: andreaAgent.id,
       notes: "Weekly fresh produce order",
@@ -657,7 +657,7 @@ async function main() {
       submitterUserId: clientDemoUser.id,
       orderNumber: "HYD-20241115-0003",
       status: OrderStatus.FULFILLING,
-      totalCents: 12000,
+      totalCents: 10800, // 12 * 900 (acqua)
       region: "Sardegna",
       assignedAgentUserId: manueleAgent.id,
       notes: "Urgent beverage restocking",

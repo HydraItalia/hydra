@@ -117,12 +117,17 @@ export async function canManageDelivery(
 
   // Driver can only manage their own deliveries
   if (user.role === "DRIVER" && user.driverId) {
-    const { prisma } = await import("./prisma");
-    const delivery = await prisma.delivery.findUnique({
-      where: { id: deliveryId },
-      select: { driverId: true },
-    });
-    return delivery?.driverId === user.driverId;
+    try {
+      const { prisma } = await import("./prisma");
+      const delivery = await prisma.delivery.findUnique({
+        where: { id: deliveryId },
+        select: { driverId: true },
+      });
+      return delivery?.driverId === user.driverId;
+    } catch (error) {
+      console.error("Error checking delivery permissions:", error);
+      return false;
+    }
   }
 
   return false;

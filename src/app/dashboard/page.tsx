@@ -428,18 +428,13 @@ async function DriverDashboard({
           title="Active Deliveries"
           value={activeDeliveries}
           icon={Truck}
-          trend={activeDeliveries > 0 ? "up" : undefined}
         />
         <DataCard
           title="Delivered Today"
           value={deliveredTodayCount}
           icon={CheckCircle2}
         />
-        <DataCard
-          title="In Transit"
-          value={inTransitCount}
-          icon={TrendingUp}
-        />
+        <DataCard title="In Transit" value={inTransitCount} icon={TrendingUp} />
         <DataCard
           title="Total Deliveries"
           value={totalDeliveries}

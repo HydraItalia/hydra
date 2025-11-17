@@ -11,7 +11,6 @@ import {
 interface DeliveryStatsProps {
   stats: {
     assigned: number;
-    pickedUp: number;
     inTransit: number;
     delivered: number;
     exception: number;
@@ -19,7 +18,6 @@ interface DeliveryStatsProps {
     activeDeliveries: number;
   };
 }
-
 export function DeliveryStats({ stats }: DeliveryStatsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
