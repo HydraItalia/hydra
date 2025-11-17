@@ -340,6 +340,11 @@ model Order {
   assignedAgentUserId String?
   notes               String?     @db.Text
 
+  // Phase 7.2 - Route Planning
+  deliveryLat         Float?      // Delivery destination latitude
+  deliveryLng         Float?      // Delivery destination longitude
+  deliveryAddress     String?     @db.Text // Full delivery address
+
   client        Client      @relation(fields: [clientId], references: [id])
   submitter     User        @relation("OrderSubmitter", fields: [submitterUserId], references: [id])
   assignedAgent User?       @relation("AssignedAgent", fields: [assignedAgentUserId], references: [id])
@@ -370,6 +375,9 @@ model Delivery {
   deliveredAt  DateTime?
   exceptionAt  DateTime?
 
+  // Phase 7.2 - Route Planning
+  routeSequence    Int?           // Optimized position in the driver's route (1, 2, 3, ...)
+
   order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   driver Driver @relation(fields: [driverId], references: [id])
 
@@ -379,6 +387,7 @@ model Delivery {
   @@index([driverId])
   @@index([status])
   @@index([assignedAt])
+  @@index([driverId, routeSequence]) // For efficient route ordering
 }
 
 model OrderItem {
