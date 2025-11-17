@@ -49,7 +49,7 @@ export default async function DeliveryDetailPage({
     console.warn(
       `Driver ${user.driverId} attempted to access delivery ${deliveryId} assigned to driver ${delivery.driverId}`
     );
-    notFound(); // or redirect("/dashboard") for better UX
+    redirect("/dashboard"); // Better UX than 404 - gives driver a clear path forward
   }
 
   return (
