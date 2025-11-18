@@ -48,24 +48,24 @@ interface DeliveryDetailProps {
     inTransitAt: Date | null;
     deliveredAt: Date | null;
     exceptionAt: Date | null;
-    order: {
+    Order: {
       id: string;
       orderNumber: string;
       totalCents: number;
       notes: string | null;
-      client: {
+      Client: {
         name: string;
         region: string | null;
       };
-      items: Array<{
+      OrderItem: Array<{
         id: string;
         qty: number;
         productName: string;
         vendorName: string;
         unitPriceCents: number;
         lineTotalCents: number;
-        vendorProduct: {
-          product: {
+        VendorProduct: {
+          Product: {
             name: string;
             unit: string;
           };
@@ -122,7 +122,7 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Order Details</CardTitle>
-              <CardDescription>{delivery.order.orderNumber}</CardDescription>
+              <CardDescription>{delivery.Order.orderNumber}</CardDescription>
             </div>
             <Badge
               className={`${statusColors[delivery.status]} text-white`}
@@ -136,10 +136,10 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
           <div className="flex items-start gap-2">
             <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
             <div>
-              <p className="font-medium">{delivery.order.client.name}</p>
-              {delivery.order.client.region && (
+              <p className="font-medium">{delivery.Order.Client.name}</p>
+              {delivery.Order.Client.region && (
                 <p className="text-sm text-muted-foreground">
-                  {delivery.order.client.region}
+                  {delivery.Order.Client.region}
                 </p>
               )}
             </div>
@@ -148,18 +148,18 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm">
-              {delivery.order.items.length} item(s) •{" "}
+              {delivery.Order.OrderItem.length} item(s) •{" "}
               <span className="font-medium">
-                €{(delivery.order.totalCents / 100).toFixed(2)}
+                €{(delivery.Order.totalCents / 100).toFixed(2)}
               </span>
             </p>
           </div>
 
-          {delivery.order.notes && (
+          {delivery.Order.notes && (
             <div className="p-3 bg-muted rounded-md">
               <p className="text-sm font-medium mb-1">Order Notes:</p>
               <p className="text-sm text-muted-foreground">
-                {delivery.order.notes}
+                {delivery.Order.notes}
               </p>
             </div>
           )}
@@ -221,7 +221,7 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {delivery.order.items.map((item) => (
+            {delivery.Order.OrderItem.map((item) => (
               <div
                 key={item.id}
                 className="flex items-center justify-between py-2 border-b last:border-0"
@@ -234,7 +234,7 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
                 </div>
                 <div className="text-right">
                   <p className="font-medium">
-                    {item.qty} {item.vendorProduct.product.unit}
+                    {item.qty} {item.VendorProduct.Product.unit}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     €{(item.lineTotalCents / 100).toFixed(2)}

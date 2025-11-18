@@ -45,9 +45,9 @@ export async function getOptimizedDriverRoute(
       },
     },
     include: {
-      order: {
+      Order: {
         include: {
-          client: true,
+          Client: true,
         },
       },
     },
@@ -67,23 +67,21 @@ export async function getOptimizedDriverRoute(
   }
 
   // Filter deliveries with valid coordinates
-  // Narrow to deliveries with an order that contains coordinates/address
+  // Narrow to deliveries with an Order that contains coordinates/address
   type DeliveryWithOrder = (typeof deliveries)[number];
   const validDeliveries = deliveries.filter((d) => {
-    const od = (d as any).order;
     return (
-      !!od &&
-      od.deliveryLat != null &&
-      od.deliveryLng != null &&
-      od.deliveryAddress != null
+      d.Order.deliveryLat != null &&
+      d.Order.deliveryLng != null &&
+      d.Order.deliveryAddress != null
     );
   }) as Array<
     DeliveryWithOrder & {
-      order: {
+      Order: {
         deliveryLat: number;
         deliveryLng: number;
         deliveryAddress: string;
-      };
+      } & DeliveryWithOrder["Order"];
     }
   >;
 
@@ -94,11 +92,11 @@ export async function getOptimizedDriverRoute(
   if (validDeliveries.length > 0) {
     const firstDelivery = deliveries[0];
     console.log(
-      `[Route Calculator] Raw first delivery order:`,
-      JSON.stringify(firstDelivery.order, null, 2)
+      `[Route Calculator] Raw first delivery Order:`,
+      JSON.stringify(firstDelivery.Order, null, 2)
     );
 
-    const sampleCoords = validDeliveries[0].order;
+    const sampleCoords = validDeliveries[0].Order;
     console.log(`[Route Calculator] Sample coordinates after validation:`, {
       lat: sampleCoords.deliveryLat,
       lng: sampleCoords.deliveryLng,
@@ -123,8 +121,8 @@ export async function getOptimizedDriverRoute(
   // Build destinations array
   // Since validDeliveries are filtered to have non-null coordinates, we can safely assert
   const destinations = validDeliveries.map((d) => ({
-    lat: d.order.deliveryLat!,
-    lng: d.order.deliveryLng!,
+    lat: d.Order.deliveryLat!,
+    lng: d.Order.deliveryLng!,
   }));
 
   console.log(`[Route Calculator] Destinations for Google API:`, destinations);
@@ -179,10 +177,10 @@ export async function getOptimizedDriverRoute(
       return {
         deliveryId: delivery.id,
         orderId: delivery.orderId,
-        clientName: delivery.order.client.name,
-        address: delivery.order.deliveryAddress!,
-        lat: delivery.order.deliveryLat!,
-        lng: delivery.order.deliveryLng!,
+        clientName: delivery.Order.Client.name,
+        address: delivery.Order.deliveryAddress!,
+        lat: delivery.Order.deliveryLat!,
+        lng: delivery.Order.deliveryLng!,
         status: delivery.status,
         etaMinutes: leg ? Math.round(leg.duration.value / 60) : undefined,
         legDistanceKm: leg ? leg.distance.value / 1000 : undefined,
@@ -212,10 +210,10 @@ export async function getOptimizedDriverRoute(
     const stops: RouteStop[] = validDeliveries.map((delivery) => ({
       deliveryId: delivery.id,
       orderId: delivery.orderId,
-      clientName: delivery.order.client.name,
-      address: delivery.order.deliveryAddress!,
-      lat: delivery.order.deliveryLat!,
-      lng: delivery.order.deliveryLng!,
+      clientName: delivery.Order.Client.name,
+      address: delivery.Order.deliveryAddress!,
+      lat: delivery.Order.deliveryLat!,
+      lng: delivery.Order.deliveryLng!,
       status: delivery.status,
     }));
 

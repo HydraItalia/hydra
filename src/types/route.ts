@@ -142,7 +142,7 @@ export type DeliveryForRoute = {
     deliveryLat: number | null;
     deliveryLng: number | null;
     deliveryAddress: string | null;
-    client: {
+    Client: {
       name: string;
     };
   };

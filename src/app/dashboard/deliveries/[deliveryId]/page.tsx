@@ -55,7 +55,7 @@ export default async function DeliveryDetailPage({
   return (
     <div className="space-y-6 p-8">
       <PageHeader
-        title={`Delivery ${delivery.order.orderNumber}`}
+        title={`Delivery ${delivery.Order.orderNumber}`}
         subtitle={`Status: ${delivery.status.replace(/_/g, " ")}`}
       />
 
