@@ -134,7 +134,15 @@ export async function getOptimizedDriverRoute(
     const directionsRequest = buildDirectionsRequest(
       { lat: DEFAULT_ORIGIN_LAT, lng: DEFAULT_ORIGIN_LNG },
       destinations,
-      true // optimize waypoints
+      {
+        optimizeWaypoints: true,
+        region: "it", // Italy
+        language: "it", // Italian
+        unitSystem: "METRIC",
+        // Optional: use current time for traffic-aware routing
+        // departureTime: new Date(),
+        // trafficModel: "best_guess",
+      }
     );
 
     const directionsResponse = await getOptimizedRoute(directionsRequest);

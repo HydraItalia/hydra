@@ -9,11 +9,25 @@ import {
   DirectionsRequest,
   DirectionsResponse,
   DirectionsWaypoint,
+  DirectionsLocation,
 } from "@/types/route";
 
 // Configuration
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || "";
 const DIRECTIONS_API_URL = "https://maps.googleapis.com/maps/api/directions/json";
+
+/**
+ * Convert DirectionsLocation to string format for API
+ */
+function formatLocation(location: DirectionsLocation): string {
+  if (typeof location === "string") {
+    return location; // Address string
+  }
+  if ("placeId" in location) {
+    return `place_id:${location.placeId}`;
+  }
+  return `${location.lat},${location.lng}`; // Lat/lng coordinates
+}
 
 /**
  * Fetch optimized route from Google Directions API
@@ -34,20 +48,66 @@ export async function getOptimizedRoute(
   // Build query parameters
   const params = new URLSearchParams({
     key: GOOGLE_MAPS_API_KEY,
-    origin: `${request.origin.lat},${request.origin.lng}`,
-    destination: `${request.destination.lat},${request.destination.lng}`,
-    mode: request.travelMode.toLowerCase(),
+    origin: formatLocation(request.origin),
+    destination: formatLocation(request.destination),
+    mode: (request.travelMode || "DRIVING").toLowerCase(),
   });
 
   // Add waypoints if present
   if (request.waypoints && request.waypoints.length > 0) {
     const waypointsParam = request.waypoints
-      .map((wp) => `${wp.location.lat},${wp.location.lng}`)
+      .map((wp) => formatLocation(wp.location))
       .join("|");
 
-    params.append("waypoints",
+    params.append(
+      "waypoints",
       `${request.optimizeWaypoints ? "optimize:true|" : ""}${waypointsParam}`
     );
+  }
+
+  // Route preferences
+  if (request.alternatives) params.append("alternatives", "true");
+  if (request.avoidHighways) params.append("avoid", "highways");
+  if (request.avoidTolls) params.append("avoid", "tolls");
+  if (request.avoidFerries) params.append("avoid", "ferries");
+  if (request.avoidIndoor) params.append("avoid", "indoor");
+
+  // Traffic and timing
+  if (request.departureTime) {
+    const timestamp =
+      request.departureTime instanceof Date
+        ? Math.floor(request.departureTime.getTime() / 1000)
+        : request.departureTime;
+    params.append("departure_time", timestamp.toString());
+  }
+  if (request.arrivalTime) {
+    const timestamp =
+      request.arrivalTime instanceof Date
+        ? Math.floor(request.arrivalTime.getTime() / 1000)
+        : request.arrivalTime;
+    params.append("arrival_time", timestamp.toString());
+  }
+  if (request.trafficModel) {
+    params.append("traffic_model", request.trafficModel);
+  }
+
+  // Transit options
+  if (request.transitMode && request.transitMode.length > 0) {
+    params.append("transit_mode", request.transitMode.join("|"));
+  }
+  if (request.transitRoutingPreference) {
+    params.append("transit_routing_preference", request.transitRoutingPreference);
+  }
+
+  // Units and localization
+  if (request.unitSystem) {
+    params.append("units", request.unitSystem.toLowerCase());
+  }
+  if (request.region) {
+    params.append("region", request.region);
+  }
+  if (request.language) {
+    params.append("language", request.language);
   }
 
   const url = `${DIRECTIONS_API_URL}?${params.toString()}`;
@@ -101,17 +161,17 @@ export async function getOptimizedRoute(
 }
 
 /**
- * Build a DirectionsRequest from a list of coordinates
+ * Build a DirectionsRequest from a list of locations
  *
- * @param origin - Starting point
- * @param destinations - Array of destination coordinates
- * @param optimize - Whether to optimize waypoint order
+ * @param origin - Starting point (lat/lng, place ID, or address)
+ * @param destinations - Array of destination locations
+ * @param options - Additional options for the request
  * @returns DirectionsRequest object
  */
 export function buildDirectionsRequest(
-  origin: { lat: number; lng: number },
-  destinations: Array<{ lat: number; lng: number }>,
-  optimize: boolean = true
+  origin: DirectionsLocation,
+  destinations: DirectionsLocation[],
+  options: Partial<DirectionsRequest> = {}
 ): DirectionsRequest {
   if (destinations.length === 0) {
     throw new Error("At least one destination is required");
@@ -124,6 +184,7 @@ export function buildDirectionsRequest(
       destination: destinations[0],
       travelMode: "DRIVING",
       optimizeWaypoints: false,
+      ...options,
     };
   }
 
@@ -139,7 +200,9 @@ export function buildDirectionsRequest(
     origin,
     destination: destinations[destinations.length - 1],
     waypoints,
-    optimizeWaypoints: optimize,
+    optimizeWaypoints: true,
     travelMode: "DRIVING",
+    // Apply additional options (e.g., avoidTolls, departureTime, etc.)
+    ...options,
   };
 }

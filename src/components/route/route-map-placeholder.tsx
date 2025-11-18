@@ -46,27 +46,28 @@ export function RouteMapPlaceholder({
               </p>
             </div>
 
-            {/* Debug info - remove in production */}
-            <details className="text-left mt-4">
-              <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-                Route Data (for development)
-              </summary>
-              <pre className="mt-2 text-xs bg-background p-4 rounded border overflow-auto max-h-64">
-                {JSON.stringify(
-                  {
-                    stops: stops.map((s) => ({
-                      id: s.deliveryId,
-                      client: s.clientName,
-                      lat: s.lat,
-                      lng: s.lng,
-                    })),
-                    polyline: polyline ? `${polyline.slice(0, 50)}...` : null,
-                  },
-                  null,
-                  2
-                )}
-              </pre>
-            </details>
+            {process.env.NODE_ENV === "development" && (
+              <details className="text-left mt-4">
+                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                  Route Data (for development)
+                </summary>
+                <pre className="mt-2 text-xs bg-background p-4 rounded border overflow-auto max-h-64">
+                  {JSON.stringify(
+                    {
+                      stops: stops.map((s) => ({
+                        id: s.deliveryId,
+                        client: s.clientName,
+                        lat: s.lat,
+                        lng: s.lng,
+                      })),
+                      polyline: polyline ? `${polyline.slice(0, 50)}...` : null,
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              </details>
+            )}
           </div>
         </div>
       </CardContent>

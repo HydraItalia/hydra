@@ -29,27 +29,53 @@ export type DriverRoute = {
 
 /**
  * Google Directions API Request Types
+ * https://developers.google.com/maps/documentation/directions/get-directions
  */
+
+// Location can be lat/lng, place ID, or address string
+export type DirectionsLocation =
+  | { lat: number; lng: number }
+  | { placeId: string }
+  | string; // Address string
+
 export type DirectionsWaypoint = {
-  location: {
-    lat: number;
-    lng: number;
-  };
-  stopover: boolean;
+  location: DirectionsLocation;
+  stopover?: boolean;
+  via?: boolean; // If true, instructs the Directions service to avoid tolls on the route
 };
 
 export type DirectionsRequest = {
-  origin: {
-    lat: number;
-    lng: number;
-  };
-  destination: {
-    lat: number;
-    lng: number;
-  };
+  // Origin and destination (required)
+  origin: DirectionsLocation;
+  destination: DirectionsLocation;
+
+  // Travel mode (defaults to DRIVING)
+  travelMode?: "DRIVING" | "WALKING" | "BICYCLING" | "TRANSIT";
+
+  // Waypoints (optional)
   waypoints?: DirectionsWaypoint[];
   optimizeWaypoints?: boolean;
-  travelMode: "DRIVING" | "WALKING" | "BICYCLING" | "TRANSIT";
+
+  // Route preferences
+  alternatives?: boolean; // If true, return alternative routes
+  avoidHighways?: boolean;
+  avoidTolls?: boolean;
+  avoidFerries?: boolean;
+  avoidIndoor?: boolean;
+
+  // Traffic and timing (for DRIVING or TRANSIT)
+  departureTime?: Date | number; // Unix timestamp or Date
+  arrivalTime?: Date | number; // Only for TRANSIT mode
+  trafficModel?: "best_guess" | "pessimistic" | "optimistic";
+
+  // Transit-specific options
+  transitMode?: ("bus" | "subway" | "train" | "tram" | "rail")[];
+  transitRoutingPreference?: "less_walking" | "fewer_transfers";
+
+  // Units and localization
+  unitSystem?: "METRIC" | "IMPERIAL";
+  region?: string; // ccTLD two-character value (e.g., "us", "uk", "it")
+  language?: string; // Language code (e.g., "en", "it", "fr")
 };
 
 /**
