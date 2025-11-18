@@ -61,15 +61,15 @@ export async function getMyDeliveries(params?: {
     prisma.delivery.findMany({
       where,
       include: {
-        order: {
+        Order: {
           include: {
-            client: true,
-            items: {
+            Client: true,
+            OrderItem: {
               include: {
-                vendorProduct: {
+                VendorProduct: {
                   include: {
-                    product: true,
-                    vendor: true,
+                    Product: true,
+                    Vendor: true,
                   },
                 },
               },
@@ -106,22 +106,22 @@ export async function getDeliveryById(deliveryId: string) {
       driverId, // Ensure driver can only see their own
     },
     include: {
-      order: {
+      Order: {
         include: {
-          client: true,
-          items: {
+          Client: true,
+          OrderItem: {
             include: {
-              vendorProduct: {
+              VendorProduct: {
                 include: {
-                  product: true,
-                  vendor: true,
+                  Product: true,
+                  Vendor: true,
                 },
               },
             },
           },
         },
       },
-      driver: true,
+      Driver: true,
     },
   });
 

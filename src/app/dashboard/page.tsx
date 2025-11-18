@@ -400,9 +400,9 @@ async function DriverDashboard({
     take: 5,
     orderBy: { assignedAt: "asc" },
     include: {
-      order: {
+      Order: {
         include: {
-          client: true,
+          Client: true,
         },
       },
     },
@@ -465,10 +465,10 @@ async function DriverDashboard({
                   >
                     <div>
                       <p className="text-sm font-medium">
-                        {delivery.order.orderNumber}
+                        {delivery.Order.orderNumber}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {delivery.order.client.name} •{" "}
+                        {delivery.Order.Client.name} •{" "}
                         {delivery.status.replace(/_/g, " ")}
                       </p>
                     </div>

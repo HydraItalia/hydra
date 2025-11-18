@@ -26,15 +26,15 @@ interface DeliveryListProps {
       id: string;
       status: DeliveryStatus;
       assignedAt: string | Date;
-      order: {
+      Order: {
         id: string;
         orderNumber: string;
         totalCents: number;
-        client: {
+        Client: {
           name: string;
           region: string | null;
         };
-        items: Array<{
+        OrderItem: Array<{
           id: string;
         }>;
       };
@@ -88,14 +88,14 @@ export function DeliveryList({ deliveries, currentPage }: DeliveryListProps) {
               <div className="space-y-1">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  {delivery.order.orderNumber}
+                  {delivery.Order.orderNumber}
                 </CardTitle>
                 <CardDescription className="flex items-center gap-2">
                   <MapPin className="h-3 w-3" />
-                  {delivery.order.client.name}
-                  {delivery.order.client.region && (
+                  {delivery.Order.Client.name}
+                  {delivery.Order.Client.region && (
                     <span className="text-xs">
-                      • {delivery.order.client.region}
+                      • {delivery.Order.Client.region}
                     </span>
                   )}
                 </CardDescription>
@@ -113,8 +113,8 @@ export function DeliveryList({ deliveries, currentPage }: DeliveryListProps) {
               <div className="text-sm text-muted-foreground space-y-1">
                 <p className="flex items-center gap-2">
                   <Truck className="h-3 w-3" />
-                  {delivery.order.items.length} item(s) • €
-                  {(delivery.order.totalCents / 100).toFixed(2)}
+                  {delivery.Order.OrderItem.length} item(s) • €
+                  {(delivery.Order.totalCents / 100).toFixed(2)}
                 </p>
                 <p>
                   Assigned{" "}
