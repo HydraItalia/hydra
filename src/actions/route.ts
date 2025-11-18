@@ -114,6 +114,10 @@ export async function getDriverRoute(
       return { success: false, error: "Not authenticated" };
     }
 
+    if (!driverId || !driverId.trim()) {
+      return { success: false, error: "Invalid driver ID" };
+    }
+
     // Only admins and agents can view other drivers' routes
     if (user.role !== "ADMIN" && user.role !== "AGENT") {
       return {
@@ -123,7 +127,6 @@ export async function getDriverRoute(
     }
 
     const route = await getOptimizedDriverRoute(driverId);
-
     return { success: true, route };
   } catch (error) {
     console.error("Error fetching driver route:", error);

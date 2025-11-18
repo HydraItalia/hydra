@@ -54,11 +54,21 @@ export function RouteMap({ stops, polyline }: RouteMapProps) {
       return { lat: 41.9028, lng: 12.4964 };
     }
 
-    // Calculate center from all stops
+    // Calculate center from stops with valid coordinates
+    const validStops = stops.filter(
+      (stop): stop is RouteStop & { lat: number; lng: number } =>
+        stop.lat !== null && stop.lng !== null
+    );
+
+    if (validStops.length === 0) {
+      // No valid coordinates, default to Rome
+      return { lat: 41.9028, lng: 12.4964 };
+    }
+
     const avgLat =
-      stops.reduce((sum, stop) => sum + stop.lat, 0) / stops.length;
+      validStops.reduce((sum, stop) => sum + stop.lat, 0) / validStops.length;
     const avgLng =
-      stops.reduce((sum, stop) => sum + stop.lng, 0) / stops.length;
+      validStops.reduce((sum, stop) => sum + stop.lng, 0) / validStops.length;
 
     return { lat: avgLat, lng: avgLng };
   }, [stops]);
@@ -66,12 +76,20 @@ export function RouteMap({ stops, polyline }: RouteMapProps) {
   const onLoad = useCallback(
     (map: google.maps.Map) => {
       if (stops.length > 0) {
-        // Create bounds and fit map to show all stops
+        // Create bounds and fit map to show all stops with valid coordinates
         const bounds = new google.maps.LatLngBounds();
+        let hasValidStops = false;
+
         stops.forEach((stop) => {
-          bounds.extend({ lat: stop.lat, lng: stop.lng });
+          if (stop.lat !== null && stop.lng !== null) {
+            bounds.extend({ lat: stop.lat, lng: stop.lng });
+            hasValidStops = true;
+          }
         });
-        map.fitBounds(bounds);
+
+        if (hasValidStops) {
+          map.fitBounds(bounds);
+        }
       }
     },
     [stops]
@@ -138,32 +156,37 @@ export function RouteMap({ stops, polyline }: RouteMapProps) {
           options={mapOptions}
           onLoad={onLoad}
         >
-          {/* Render markers for each stop */}
-          {stops.map((stop, index) => (
-            <Marker
-              key={stop.deliveryId}
-              position={{ lat: stop.lat, lng: stop.lng }}
-              label={{
-                text: `${index + 1}`,
-                color: "white",
-                fontWeight: "bold",
-              }}
-              title={`Stop ${index + 1}: ${stop.clientName}`}
-              icon={{
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 15,
-                fillColor:
-                  index === 0
-                    ? "#22c55e"
-                    : index === stops.length - 1
-                    ? "#ef4444"
-                    : "#3b82f6",
-                fillOpacity: 1,
-                strokeColor: "white",
-                strokeWeight: 2,
-              }}
-            />
-          ))}
+          {/* Render markers for each stop with valid coordinates */}
+          {stops.map((stop, index) => {
+            // Skip stops without valid coordinates
+            if (stop.lat === null || stop.lng === null) return null;
+
+            return (
+              <Marker
+                key={stop.deliveryId}
+                position={{ lat: stop.lat, lng: stop.lng }}
+                label={{
+                  text: `${index + 1}`,
+                  color: "white",
+                  fontWeight: "bold",
+                }}
+                title={`Stop ${index + 1}: ${stop.clientName}`}
+                icon={{
+                  path: google.maps.SymbolPath.CIRCLE,
+                  scale: 15,
+                  fillColor:
+                    index === 0
+                      ? "#22c55e"
+                      : index === stops.length - 1
+                      ? "#ef4444"
+                      : "#3b82f6",
+                  fillOpacity: 1,
+                  strokeColor: "white",
+                  strokeWeight: 2,
+                }}
+              />
+            );
+          })}
 
           {/* Render polyline if available */}
           {decodedPath.length > 0 && (

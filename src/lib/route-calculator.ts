@@ -7,7 +7,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { DeliveryStatus } from "@prisma/client";
-import { DriverRoute, RouteStop, DeliveryForRoute } from "@/types/route";
+import { DriverRoute, RouteStop } from "@/types/route";
 import { getOptimizedRoute, buildDirectionsRequest } from "./google-directions";
 
 // Default origin (stub for now - can be made configurable per driver)
@@ -46,23 +46,16 @@ export async function getOptimizedDriverRoute(
     },
     include: {
       order: {
-        select: {
-          id: true,
-          orderNumber: true,
-          deliveryLat: true,
-          deliveryLng: true,
-          deliveryAddress: true,
-          client: {
-            select: {
-              name: true,
-            },
-          },
+        include: {
+          client: true,
         },
       },
     },
   });
 
-  console.log(`[Route Calculator] Found ${deliveries.length} deliveries for driver ${driverId}`);
+  console.log(
+    `[Route Calculator] Found ${deliveries.length} deliveries for driver ${driverId}`
+  );
 
   // Handle empty case
   if (deliveries.length === 0) {
@@ -74,24 +67,39 @@ export async function getOptimizedDriverRoute(
   }
 
   // Filter deliveries with valid coordinates
-  // Type assertion needed because schema hasn't been migrated yet
+  // Narrow to deliveries with an order that contains coordinates/address
+  type DeliveryWithOrder = (typeof deliveries)[number];
   const validDeliveries = deliveries.filter((d) => {
-    const order = d.order as any;
+    const od = (d as any).order;
     return (
-      order.deliveryLat !== null &&
-      order.deliveryLng !== null &&
-      order.deliveryAddress !== null
+      !!od &&
+      od.deliveryLat != null &&
+      od.deliveryLng != null &&
+      od.deliveryAddress != null
     );
-  }) as unknown as DeliveryForRoute[];
+  }) as Array<
+    DeliveryWithOrder & {
+      order: {
+        deliveryLat: number;
+        deliveryLng: number;
+        deliveryAddress: string;
+      };
+    }
+  >;
 
-  console.log(`[Route Calculator] ${validDeliveries.length} deliveries have valid coordinates`);
+  console.log(
+    `[Route Calculator] ${validDeliveries.length} deliveries have valid coordinates`
+  );
 
   if (validDeliveries.length > 0) {
     const firstDelivery = deliveries[0];
-    console.log(`[Route Calculator] Raw first delivery order:`, JSON.stringify(firstDelivery.order, null, 2));
+    console.log(
+      `[Route Calculator] Raw first delivery order:`,
+      JSON.stringify(firstDelivery.order, null, 2)
+    );
 
-    const sampleCoords = (validDeliveries[0].order as any);
-    console.log(`[Route Calculator] Sample coordinates after cast:`, {
+    const sampleCoords = validDeliveries[0].order;
+    console.log(`[Route Calculator] Sample coordinates after validation:`, {
       lat: sampleCoords.deliveryLat,
       lng: sampleCoords.deliveryLng,
       address: sampleCoords.deliveryAddress,
@@ -99,33 +107,25 @@ export async function getOptimizedDriverRoute(
   }
 
   if (validDeliveries.length === 0) {
-    // All deliveries lack coordinates
+    // All deliveries lack coordinates - return empty route
+    // Note: We don't return stops with (0,0) coordinates as that represents
+    // a real location (Gulf of Guinea) and could be misleading
+    console.warn(
+      `[Route Calculator] No deliveries with valid coordinates found for driver ${driverId}`
+    );
     return {
-      stops: deliveries.map((d) => {
-        const order = d.order as any;
-        return {
-          deliveryId: d.id,
-          orderId: d.orderId,
-          clientName: d.order.client.name,
-          address: order.deliveryAddress || "Address not set",
-          lat: 0,
-          lng: 0,
-          status: d.status,
-        };
-      }),
+      stops: [],
       totalDistanceKm: 0,
       totalDurationMinutes: 0,
     };
   }
 
   // Build destinations array
-  const destinations = validDeliveries.map((d) => {
-    const order = d.order as any;
-    return {
-      lat: order.deliveryLat as number,
-      lng: order.deliveryLng as number,
-    };
-  });
+  // Since validDeliveries are filtered to have non-null coordinates, we can safely assert
+  const destinations = validDeliveries.map((d) => ({
+    lat: d.order.deliveryLat!,
+    lng: d.order.deliveryLng!,
+  }));
 
   console.log(`[Route Calculator] Destinations for Google API:`, destinations);
 
@@ -155,7 +155,7 @@ export async function getOptimizedDriverRoute(
     const waypointOrder = route.waypoint_order || [];
 
     // Map waypoint order back to deliveries
-    let orderedDeliveries: DeliveryForRoute[];
+    let orderedDeliveries: typeof validDeliveries;
 
     if (waypointOrder.length > 0) {
       // Google optimized the waypoints
@@ -176,14 +176,13 @@ export async function getOptimizedDriverRoute(
     const stops: RouteStop[] = orderedDeliveries.map((delivery, index) => {
       const leg = route.legs[index];
 
-      const order = delivery.order as any;
       return {
         deliveryId: delivery.id,
         orderId: delivery.orderId,
         clientName: delivery.order.client.name,
-        address: order.deliveryAddress as string,
-        lat: order.deliveryLat as number,
-        lng: order.deliveryLng as number,
+        address: delivery.order.deliveryAddress!,
+        lat: delivery.order.deliveryLat!,
+        lng: delivery.order.deliveryLng!,
         status: delivery.status,
         etaMinutes: leg ? Math.round(leg.duration.value / 60) : undefined,
         legDistanceKm: leg ? leg.distance.value / 1000 : undefined,
@@ -210,18 +209,15 @@ export async function getOptimizedDriverRoute(
     console.error("Error calculating optimized route:", error);
 
     // Fallback: return deliveries in their current order without optimization
-    const stops: RouteStop[] = validDeliveries.map((delivery) => {
-      const order = delivery.order as any;
-      return {
-        deliveryId: delivery.id,
-        orderId: delivery.orderId,
-        clientName: delivery.order.client.name,
-        address: order.deliveryAddress as string,
-        lat: order.deliveryLat as number,
-        lng: order.deliveryLng as number,
-        status: delivery.status,
-      };
-    });
+    const stops: RouteStop[] = validDeliveries.map((delivery) => ({
+      deliveryId: delivery.id,
+      orderId: delivery.orderId,
+      clientName: delivery.order.client.name,
+      address: delivery.order.deliveryAddress!,
+      lat: delivery.order.deliveryLat!,
+      lng: delivery.order.deliveryLng!,
+      status: delivery.status,
+    }));
 
     return {
       stops,
@@ -232,21 +228,24 @@ export async function getOptimizedDriverRoute(
 }
 
 /**
- * Update route sequence in the database
+ * Update route sequence in the database with transaction safety
  *
  * @param route - The optimized route with stop order
  */
-export async function saveRouteSequence(
-  route: DriverRoute
-): Promise<void> {
-  // Update each delivery with its sequence number
-  // Type assertion needed until schema is migrated
-  const updatePromises = route.stops.map((stop, index) =>
-    prisma.delivery.update({
-      where: { id: stop.deliveryId },
-      data: { routeSequence: index + 1 } as any,
-    })
-  );
+export async function saveRouteSequence(route: DriverRoute): Promise<void> {
+  if (route.stops.length === 0) {
+    return; // Nothing to update
+  }
 
-  await Promise.all(updatePromises);
+  // Use transaction to ensure all updates succeed or all fail
+  // This prevents partial updates that could leave route sequence inconsistent
+  await prisma.$transaction(
+    route.stops.map((stop, index) =>
+      prisma.delivery.update({
+        where: { id: stop.deliveryId },
+        // Cast data to any to avoid transient typing mismatches with generated Prisma types
+        data: { routeSequence: index + 1 } as any,
+      })
+    )
+  );
 }

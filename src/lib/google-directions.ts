@@ -14,7 +14,8 @@ import {
 
 // Configuration
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || "";
-const DIRECTIONS_API_URL = "https://maps.googleapis.com/maps/api/directions/json";
+const DIRECTIONS_API_URL =
+  "https://maps.googleapis.com/maps/api/directions/json";
 
 /**
  * Convert DirectionsLocation to string format for API
@@ -96,7 +97,10 @@ export async function getOptimizedRoute(
     params.append("transit_mode", request.transitMode.join("|"));
   }
   if (request.transitRoutingPreference) {
-    params.append("transit_routing_preference", request.transitRoutingPreference);
+    params.append(
+      "transit_routing_preference",
+      request.transitRoutingPreference
+    );
   }
 
   // Units and localization
@@ -145,7 +149,10 @@ export async function getOptimizedRoute(
     });
 
     if (data.status !== "OK") {
-      console.error("[Google Directions] Full API response:", JSON.stringify(data, null, 2));
+      console.error(
+        "[Google Directions] Full API response:",
+        JSON.stringify(data, null, 2)
+      );
       throw new Error(
         `Google Directions API error: ${data.status}${
           data.error_message ? ` - ${data.error_message}` : ""

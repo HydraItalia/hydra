@@ -10,8 +10,8 @@ export type RouteStop = {
   orderId: string;
   clientName: string;
   address: string;
-  lat: number;
-  lng: number;
+  lat: number | null; // null when coordinates are missing
+  lng: number | null; // null when coordinates are missing
   status: DeliveryStatus;
   etaMinutes?: number; // Estimated time from previous stop
   legDistanceKm?: number; // Distance from previous stop
@@ -133,13 +133,15 @@ export type DeliveryForRoute = {
   inTransitAt: Date | null;
   deliveredAt: Date | null;
   exceptionAt: Date | null;
+  routeSequence: number | null;
   createdAt: Date;
   updatedAt: Date;
-  order: {
+  Order: {
     id: string;
-    deliveryLat: number;
-    deliveryLng: number;
-    deliveryAddress: string;
+    orderNumber: string;
+    deliveryLat: number | null;
+    deliveryLng: number | null;
+    deliveryAddress: string | null;
     client: {
       name: string;
     };

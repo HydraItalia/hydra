@@ -37,7 +37,7 @@ export default async function RoutePage() {
     route = await getOptimizedDriverRoute(user.driverId);
   } catch (err) {
     console.error("Error fetching route:", err);
-    error = err instanceof Error ? err.message : "Failed to load route";
+    error = "Failed to load route. Please try again or contact support.";
   }
 
   if (error) {

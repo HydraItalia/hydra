@@ -11,13 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RouteStop } from "@/types/route";
-import {
-  MapPin,
-  Clock,
-  ExternalLink,
-  Navigation,
-  Package,
-} from "lucide-react";
+import { MapPin, Clock, ExternalLink, Navigation, Package } from "lucide-react";
 
 interface RouteStopListProps {
   stops: RouteStop[];
@@ -42,9 +36,16 @@ const statusLabels = {
 /**
  * Generate a Google Maps deep link for a specific coordinate
  */
-function getGoogleMapsLink(lat: number, lng: number, address: string): string {
+function getGoogleMapsLink(
+  lat: number | null,
+  lng: number | null
+): string | null {
+  // Return null if coordinates are missing
+  if (lat === null || lng === null) {
+    return null;
+  }
   // Use google.com/maps/dir for navigation
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encodeURIComponent(address)}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
 
 export function RouteStopList({ stops }: RouteStopListProps) {
@@ -101,8 +102,7 @@ export function RouteStopList({ stops }: RouteStopListProps) {
                       )}
                       {stop.etaMinutes !== undefined && (
                         <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          ~{stop.etaMinutes} min
+                          <Clock className="h-3 w-3" />~{stop.etaMinutes} min
                         </span>
                       )}
                     </div>
@@ -112,7 +112,9 @@ export function RouteStopList({ stops }: RouteStopListProps) {
 
               {/* Status Badge */}
               <Badge
-                className={`${statusColors[stop.status]} text-white flex-shrink-0`}
+                className={`${
+                  statusColors[stop.status]
+                } text-white flex-shrink-0`}
                 variant="default"
               >
                 {statusLabels[stop.status]}
@@ -129,17 +131,19 @@ export function RouteStopList({ stops }: RouteStopListProps) {
                 </Link>
               </Button>
 
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href={getGoogleMapsLink(stop.lat, stop.lng, stop.address)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Navigation className="h-3 w-3 mr-1" />
-                  Open in Maps
-                  <ExternalLink className="h-3 w-3 ml-1" />
-                </a>
-              </Button>
+              {stop.lat !== null && stop.lng !== null && (
+                <Button variant="outline" size="sm" asChild>
+                  <a
+                    href={getGoogleMapsLink(stop.lat, stop.lng) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Navigation className="h-3 w-3 mr-1" />
+                    Open in Maps
+                    <ExternalLink className="h-3 w-3 ml-1" />
+                  </a>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
