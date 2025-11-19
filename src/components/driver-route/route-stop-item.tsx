@@ -14,6 +14,9 @@ type RouteStopItemProps = {
   shortAddress: string | null;
   status: DriverStopStatus;
   cashCollectedCents?: number | null;
+  startedAt?: Date | null;
+  completedAt?: Date | null;
+  isCurrent?: boolean;
 };
 
 const statusConfig: Record<
@@ -28,6 +31,14 @@ const statusConfig: Record<
   SKIPPED: { label: "Skipped", variant: "secondary" },
 };
 
+function formatTime(date: Date | null | undefined): string | null {
+  if (!date) return null;
+  return new Date(date).toLocaleTimeString("it-IT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function RouteStopItem({
   sequenceNumber,
   clientName,
@@ -35,6 +46,9 @@ export function RouteStopItem({
   shortAddress,
   status,
   cashCollectedCents,
+  startedAt,
+  completedAt,
+  isCurrent,
 }: RouteStopItemProps) {
   const displayAddress = shortAddress || fullAddress || "Address not available";
   const canNavigate = !!fullAddress;
@@ -43,7 +57,11 @@ export function RouteStopItem({
   const { label: statusLabel, variant: statusVariant } = statusConfig[status];
 
   return (
-    <Card className={status === "COMPLETED" ? "opacity-60" : ""}>
+    <Card
+      className={`${
+        status === "COMPLETED" || status === "SKIPPED" ? "opacity-60" : ""
+      } ${isCurrent ? "border-primary ring-1 ring-primary" : ""}`}
+    >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           {/* Sequence number badge */}
@@ -53,7 +71,9 @@ export function RouteStopItem({
                 ? "bg-green-100 text-green-700"
                 : status === "SKIPPED"
                 ? "bg-gray-100 text-gray-500"
-                : "bg-primary text-primary-foreground"
+                : isCurrent
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground"
             }`}
           >
             {sequenceNumber}
@@ -62,7 +82,14 @@ export function RouteStopItem({
           {/* Stop details */}
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="font-medium truncate">{clientName}</h3>
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-medium truncate">{clientName}</h3>
+                {isCurrent && (
+                  <Badge variant="secondary" className="flex-shrink-0 text-xs">
+                    Current
+                  </Badge>
+                )}
+              </div>
               <Badge variant={statusVariant} className="flex-shrink-0">
                 {statusLabel}
               </Badge>
@@ -72,6 +99,19 @@ export function RouteStopItem({
               <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
               <span className="truncate">{displayAddress}</span>
             </div>
+
+            {/* Timing info */}
+            {(startedAt || completedAt) && (
+              <div className="flex gap-3 text-xs text-muted-foreground">
+                {startedAt && <span>Started: {formatTime(startedAt)}</span>}
+                {completedAt && (
+                  <span>
+                    {status === "SKIPPED" ? "Skipped" : "Completed"}:{" "}
+                    {formatTime(completedAt)}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Cash collected (if completed) */}
             {status === "COMPLETED" &&

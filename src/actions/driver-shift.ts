@@ -66,6 +66,16 @@ export type ShiftWithVehicleAndStops = DriverShift & {
   stops: StopWithClient[];
 };
 
+// Types for Phase 7.4 - Live Route Progress
+export type RouteProgress = {
+  shift: ShiftWithVehicleAndStops;
+  totalStops: number;
+  completedStops: number;
+  skippedStops: number;
+  pendingStops: number;
+  currentStop: StopWithClient | null;
+};
+
 /**
  * Get the current driver's shift for today
  *
@@ -468,21 +478,30 @@ export async function updateDriverStopStatus(
     }
 
     // Validate payment amounts
-    if (status === "SKIPPED" && (cashCollectedCents !== undefined || bonCollectedCents !== undefined)) {
+    if (
+      status === "SKIPPED" &&
+      (cashCollectedCents !== undefined || bonCollectedCents !== undefined)
+    ) {
       return {
         success: false,
         error: "Cannot collect payment for skipped stops",
       };
     }
 
-    if (cashCollectedCents !== undefined && (typeof cashCollectedCents !== "number" || cashCollectedCents < 0)) {
+    if (
+      cashCollectedCents !== undefined &&
+      (typeof cashCollectedCents !== "number" || cashCollectedCents < 0)
+    ) {
       return {
         success: false,
         error: "Cash collected must be a non-negative number",
       };
     }
 
-    if (bonCollectedCents !== undefined && (typeof bonCollectedCents !== "number" || bonCollectedCents < 0)) {
+    if (
+      bonCollectedCents !== undefined &&
+      (typeof bonCollectedCents !== "number" || bonCollectedCents < 0)
+    ) {
       return {
         success: false,
         error: "Bon collected must be a non-negative number",
@@ -493,7 +512,10 @@ export async function updateDriverStopStatus(
     const updatedStop = await prisma.driverStop.update({
       where: { id: stopId },
       data: {
-        status: status === "COMPLETED" ? DriverStopStatus.COMPLETED : DriverStopStatus.SKIPPED,
+        status:
+          status === "COMPLETED"
+            ? DriverStopStatus.COMPLETED
+            : DriverStopStatus.SKIPPED,
         cashCollectedCents: cashCollectedCents ?? null,
         bonCollectedCents: bonCollectedCents ?? null,
       },
@@ -515,9 +537,439 @@ export async function updateDriverStopStatus(
     return {
       success: false,
       error:
+        error instanceof Error ? error.message : "Failed to update stop status",
+    };
+  }
+}
+
+/**
+ * Phase 7.4 - Get today's route progress for driver
+ *
+ * Returns the current shift with stops and computed progress metrics.
+ * The "current stop" is the first PENDING stop by sequence number.
+ *
+ * @returns Route progress with counts and current stop
+ */
+export async function getTodayRouteProgressForDriver(): Promise<
+  | { success: true; progress: RouteProgress }
+  | { success: true; progress: null }
+  | { success: false; error: string }
+> {
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    if (user.role !== "DRIVER") {
+      return {
+        success: false,
+        error: "Only drivers can access route progress",
+      };
+    }
+
+    if (!user.driverId) {
+      return {
+        success: false,
+        error: "User is not associated with a driver account",
+      };
+    }
+
+    // Get today's date range
+    const { startOfDay, endOfDay } = getTodayDateRange();
+
+    // Find an open shift for today with stops
+    const shift = await prisma.driverShift.findFirst({
+      where: {
+        driverId: user.driverId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+        endTime: null,
+      },
+      include: {
+        vehicle: true,
+        stops: {
+          orderBy: {
+            sequenceNumber: "asc",
+          },
+          include: {
+            client: {
+              select: {
+                id: true,
+                name: true,
+                fullAddress: true,
+                shortAddress: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        startTime: "desc",
+      },
+    });
+
+    if (!shift) {
+      return { success: true, progress: null };
+    }
+
+    // Compute progress metrics
+    const totalStops = shift.stops.length;
+    const completedStops = shift.stops.filter(
+      (stop) => stop.status === DriverStopStatus.COMPLETED
+    ).length;
+    const skippedStops = shift.stops.filter(
+      (stop) => stop.status === DriverStopStatus.SKIPPED
+    ).length;
+    const pendingStops = shift.stops.filter(
+      (stop) => stop.status === DriverStopStatus.PENDING
+    ).length;
+
+    // Current stop is the first PENDING stop by sequence
+    const currentStop =
+      shift.stops.find((stop) => stop.status === DriverStopStatus.PENDING) ??
+      null;
+
+    return {
+      success: true,
+      progress: {
+        shift,
+        totalStops,
+        completedStops,
+        skippedStops,
+        pendingStops,
+        currentStop,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching route progress:", error);
+    return {
+      success: false,
+      error:
         error instanceof Error
           ? error.message
-          : "Failed to update stop status",
+          : "Failed to fetch route progress",
+    };
+  }
+}
+
+/**
+ * Phase 7.4 - Start a stop
+ *
+ * Marks a stop as started by setting startedAt timestamp.
+ * Does not change the status (remains PENDING until completed).
+ *
+ * @param stopId - The ID of the stop to start
+ * @returns The updated stop
+ */
+export async function startStop(
+  stopId: string
+): Promise<
+  { success: true; stop: StopWithClient } | { success: false; error: string }
+> {
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    if (user.role !== "DRIVER") {
+      return { success: false, error: "Only drivers can start stops" };
+    }
+
+    if (!user.driverId) {
+      return {
+        success: false,
+        error: "User is not associated with a driver account",
+      };
+    }
+
+    // Find the stop and verify ownership
+    const stop = await prisma.driverStop.findUnique({
+      where: { id: stopId },
+      include: {
+        shift: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            fullAddress: true,
+            shortAddress: true,
+          },
+        },
+      },
+    });
+
+    if (!stop) {
+      return { success: false, error: "Stop not found" };
+    }
+
+    if (stop.shift.driverId !== user.driverId) {
+      return {
+        success: false,
+        error: "You can only start stops from your own shifts",
+      };
+    }
+
+    if (stop.status !== DriverStopStatus.PENDING) {
+      return {
+        success: false,
+        error: `Cannot start a stop that is ${stop.status}`,
+      };
+    }
+
+    // Only update if not already started
+    if (stop.startedAt) {
+      return { success: true, stop };
+    }
+
+    // Start the stop
+    const updatedStop = await prisma.driverStop.update({
+      where: { id: stopId },
+      data: {
+        startedAt: new Date(),
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            fullAddress: true,
+            shortAddress: true,
+          },
+        },
+      },
+    });
+
+    return { success: true, stop: updatedStop };
+  } catch (error) {
+    console.error("Error starting stop:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to start stop",
+    };
+  }
+}
+
+/**
+ * Phase 7.4 - Complete a stop
+ *
+ * Marks a stop as completed with optional payment collection.
+ * Sets completedAt timestamp and updates status to COMPLETED.
+ *
+ * @param stopId - The ID of the stop to complete
+ * @param cashCollectedCents - Optional cash collected in cents
+ * @param bonCollectedCents - Optional bon collected in cents
+ * @returns The updated stop
+ */
+export async function completeStop(
+  stopId: string,
+  cashCollectedCents?: number,
+  bonCollectedCents?: number
+): Promise<
+  { success: true; stop: StopWithClient } | { success: false; error: string }
+> {
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    if (user.role !== "DRIVER") {
+      return { success: false, error: "Only drivers can complete stops" };
+    }
+
+    if (!user.driverId) {
+      return {
+        success: false,
+        error: "User is not associated with a driver account",
+      };
+    }
+
+    // Validate payment amounts
+    if (
+      cashCollectedCents !== undefined &&
+      (typeof cashCollectedCents !== "number" || cashCollectedCents < 0)
+    ) {
+      return {
+        success: false,
+        error: "Cash collected must be a non-negative number",
+      };
+    }
+
+    if (
+      bonCollectedCents !== undefined &&
+      (typeof bonCollectedCents !== "number" || bonCollectedCents < 0)
+    ) {
+      return {
+        success: false,
+        error: "Bon collected must be a non-negative number",
+      };
+    }
+
+    // Find the stop and verify ownership
+    const stop = await prisma.driverStop.findUnique({
+      where: { id: stopId },
+      include: {
+        shift: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            fullAddress: true,
+            shortAddress: true,
+          },
+        },
+      },
+    });
+
+    if (!stop) {
+      return { success: false, error: "Stop not found" };
+    }
+
+    if (stop.shift.driverId !== user.driverId) {
+      return {
+        success: false,
+        error: "You can only complete stops from your own shifts",
+      };
+    }
+
+    if (stop.status !== DriverStopStatus.PENDING) {
+      return {
+        success: false,
+        error: `Cannot complete a stop that is ${stop.status}`,
+      };
+    }
+
+    // Complete the stop
+    const now = new Date();
+    const updatedStop = await prisma.driverStop.update({
+      where: { id: stopId },
+      data: {
+        status: DriverStopStatus.COMPLETED,
+        startedAt: stop.startedAt ?? now, // Set startedAt if not already set
+        completedAt: now,
+        cashCollectedCents: cashCollectedCents ?? null,
+        bonCollectedCents: bonCollectedCents ?? null,
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            fullAddress: true,
+            shortAddress: true,
+          },
+        },
+      },
+    });
+
+    return { success: true, stop: updatedStop };
+  } catch (error) {
+    console.error("Error completing stop:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to complete stop",
+    };
+  }
+}
+
+/**
+ * Phase 7.4 - Skip a stop
+ *
+ * Marks a stop as skipped.
+ * Sets completedAt timestamp to track when it was skipped.
+ *
+ * @param stopId - The ID of the stop to skip
+ * @returns The updated stop
+ */
+export async function skipStop(
+  stopId: string
+): Promise<
+  { success: true; stop: StopWithClient } | { success: false; error: string }
+> {
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    if (user.role !== "DRIVER") {
+      return { success: false, error: "Only drivers can skip stops" };
+    }
+
+    if (!user.driverId) {
+      return {
+        success: false,
+        error: "User is not associated with a driver account",
+      };
+    }
+
+    // Find the stop and verify ownership
+    const stop = await prisma.driverStop.findUnique({
+      where: { id: stopId },
+      include: {
+        shift: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            fullAddress: true,
+            shortAddress: true,
+          },
+        },
+      },
+    });
+
+    if (!stop) {
+      return { success: false, error: "Stop not found" };
+    }
+
+    if (stop.shift.driverId !== user.driverId) {
+      return {
+        success: false,
+        error: "You can only skip stops from your own shifts",
+      };
+    }
+
+    if (stop.status !== DriverStopStatus.PENDING) {
+      return {
+        success: false,
+        error: `Cannot skip a stop that is ${stop.status}`,
+      };
+    }
+
+    // Skip the stop
+    const updatedStop = await prisma.driverStop.update({
+      where: { id: stopId },
+      data: {
+        status: DriverStopStatus.SKIPPED,
+        completedAt: new Date(), // Track when it was skipped
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            fullAddress: true,
+            shortAddress: true,
+          },
+        },
+      },
+    });
+
+    return { success: true, stop: updatedStop };
+  } catch (error) {
+    console.error("Error skipping stop:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to skip stop",
     };
   }
 }

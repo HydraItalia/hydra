@@ -5,9 +5,10 @@ import { StopWithClient } from "@/actions/driver-shift";
 
 type ShiftStopListProps = {
   stops: StopWithClient[];
+  currentStopId?: string;
 };
 
-export function ShiftStopList({ stops }: ShiftStopListProps) {
+export function ShiftStopList({ stops, currentStopId }: ShiftStopListProps) {
   if (stops.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -27,6 +28,9 @@ export function ShiftStopList({ stops }: ShiftStopListProps) {
           shortAddress={stop.client.shortAddress}
           status={stop.status}
           cashCollectedCents={stop.cashCollectedCents}
+          startedAt={stop.startedAt}
+          completedAt={stop.completedAt}
+          isCurrent={stop.id === currentStopId}
         />
       ))}
     </div>
