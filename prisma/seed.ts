@@ -7,6 +7,7 @@ import {
   OrderStatus,
   DeliveryStatus,
   DriverStatus,
+  DriverStopStatus,
   FuelLevel,
 } from "@prisma/client";
 import { createId } from "@paralleldrive/cuid2";
@@ -20,6 +21,7 @@ async function main() {
   console.log("🧹 Cleaning existing data...");
   await prisma.auditLog.deleteMany();
   await prisma.delivery.deleteMany();
+  await prisma.driverStop.deleteMany();
   await prisma.driverShift.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
@@ -131,8 +133,55 @@ async function main() {
     data: {
       id: createId(),
       name: "Demo Ristorante",
-      region: "Sardegna",
+      region: "Lazio",
       notes: "Demo restaurant for testing",
+      fullAddress: "Piazza Navona 45, 00186 Roma RM, Italy",
+      shortAddress: "Piazza Navona, Roma",
+    },
+  });
+
+  // Additional clients for demo driver stops
+  const trattoriaTrastevere = await prisma.client.create({
+    data: {
+      id: createId(),
+      name: "Trattoria Trastevere",
+      region: "Lazio",
+      notes: "Traditional Roman cuisine",
+      fullAddress: "Piazza di Santa Maria in Trastevere 8, 00153 Roma RM, Italy",
+      shortAddress: "Trastevere, Roma",
+    },
+  });
+
+  const osteriaCampoFiori = await prisma.client.create({
+    data: {
+      id: createId(),
+      name: "Osteria Campo de' Fiori",
+      region: "Lazio",
+      notes: "Wine bar and restaurant",
+      fullAddress: "Campo de' Fiori 22, 00186 Roma RM, Italy",
+      shortAddress: "Campo de' Fiori, Roma",
+    },
+  });
+
+  const ristoranteTestaccio = await prisma.client.create({
+    data: {
+      id: createId(),
+      name: "Ristorante Testaccio",
+      region: "Lazio",
+      notes: "Modern Italian cuisine",
+      fullAddress: "Via Marmorata 39, 00153 Roma RM, Italy",
+      shortAddress: "Testaccio, Roma",
+    },
+  });
+
+  const barPantheon = await prisma.client.create({
+    data: {
+      id: createId(),
+      name: "Bar Pantheon",
+      region: "Lazio",
+      notes: "Coffee bar near Pantheon",
+      fullAddress: "Piazza della Rotonda 63, 00186 Roma RM, Italy",
+      shortAddress: "Pantheon, Roma",
     },
   });
 
@@ -828,11 +877,99 @@ async function main() {
     },
   });
 
+  // ===== DRIVER SHIFTS & STOPS =====
+  console.log("🗓️  Creating driver shifts and stops...");
+
+  // Get first vehicle for the shift
+  const vehicle1 = await prisma.vehicle.findFirst({
+    where: { licensePlate: "HYD-001" },
+  });
+
+  if (vehicle1) {
+    // Create an open shift for Marco for today
+    const today = new Date();
+    const startOfToday = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+      7, // Start at 7 AM
+      30,
+      0,
+      0
+    );
+
+    const marcoShift = await prisma.driverShift.create({
+      data: {
+        id: createId(),
+        driverId: marcoDriver.id,
+        vehicleId: vehicle1.id,
+        date: startOfToday,
+        startKm: 45230,
+        startFuelLevel: FuelLevel.THREE_QUARTERS,
+        startTime: startOfToday,
+        // endTime is null - shift is still open
+      },
+    });
+
+    // Create 5 demo stops for Marco's shift
+    await prisma.driverStop.createMany({
+      data: [
+        {
+          id: createId(),
+          shiftId: marcoShift.id,
+          clientId: demoRistorante.id,
+          sequenceNumber: 1,
+          status: DriverStopStatus.COMPLETED,
+          cashCollectedCents: 8500, // €85.00 collected
+          bonCollectedCents: 0,
+        },
+        {
+          id: createId(),
+          shiftId: marcoShift.id,
+          clientId: trattoriaTrastevere.id,
+          sequenceNumber: 2,
+          status: DriverStopStatus.PENDING,
+          cashCollectedCents: null,
+          bonCollectedCents: null,
+        },
+        {
+          id: createId(),
+          shiftId: marcoShift.id,
+          clientId: osteriaCampoFiori.id,
+          sequenceNumber: 3,
+          status: DriverStopStatus.PENDING,
+          cashCollectedCents: null,
+          bonCollectedCents: null,
+        },
+        {
+          id: createId(),
+          shiftId: marcoShift.id,
+          clientId: ristoranteTestaccio.id,
+          sequenceNumber: 4,
+          status: DriverStopStatus.PENDING,
+          cashCollectedCents: null,
+          bonCollectedCents: null,
+        },
+        {
+          id: createId(),
+          shiftId: marcoShift.id,
+          clientId: barPantheon.id,
+          sequenceNumber: 5,
+          status: DriverStopStatus.PENDING,
+          cashCollectedCents: null,
+          bonCollectedCents: null,
+        },
+      ],
+    });
+
+    console.log("✅ Created demo shift with 5 stops for Marco");
+  }
+
   console.log("✅ Seed completed successfully!");
   console.log("\n📊 Summary:");
   console.log(`- Users: 8 (1 admin, 2 agents, 2 vendors, 1 client, 2 drivers)`);
   console.log(`- Vendors: 3`);
-  console.log(`- Clients: 1`);
+  console.log(`- Clients: 5 (with addresses for map links)`);
   console.log(`- Drivers: 2`);
   console.log(`- Vehicles: 2`);
   console.log(`- Category Groups: 3`);
@@ -843,6 +980,8 @@ async function main() {
   console.log(`- Agent Assignments: 3`);
   console.log(`- Demo Orders: 3 with items`);
   console.log(`- Deliveries: 3 (1 assigned, 1 picked up, 1 in transit)`);
+  console.log(`- Driver Shifts: 1 (open shift for Marco)`);
+  console.log(`- Driver Stops: 5 (1 completed, 4 pending)`);
   console.log("\n🔐 Test Users:");
   console.log("- admin@hydra.local (ADMIN)");
   console.log("- andrea@hydra.local (AGENT)");

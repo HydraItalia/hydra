@@ -122,18 +122,21 @@ model CategoryGroup {
 }
 
 model Client {
-  id          String        @id
-  name        String
-  region      String?
-  notes       String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-  AgentClient AgentClient[]
-  Agreement   Agreement[]
-  Cart        Cart[]
-  Order       Order[]
-  User        User?
+  id           String        @id
+  name         String
+  region       String?
+  notes        String?
+  fullAddress  String?
+  shortAddress String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+  AgentClient  AgentClient[]
+  Agreement    Agreement[]
+  Cart         Cart[]
+  DriverStop   DriverStop[]
+  Order        Order[]
+  User         User?
 
   @@index([region])
 }
@@ -178,7 +181,7 @@ model Driver {
 }
 
 model DriverShift {
-  id             String     @id @default(cuid())
+  id             String       @id @default(cuid())
   driverId       String
   vehicleId      String
   date           DateTime
@@ -188,15 +191,35 @@ model DriverShift {
   endKm          Int?
   endFuelLevel   FuelLevel?
   endTime        DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  driver  Driver  @relation(fields: [driverId], references: [id])
-  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+  driver  Driver       @relation(fields: [driverId], references: [id])
+  vehicle Vehicle      @relation(fields: [vehicleId], references: [id])
+  stops   DriverStop[]
 
   @@index([driverId, date])
   @@index([driverId])
   @@index([vehicleId])
+}
+
+model DriverStop {
+  id                 String           @id @default(cuid())
+  shiftId            String
+  clientId           String
+  sequenceNumber     Int
+  status             DriverStopStatus @default(PENDING)
+  cashCollectedCents Int?
+  bonCollectedCents  Int?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  shift  DriverShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  client Client      @relation(fields: [clientId], references: [id])
+
+  @@index([shiftId, sequenceNumber])
+  @@index([shiftId])
+  @@index([clientId])
 }
 
 model Vehicle {
@@ -395,6 +418,12 @@ enum DriverStatus {
   ONLINE
   OFFLINE
   BUSY
+}
+
+enum DriverStopStatus {
+  PENDING
+  COMPLETED
+  SKIPPED
 }
 
 enum FuelLevel {
