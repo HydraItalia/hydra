@@ -14,15 +14,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-} from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 
 function formatDate(date: Date | string): string {
   const dateObj = date instanceof Date ? date : new Date(date);
+  if (isNaN(dateObj.getTime())) {
+    return "—";
+  }
   return dateObj.toLocaleDateString("it-IT", {
     day: "2-digit",
     month: "2-digit",
@@ -31,7 +29,10 @@ function formatDate(date: Date | string): string {
 }
 
 function formatCurrency(cents: number): string {
-  return `€${(cents / 100).toFixed(2)}`;
+  return (cents / 100).toLocaleString("it-IT", {
+    style: "currency",
+    currency: "EUR",
+  });
 }
 
 type SearchParams = Promise<{ page?: string }>;
@@ -52,7 +53,7 @@ export default async function ShiftsPage({
   }
 
   const params = await searchParams;
-  const page = parseInt(params.page || "1", 10);
+  const page = Math.max(1, parseInt(params.page || "1", 10) || 1);
 
   const result = await listShiftsPage({ page, pageSize: 20 });
 
@@ -114,7 +115,7 @@ export default async function ShiftsPage({
                     {shift.vehicleLabel}
                   </TableCell>
                   <TableCell className="text-right">
-                    {shift.totalKm !== null ? `${shift.totalKm} km` : "—"}
+                    {shift.totalKm != null ? `${shift.totalKm} km` : "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     {formatCurrency(shift.totalCashCents)}

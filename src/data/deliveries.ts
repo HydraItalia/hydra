@@ -151,7 +151,7 @@ export async function markAsPickedUp(deliveryId: string) {
         pickedUpAt: new Date(),
       },
       include: {
-        order: true,
+        Order: true,
       },
     });
 
@@ -184,7 +184,7 @@ export async function markAsInTransit(deliveryId: string) {
         inTransitAt: new Date(),
       },
       include: {
-        order: true,
+        Order: true,
       },
     });
 
@@ -219,7 +219,7 @@ export async function markAsDelivered(deliveryId: string, notes?: string) {
           notes,
         },
         include: {
-          order: true,
+          Order: true,
         },
       });
 
@@ -273,7 +273,7 @@ export async function markAsException(
         exceptionReason,
       },
       include: {
-        order: true,
+        Order: true,
       },
     });
 

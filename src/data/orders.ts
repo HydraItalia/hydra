@@ -54,7 +54,7 @@ export type OrderDetail = {
   status: string;
   totalCents: number;
   clientId: string;
-  items: {
+  OrderItem: {
     id: string;
     productName: string;
     vendorName: string;
@@ -101,7 +101,7 @@ export async function fetchOrdersForClient(params: {
         totalCents: true,
         _count: {
           select: {
-            items: true,
+            OrderItem: true,
           },
         },
       },
@@ -126,7 +126,7 @@ export async function fetchOrdersForClient(params: {
     createdAt: order.createdAt.toISOString(),
     status: order.status,
     totalCents: order.totalCents,
-    itemCount: order._count.items,
+    itemCount: order._count.OrderItem,
   }));
 
   const totalPages = Math.ceil(total / pageSize);
@@ -167,7 +167,7 @@ export async function fetchOrderById(orderId: string): Promise<OrderDetail> {
       status: true,
       totalCents: true,
       clientId: true,
-      items: {
+      OrderItem: {
         select: {
           id: true,
           productName: true,

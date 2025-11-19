@@ -58,7 +58,7 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
   const [showValidationDialog, setShowValidationDialog] = useState(false);
 
   // Calculate totals
-  const subtotalCents = cart.items.reduce((sum, item) => {
+  const subtotalCents = cart.CartItem.reduce((sum, item) => {
     return sum + (item.unitPriceCents ?? 0) * item.qty;
   }, 0);
 
@@ -168,7 +168,7 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
           <CardHeader>
             <CardTitle>Order Items</CardTitle>
             <CardDescription>
-              {cart.items.length} {cart.items.length === 1 ? "item" : "items"}{" "}
+              {cart.CartItem.length} {cart.CartItem.length === 1 ? "item" : "items"}{" "}
               in your order
             </CardDescription>
           </CardHeader>
@@ -184,14 +184,14 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cart.items.map((item) => (
+                {cart.CartItem.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>
-                      {item.vendorProduct.product.imageUrl ? (
+                      {item.VendorProduct.Product.imageUrl ? (
                         <div className="relative h-16 w-16 rounded-md overflow-hidden bg-muted">
                           <Image
-                            src={item.vendorProduct.product.imageUrl}
-                            alt={item.vendorProduct.product.name}
+                            src={item.VendorProduct.Product.imageUrl}
+                            alt={item.VendorProduct.Product.name}
                             fill
                             className="object-cover"
                           />
@@ -205,13 +205,13 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
                     <TableCell>
                       <div className="space-y-1">
                         <p className="font-medium">
-                          {item.vendorProduct.product.name}
+                          {item.VendorProduct.Product.name}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {item.vendorProduct.vendor.name}
+                          {item.VendorProduct.Vendor.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {item.vendorProduct.product.unit}
+                          {item.VendorProduct.Product.unit}
                         </p>
                       </div>
                     </TableCell>

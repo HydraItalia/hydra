@@ -41,17 +41,17 @@ async function addDeliveryCoordinates() {
   const orders = await prisma.order.findMany({
     where: {
       deliveryLat: null,
-      delivery: {
+      Delivery: {
         isNot: null,
       },
     },
     include: {
-      client: {
+      Client: {
         select: {
           name: true,
         },
       },
-      delivery: {
+      Delivery: {
         select: {
           id: true,
           status: true,
@@ -82,12 +82,12 @@ async function addDeliveryCoordinates() {
       data: {
         deliveryLat: location.lat + randomOffset(),
         deliveryLng: location.lng + randomOffset(),
-        deliveryAddress: `${location.address} (Client: ${order.client.name})`,
+        deliveryAddress: `${location.address} (Client: ${order.Client.name})`,
       },
     });
 
     console.log(
-      `✓ Updated order ${order.orderNumber} → ${location.address} (${order.delivery?.status})`
+      `✓ Updated order ${order.orderNumber} → ${location.address} (${order.Delivery?.status})`
     );
     updateCount++;
   }

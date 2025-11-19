@@ -67,17 +67,17 @@ export const useCartStore = create<CartStore>((set, get) => ({
 
       // Sync with server response while preserving order
       const serverItemsMap = new Map(
-        updatedCart.items.map((item) => [
+        updatedCart.CartItem.map((item) => [
           item.id,
           {
             id: item.id,
             vendorProductId: item.vendorProductId,
             qty: item.qty,
             unitPriceCents: item.unitPriceCents,
-            productName: item.vendorProduct.product.name,
-            vendorName: item.vendorProduct.vendor.name,
-            productUnit: item.vendorProduct.product.unit,
-            imageUrl: item.vendorProduct.product.imageUrl,
+            productName: item.VendorProduct.Product.name,
+            vendorName: item.VendorProduct.Vendor.name,
+            productUnit: item.VendorProduct.Product.unit,
+            imageUrl: item.VendorProduct.Product.imageUrl,
           },
         ])
       );
@@ -88,17 +88,17 @@ export const useCartStore = create<CartStore>((set, get) => ({
         .filter((item): item is CartItem => item !== undefined);
 
       // Find new items (not in previousItems)
-      const newItems = updatedCart.items
+      const newItems = updatedCart.CartItem
         .filter((item) => !previousItems.some((prev) => prev.id === item.id))
         .map((item) => ({
           id: item.id,
           vendorProductId: item.vendorProductId,
           qty: item.qty,
           unitPriceCents: item.unitPriceCents,
-          productName: item.vendorProduct.product.name,
-          vendorName: item.vendorProduct.vendor.name,
-          productUnit: item.vendorProduct.product.unit,
-          imageUrl: item.vendorProduct.product.imageUrl,
+          productName: item.VendorProduct.Product.name,
+          vendorName: item.VendorProduct.Vendor.name,
+          productUnit: item.VendorProduct.Product.unit,
+          imageUrl: item.VendorProduct.Product.imageUrl,
         }));
 
       const items = [...existingItemsUpdated, ...newItems];
@@ -130,17 +130,17 @@ export const useCartStore = create<CartStore>((set, get) => ({
 
       // Sync with server response while preserving order
       const serverItemsMap = new Map(
-        updatedCart.items.map((item) => [
+        updatedCart.CartItem.map((item) => [
           item.id,
           {
             id: item.id,
             vendorProductId: item.vendorProductId,
             qty: item.qty,
             unitPriceCents: item.unitPriceCents,
-            productName: item.vendorProduct.product.name,
-            vendorName: item.vendorProduct.vendor.name,
-            productUnit: item.vendorProduct.product.unit,
-            imageUrl: item.vendorProduct.product.imageUrl,
+            productName: item.VendorProduct.Product.name,
+            vendorName: item.VendorProduct.Vendor.name,
+            productUnit: item.VendorProduct.Product.unit,
+            imageUrl: item.VendorProduct.Product.imageUrl,
           },
         ])
       );
@@ -176,17 +176,17 @@ export const useCartStore = create<CartStore>((set, get) => ({
 
       // Sync with server response while preserving order
       const serverItemsMap = new Map(
-        updatedCart.items.map((item) => [
+        updatedCart.CartItem.map((item) => [
           item.id,
           {
             id: item.id,
             vendorProductId: item.vendorProductId,
             qty: item.qty,
             unitPriceCents: item.unitPriceCents,
-            productName: item.vendorProduct.product.name,
-            vendorName: item.vendorProduct.vendor.name,
-            productUnit: item.vendorProduct.product.unit,
-            imageUrl: item.vendorProduct.product.imageUrl,
+            productName: item.VendorProduct.Product.name,
+            vendorName: item.VendorProduct.Vendor.name,
+            productUnit: item.VendorProduct.Product.unit,
+            imageUrl: item.VendorProduct.Product.imageUrl,
           },
         ])
       );
@@ -219,15 +219,15 @@ export const useCartStore = create<CartStore>((set, get) => ({
     try {
       const updatedCart = await clearCart();
       // Sync with server response (should be empty)
-      const items = updatedCart.items.map((item) => ({
+      const items = updatedCart.CartItem.map((item) => ({
         id: item.id,
         vendorProductId: item.vendorProductId,
         qty: item.qty,
         unitPriceCents: item.unitPriceCents,
-        productName: item.vendorProduct.product.name,
-        vendorName: item.vendorProduct.vendor.name,
-        productUnit: item.vendorProduct.product.unit,
-        imageUrl: item.vendorProduct.product.imageUrl,
+        productName: item.VendorProduct.Product.name,
+        vendorName: item.VendorProduct.Vendor.name,
+        productUnit: item.VendorProduct.Product.unit,
+        imageUrl: item.VendorProduct.Product.imageUrl,
       }));
       set({ items, isLoading: false });
     } catch (error) {

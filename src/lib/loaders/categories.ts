@@ -10,7 +10,7 @@ export const getCategoryGroups = unstable_cache(
   async () => {
     return prisma.categoryGroup.findMany({
       include: {
-        categories: {
+        ProductCategory: {
           orderBy: { name: "asc" },
         },
       },
@@ -28,7 +28,7 @@ export const getCategoryGroups = unstable_cache(
 export const getCategoriesByGroup = unstable_cache(
   async (group: CategoryGroupType) => {
     return prisma.productCategory.findMany({
-      where: { group: { name: group } },
+      where: { CategoryGroup: { name: group } },
       orderBy: { name: "asc" },
     });
   },

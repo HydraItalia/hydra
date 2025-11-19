@@ -72,15 +72,15 @@ export function CartPage({ cart }: CartPageProps) {
 
   // Sync store with server data whenever cart changes
   useEffect(() => {
-    const cartItems = cart.items.map((item) => ({
+    const cartItems = cart.CartItem.map((item) => ({
       id: item.id,
       vendorProductId: item.vendorProductId,
       qty: item.qty,
       unitPriceCents: item.unitPriceCents,
-      productName: item.vendorProduct.product.name,
-      vendorName: item.vendorProduct.vendor.name,
-      productUnit: item.vendorProduct.product.unit,
-      imageUrl: item.vendorProduct.product.imageUrl,
+      productName: item.VendorProduct.Product.name,
+      vendorName: item.VendorProduct.Vendor.name,
+      productUnit: item.VendorProduct.Product.unit,
+      imageUrl: item.VendorProduct.Product.imageUrl,
     }));
     setItems(cartItems);
     setIsHydrated(true);

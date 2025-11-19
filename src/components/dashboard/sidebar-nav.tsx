@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { getNavItems } from '@/lib/nav'
 
-type Role = 'ADMIN' | 'AGENT' | 'VENDOR' | 'CLIENT'
+type Role = 'ADMIN' | 'AGENT' | 'VENDOR' | 'CLIENT' | 'DRIVER'
 
 interface SidebarNavProps {
   role: Role

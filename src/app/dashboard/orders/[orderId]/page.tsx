@@ -149,7 +149,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {order.items.map((item) => (
+                {order.OrderItem.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">
                       {item.productName}

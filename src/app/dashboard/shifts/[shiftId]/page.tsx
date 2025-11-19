@@ -49,6 +49,9 @@ const STOP_STATUS_CONFIG: Record<
 
 function formatDate(date: Date | string): string {
   const dateObj = date instanceof Date ? date : new Date(date);
+  if (isNaN(dateObj.getTime())) {
+    return "—";
+  }
   return dateObj.toLocaleDateString("it-IT", {
     weekday: "long",
     day: "2-digit",
@@ -59,6 +62,9 @@ function formatDate(date: Date | string): string {
 
 function formatTime(date: Date | string): string {
   const dateObj = date instanceof Date ? date : new Date(date);
+  if (isNaN(dateObj.getTime())) {
+    return "—";
+  }
   return dateObj.toLocaleTimeString("it-IT", {
     hour: "2-digit",
     minute: "2-digit",
@@ -66,7 +72,10 @@ function formatTime(date: Date | string): string {
 }
 
 function formatCurrency(cents: number): string {
-  return `€${(cents / 100).toFixed(2)}`;
+  return (cents / 100).toLocaleString("it-IT", {
+    style: "currency",
+    currency: "EUR",
+  });
 }
 
 type PageParams = Promise<{ shiftId: string }>;
@@ -97,6 +106,12 @@ export default async function ShiftDetailPage({
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{result.error}</AlertDescription>
         </Alert>
+        <Button className="mt-4" asChild>
+          <Link href="/dashboard/shifts">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Shifts
+          </Link>
+        </Button>
       </div>
     );
   }
@@ -128,10 +143,7 @@ export default async function ShiftDetailPage({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <PageHeader
-            title="Shift Details"
-            subtitle={formatDate(shift.date)}
-          />
+          <PageHeader title="Shift Details" subtitle={formatDate(shift.date)} />
           <Badge variant={isOpen ? "secondary" : "default"}>
             {isOpen ? "Open" : "Closed"}
           </Badge>
@@ -212,7 +224,7 @@ export default async function ShiftDetailPage({
                 <div className="flex justify-between pt-2 border-t">
                   <span className="text-sm font-medium">Total</span>
                   <span className="font-bold text-primary">
-                    {shift.totalKm} km
+                    {shift.totalKm.toLocaleString()} km
                   </span>
                 </div>
               )}
@@ -290,9 +302,7 @@ export default async function ShiftDetailPage({
           {/* Cash return confirmation */}
           <div
             className={`mt-4 p-3 rounded-lg flex items-center gap-2 ${
-              shift.cashReturnedConfirmed
-                ? "bg-green-100"
-                : "bg-yellow-100"
+              shift.cashReturnedConfirmed ? "bg-green-100" : "bg-yellow-100"
             }`}
           >
             {shift.cashReturnedConfirmed ? (

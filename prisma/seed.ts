@@ -7,7 +7,6 @@ import {
   OrderStatus,
   DeliveryStatus,
   DriverStatus,
-  DriverStopStatus,
   FuelLevel,
 } from "@prisma/client";
 import { createId } from "@paralleldrive/cuid2";
@@ -21,7 +20,6 @@ async function main() {
   console.log("🧹 Cleaning existing data...");
   await prisma.auditLog.deleteMany();
   await prisma.delivery.deleteMany();
-  await prisma.driverStop.deleteMany();
   await prisma.driverShift.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
@@ -911,58 +909,7 @@ async function main() {
       },
     });
 
-    // Create 5 demo stops for Marco's shift
-    await prisma.driverStop.createMany({
-      data: [
-        {
-          id: createId(),
-          shiftId: marcoShift.id,
-          clientId: demoRistorante.id,
-          sequenceNumber: 1,
-          status: DriverStopStatus.COMPLETED,
-          cashCollectedCents: 8500, // €85.00 collected
-          bonCollectedCents: 0,
-        },
-        {
-          id: createId(),
-          shiftId: marcoShift.id,
-          clientId: trattoriaTrastevere.id,
-          sequenceNumber: 2,
-          status: DriverStopStatus.PENDING,
-          cashCollectedCents: null,
-          bonCollectedCents: null,
-        },
-        {
-          id: createId(),
-          shiftId: marcoShift.id,
-          clientId: osteriaCampoFiori.id,
-          sequenceNumber: 3,
-          status: DriverStopStatus.PENDING,
-          cashCollectedCents: null,
-          bonCollectedCents: null,
-        },
-        {
-          id: createId(),
-          shiftId: marcoShift.id,
-          clientId: ristoranteTestaccio.id,
-          sequenceNumber: 4,
-          status: DriverStopStatus.PENDING,
-          cashCollectedCents: null,
-          bonCollectedCents: null,
-        },
-        {
-          id: createId(),
-          shiftId: marcoShift.id,
-          clientId: barPantheon.id,
-          sequenceNumber: 5,
-          status: DriverStopStatus.PENDING,
-          cashCollectedCents: null,
-          bonCollectedCents: null,
-        },
-      ],
-    });
-
-    console.log("✅ Created demo shift with 5 stops for Marco");
+    console.log("✅ Created demo shift for Marco");
   }
 
   console.log("✅ Seed completed successfully!");

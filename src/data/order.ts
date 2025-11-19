@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
 import { recalcCartPricesForUser } from "@/data/cart-recalc";
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { createId } = require("@paralleldrive/cuid2");
+
 /**
  * Calculate line total for an order item
  * Handles null prices by treating them as 0
@@ -72,16 +75,16 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
       status: "ACTIVE",
     },
     include: {
-      items: {
+      CartItem: {
         include: {
-          vendorProduct: {
+          VendorProduct: {
             include: {
-              product: {
+              Product: {
                 select: {
                   name: true,
                 },
               },
-              vendor: {
+              Vendor: {
                 select: {
                   name: true,
                 },
@@ -94,12 +97,12 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
   });
 
   // Validate cart exists and has items
-  if (!cart || cart.items.length === 0) {
+  if (!cart || cart.CartItem.length === 0) {
     throw new Error("Cart is empty");
   }
 
   // 4. Calculate total
-  const totalCents = cart.items.reduce((sum, item) => {
+  const totalCents = cart.CartItem.reduce((sum, item) => {
     const priceCents = item.unitPriceCents ?? 0;
     if (priceCents === 0) {
       console.warn(
@@ -147,6 +150,7 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
     // Create the Order
     const order = await tx.order.create({
       data: {
+        id: createId(),
         clientId,
         submitterUserId: userId,
         orderNumber,
@@ -156,14 +160,15 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
     });
 
     // Create OrderItems
-    const orderItemsData = cart.items.map((item) => ({
+    const orderItemsData = cart.CartItem.map((item) => ({
+      id: createId(),
       orderId: order.id,
       vendorProductId: item.vendorProductId,
       qty: item.qty,
       unitPriceCents: item.unitPriceCents ?? 0,
       lineTotalCents: calculateLineTotal(item.unitPriceCents, item.qty),
-      productName: item.vendorProduct.product.name,
-      vendorName: item.vendorProduct.vendor.name,
+      productName: item.VendorProduct.Product.name,
+      vendorName: item.VendorProduct.Vendor.name,
     }));
 
     await tx.orderItem.createMany({

@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/sheet'
 import { SidebarNav } from './sidebar-nav'
 
-type Role = 'ADMIN' | 'AGENT' | 'VENDOR' | 'CLIENT'
+type Role = 'ADMIN' | 'AGENT' | 'VENDOR' | 'CLIENT' | 'DRIVER'
 
 interface MobileNavProps {
   role: Role

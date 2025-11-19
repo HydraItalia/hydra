@@ -40,7 +40,7 @@ export async function recalcCartPricesForUser(): Promise<PriceChangeDiff[]> {
       status: "ACTIVE",
     },
     include: {
-      items: {
+      CartItem: {
         select: {
           id: true,
           vendorProductId: true,
@@ -51,13 +51,13 @@ export async function recalcCartPricesForUser(): Promise<PriceChangeDiff[]> {
   });
 
   // No cart or empty cart = nothing to recalculate
-  if (!cart || cart.items.length === 0) {
+  if (!cart || cart.CartItem.length === 0) {
     return [];
   }
 
   // Fetch all prices outside transaction to avoid long-running transactions
   const priceUpdates = await Promise.all(
-    cart.items.map(async (item) => {
+    cart.CartItem.map(async (item) => {
       const newPriceCents = await getEffectivePriceCents({
         clientId,
         vendorProductId: item.vendorProductId,

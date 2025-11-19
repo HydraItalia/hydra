@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { getUserInitials, getRoleLabel } from '@/lib/nav'
 
-type Role = 'ADMIN' | 'AGENT' | 'VENDOR' | 'CLIENT'
+type Role = 'ADMIN' | 'AGENT' | 'VENDOR' | 'CLIENT' | 'DRIVER'
 
 interface UserNavProps {
   user: {

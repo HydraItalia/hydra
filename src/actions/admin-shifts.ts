@@ -11,6 +11,28 @@ import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { FuelLevel, DriverStopStatus } from "@prisma/client";
 
+/**
+ * Check if current user is authenticated and has ADMIN or AGENT role
+ */
+async function checkAdminOrAgentAuth(): Promise<
+  { authorized: true } | { authorized: false; error: string }
+> {
+  const user = await currentUser();
+
+  if (!user) {
+    return { authorized: false, error: "Not authenticated" };
+  }
+
+  if (user.role !== "ADMIN" && user.role !== "AGENT") {
+    return {
+      authorized: false,
+      error: "Only ADMIN and AGENT can access shift overview",
+    };
+  }
+
+  return { authorized: true };
+}
+
 // Types
 export type ShiftStatus = "OPEN" | "CLOSED";
 
@@ -78,24 +100,17 @@ export type ShiftDetails = {
 export async function listShiftsPage(
   params: ListShiftsParams
 ): Promise<
-  { success: true; result: ListShiftsResult } | { success: false; error: string }
+  | { success: true; result: ListShiftsResult }
+  | { success: false; error: string }
 > {
   try {
-    const user = await currentUser();
-
-    if (!user) {
-      return { success: false, error: "Not authenticated" };
-    }
-
-    if (user.role !== "ADMIN" && user.role !== "AGENT") {
-      return {
-        success: false,
-        error: "Only ADMIN and AGENT can access shift overview",
-      };
+    const authCheck = await checkAdminOrAgentAuth();
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
     }
 
     const page = Math.max(1, params.page);
-    const pageSize = params.pageSize || 20;
+    const pageSize = Math.min(params.pageSize || 20, 100);
     const skip = (page - 1) * pageSize;
 
     // Build where clause
@@ -157,7 +172,9 @@ export async function listShiftsPage(
 
       // Compute total km if both values present
       const totalKm =
-        shift.endKm !== null ? shift.endKm - shift.startKm : null;
+        shift.endKm !== null && shift.endKm >= shift.startKm
+          ? shift.endKm - shift.startKm
+          : null;
 
       return {
         id: shift.id,
@@ -206,17 +223,9 @@ export async function getShiftDetails(
   | { success: false; error: string }
 > {
   try {
-    const user = await currentUser();
-
-    if (!user) {
-      return { success: false, error: "Not authenticated" };
-    }
-
-    if (user.role !== "ADMIN" && user.role !== "AGENT") {
-      return {
-        success: false,
-        error: "Only ADMIN and AGENT can access shift details",
-      };
+    const authCheck = await checkAdminOrAgentAuth();
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
     }
 
     const shift = await prisma.driverShift.findUnique({
@@ -263,7 +272,9 @@ export async function getShiftDetails(
       0
     );
     const totalKm =
-      shift.endKm !== null ? shift.endKm - shift.startKm : null;
+      shift.endKm !== null && shift.endKm >= shift.startKm
+        ? shift.endKm - shift.startKm
+        : null;
 
     // Transform stops
     const stops: ShiftStopDetail[] = shift.stops.map((stop) => ({
@@ -291,7 +302,7 @@ export async function getShiftDetails(
       totalCashCents,
       totalBonCents,
       closingNotes: shift.closingNotes,
-      cashReturnedConfirmed: shift.cashReturnedConfirmed,
+      cashReturnedConfirmed: shift.cashReturnedConfirmed ?? false,
       stops,
     };
 
@@ -301,7 +312,9 @@ export async function getShiftDetails(
     return {
       success: false,
       error:
-        error instanceof Error ? error.message : "Failed to fetch shift details",
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch shift details",
     };
   }
 }

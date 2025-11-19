@@ -90,6 +90,7 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
   const [deliveryNotes, setDeliveryNotes] = useState("");
 
   const handleStatusUpdate = async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     action: () => Promise<any>,
     successMessage: string
   ) => {
@@ -387,6 +388,7 @@ function TimelineItem({
   active,
   alert,
 }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any;
   label: string;
   timestamp: Date;
