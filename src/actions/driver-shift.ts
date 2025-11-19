@@ -1025,7 +1025,7 @@ export async function closeShift(
 
     // Validate input
     if (typeof input.endKm !== "number" || input.endKm < 0) {
-      return { success: false, error: "Final km must be a positive number" };
+      return { success: false, error: "Final km must be a non-negative number" };
     }
 
     if (!Number.isInteger(input.endKm)) {
