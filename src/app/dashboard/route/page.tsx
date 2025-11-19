@@ -1,7 +1,10 @@
 import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getTodayRouteProgressForDriver } from "@/actions/driver-shift";
+import {
+  getTodayRouteProgressForDriver,
+  getClosedShiftSummary,
+} from "@/actions/driver-shift";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,7 +13,7 @@ import {
   ShiftStopList,
   NextStopCard,
 } from "@/components/driver-route";
-import { AlertCircle, ArrowLeft, PartyPopper } from "lucide-react";
+import { AlertCircle, ArrowLeft, PartyPopper, LogOut } from "lucide-react";
 
 export default async function RoutePage() {
   const user = await currentUser();
@@ -32,6 +35,13 @@ export default async function RoutePage() {
         />
       </div>
     );
+  }
+
+  // Check if shift is already closed
+  const closedResult = await getClosedShiftSummary();
+  if (closedResult.success && closedResult.summary) {
+    // Redirect to summary page if shift is already closed
+    redirect("/dashboard/shift/summary");
   }
 
   // Fetch route progress
@@ -107,12 +117,23 @@ export default async function RoutePage() {
       ) : totalStops > 0 ? (
         <div className="p-6 bg-green-50 border border-green-200 rounded-lg text-center">
           <PartyPopper className="h-8 w-8 mx-auto text-green-600 mb-2" />
-          <p className="text-green-700 font-medium">
+          <p className="text-green-700 font-medium text-lg">
             All stops completed for today!
           </p>
-          <Button variant="outline" className="mt-4" asChild>
-            <Link href="/dashboard">Back to Dashboard</Link>
-          </Button>
+          <p className="text-green-600 text-sm mt-1 mb-4">
+            You can now close your shift and view the summary.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button variant="outline" asChild>
+              <Link href="/dashboard">Back to Dashboard</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/dashboard/shift/close">
+                <LogOut className="h-4 w-4 mr-2" />
+                Close Shift
+              </Link>
+            </Button>
+          </div>
         </div>
       ) : null}
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, ArrowRight, CheckCircle2 } from "lucide-react";
+import { MapPin, ArrowRight, CheckCircle2, LogOut } from "lucide-react";
 import { RouteProgress } from "@/actions/driver-shift";
 
 type RouteProgressWidgetProps = {
@@ -76,12 +76,21 @@ export function RouteProgressWidget({ progress }: RouteProgressWidgetProps) {
         )}
 
         {/* Action button */}
-        <Button className="w-full" asChild>
-          <Link href="/dashboard/route">
-            {allDone ? "View Summary" : "Go to Route"}
-            <ArrowRight className="h-4 w-4 ml-2" />
-          </Link>
-        </Button>
+        {allDone ? (
+          <Button className="w-full" asChild>
+            <Link href="/dashboard/shift/close">
+              <LogOut className="h-4 w-4 mr-2" />
+              Close Shift
+            </Link>
+          </Button>
+        ) : (
+          <Button className="w-full" asChild>
+            <Link href="/dashboard/route">
+              Go to Route
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
