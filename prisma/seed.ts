@@ -133,7 +133,7 @@ async function main() {
     data: {
       id: createId(),
       name: "Demo Ristorante",
-      region: "Sardegna",
+      region: "Lazio",
       notes: "Demo restaurant for testing",
       fullAddress: "Piazza Navona 45, 00186 Roma RM, Italy",
       shortAddress: "Piazza Navona, Roma",
@@ -145,7 +145,7 @@ async function main() {
     data: {
       id: createId(),
       name: "Trattoria Trastevere",
-      region: "Sardegna",
+      region: "Lazio",
       notes: "Traditional Roman cuisine",
       fullAddress: "Piazza di Santa Maria in Trastevere 8, 00153 Roma RM, Italy",
       shortAddress: "Trastevere, Roma",
@@ -156,7 +156,7 @@ async function main() {
     data: {
       id: createId(),
       name: "Osteria Campo de' Fiori",
-      region: "Sardegna",
+      region: "Lazio",
       notes: "Wine bar and restaurant",
       fullAddress: "Campo de' Fiori 22, 00186 Roma RM, Italy",
       shortAddress: "Campo de' Fiori, Roma",
@@ -167,7 +167,7 @@ async function main() {
     data: {
       id: createId(),
       name: "Ristorante Testaccio",
-      region: "Sardegna",
+      region: "Lazio",
       notes: "Modern Italian cuisine",
       fullAddress: "Via Marmorata 39, 00153 Roma RM, Italy",
       shortAddress: "Testaccio, Roma",
@@ -178,7 +178,7 @@ async function main() {
     data: {
       id: createId(),
       name: "Bar Pantheon",
-      region: "Sardegna",
+      region: "Lazio",
       notes: "Coffee bar near Pantheon",
       fullAddress: "Piazza della Rotonda 63, 00186 Roma RM, Italy",
       shortAddress: "Pantheon, Roma",

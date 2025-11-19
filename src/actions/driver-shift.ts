@@ -467,6 +467,28 @@ export async function updateDriverStopStatus(
       };
     }
 
+    // Validate payment amounts
+    if (status === "SKIPPED" && (cashCollectedCents !== undefined || bonCollectedCents !== undefined)) {
+      return {
+        success: false,
+        error: "Cannot collect payment for skipped stops",
+      };
+    }
+
+    if (cashCollectedCents !== undefined && (typeof cashCollectedCents !== "number" || cashCollectedCents < 0)) {
+      return {
+        success: false,
+        error: "Cash collected must be a non-negative number",
+      };
+    }
+
+    if (bonCollectedCents !== undefined && (typeof bonCollectedCents !== "number" || bonCollectedCents < 0)) {
+      return {
+        success: false,
+        error: "Bon collected must be a non-negative number",
+      };
+    }
+
     // Update the stop
     const updatedStop = await prisma.driverStop.update({
       where: { id: stopId },
