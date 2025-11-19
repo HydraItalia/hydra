@@ -23,6 +23,9 @@ import {
   Clock,
 } from "lucide-react";
 import Link from "next/link";
+import { StartShiftDialog } from "@/components/driver/start-shift-dialog";
+import { CurrentShiftCard } from "@/components/driver/current-shift-card";
+import { getCurrentDriverShiftForToday } from "@/actions/driver-shift";
 
 export default async function DashboardPage() {
   const user = await currentUser();
@@ -360,13 +363,14 @@ async function DriverDashboard({
     return <div>No driver associated with this account</div>;
   }
 
-  // Fetch driver statistics
+  // Fetch driver statistics and current shift
   const [
     assignedCount,
     pickedUpCount,
     inTransitCount,
     deliveredTodayCount,
     totalDeliveries,
+    currentShiftResult,
   ] = await Promise.all([
     prisma.delivery.count({
       where: { driverId: user.driverId, status: "ASSIGNED" },
@@ -389,6 +393,7 @@ async function DriverDashboard({
     prisma.delivery.count({
       where: { driverId: user.driverId },
     }),
+    getCurrentDriverShiftForToday(),
   ]);
 
   // Get next deliveries (assigned or picked up)
@@ -409,6 +414,9 @@ async function DriverDashboard({
   });
 
   const activeDeliveries = assignedCount + pickedUpCount + inTransitCount;
+  const currentShift = currentShiftResult.success
+    ? currentShiftResult.shift
+    : null;
 
   return (
     <div className="space-y-8">
@@ -416,11 +424,32 @@ async function DriverDashboard({
         title="Driver Dashboard"
         subtitle={`Welcome back, ${user.name || user.email}`}
         action={
-          <Button asChild>
-            <Link href="/dashboard/deliveries">View All Deliveries</Link>
-          </Button>
+          currentShift ? (
+            <Button asChild>
+              <Link href="/dashboard/route">View Today&apos;s Route</Link>
+            </Button>
+          ) : (
+            <StartShiftDialog />
+          )
         }
       />
+
+      {/* Current Shift or Start Shift Prompt */}
+      {currentShift ? (
+        <CurrentShiftCard shift={currentShift} />
+      ) : (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">No Active Shift</CardTitle>
+            <CardDescription>
+              Start your shift to begin managing today&apos;s deliveries.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <StartShiftDialog />
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4">

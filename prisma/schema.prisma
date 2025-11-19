@@ -59,7 +59,7 @@ model Agreement {
   overridePriceCents Int?
   notes              String?
   createdAt          DateTime  @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
   Client             Client    @relation(fields: [clientId], references: [id])
   Vendor             Vendor    @relation(fields: [vendorId], references: [id])
@@ -90,7 +90,7 @@ model Cart {
   createdByUserId String
   status          CartStatus @default(ACTIVE)
   createdAt       DateTime   @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime  @updatedAt
   Client          Client     @relation(fields: [clientId], references: [id])
   User            User       @relation(fields: [createdByUserId], references: [id])
   CartItem        CartItem[]
@@ -105,7 +105,7 @@ model CartItem {
   qty             Int
   unitPriceCents  Int
   createdAt       DateTime      @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime  @updatedAt
   Cart            Cart          @relation(fields: [cartId], references: [id], onDelete: Cascade)
   VendorProduct   VendorProduct @relation(fields: [vendorProductId], references: [id])
 
@@ -117,7 +117,7 @@ model CategoryGroup {
   id              String            @id
   name            CategoryGroupType @unique
   createdAt       DateTime          @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime  @updatedAt
   ProductCategory ProductCategory[]
 }
 
@@ -127,7 +127,7 @@ model Client {
   region      String?
   notes       String?
   createdAt   DateTime      @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
   AgentClient AgentClient[]
   Agreement   Agreement[]
@@ -151,7 +151,7 @@ model Delivery {
   deliveredAt     DateTime?
   exceptionAt     DateTime?
   createdAt       DateTime       @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime  @updatedAt
   routeSequence   Int?
   Driver          Driver         @relation(fields: [driverId], references: [id])
   Order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -163,17 +163,49 @@ model Delivery {
 }
 
 model Driver {
-  id        String       @id
-  name      String
-  phone     String?
-  status    DriverStatus @default(OFFLINE)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime
-  deletedAt DateTime?
-  Delivery  Delivery[]
-  User      User?
+  id          String        @id
+  name        String
+  phone       String?
+  status      DriverStatus  @default(OFFLINE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  Delivery    Delivery[]
+  DriverShift DriverShift[]
+  User        User?
 
   @@index([status])
+}
+
+model DriverShift {
+  id             String     @id @default(cuid())
+  driverId       String
+  vehicleId      String
+  date           DateTime
+  startKm        Int
+  startFuelLevel FuelLevel
+  startTime      DateTime
+  endKm          Int?
+  endFuelLevel   FuelLevel?
+  endTime        DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  driver  Driver  @relation(fields: [driverId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([driverId, date])
+  @@index([driverId])
+  @@index([vehicleId])
+}
+
+model Vehicle {
+  id           String        @id @default(cuid())
+  licensePlate String        @unique
+  description  String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  DriverShift  DriverShift[]
 }
 
 model Order {
@@ -185,7 +217,7 @@ model Order {
   assignedAgentUserId                  String?
   notes                                String?
   createdAt                            DateTime    @default(now())
-  updatedAt                            DateTime
+  updatedAt                            DateTime  @updatedAt
   deletedAt                            DateTime?
   orderNumber                          String      @unique
   totalCents                           Int
@@ -211,7 +243,7 @@ model OrderItem {
   unitPriceCents  Int
   lineTotalCents  Int
   createdAt       DateTime      @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime  @updatedAt
   productName     String
   vendorName      String
   Order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -229,7 +261,7 @@ model Product {
   unit            ProductUnit     @default(PIECE)
   imageUrl        String?
   createdAt       DateTime        @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
   ProductCategory ProductCategory @relation(fields: [categoryId], references: [id])
   VendorProduct   VendorProduct[]
@@ -244,7 +276,7 @@ model ProductCategory {
   name          String
   slug          String        @unique
   createdAt     DateTime      @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime  @updatedAt
   Product       Product[]
   CategoryGroup CategoryGroup @relation(fields: [groupId], references: [id])
 
@@ -270,7 +302,7 @@ model User {
   vendorId                              String?       @unique
   clientId                              String?       @unique
   createdAt                             DateTime      @default(now())
-  updatedAt                             DateTime
+  updatedAt                             DateTime  @updatedAt
   deletedAt                             DateTime?
   emailVerified                         DateTime?
   driverId                              String?       @unique
@@ -296,7 +328,7 @@ model Vendor {
   region        String?
   notes         String?
   createdAt     DateTime        @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
   AgentVendor   AgentVendor[]
   Agreement     Agreement[]
@@ -318,7 +350,7 @@ model VendorProduct {
   minOrderQty    Int?
   isActive       Boolean     @default(true)
   createdAt      DateTime    @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
   CartItem       CartItem[]
   OrderItem      OrderItem[]
@@ -363,6 +395,14 @@ enum DriverStatus {
   ONLINE
   OFFLINE
   BUSY
+}
+
+enum FuelLevel {
+  EMPTY
+  QUARTER
+  HALF
+  THREE_QUARTERS
+  FULL
 }
 
 enum OrderStatus {
