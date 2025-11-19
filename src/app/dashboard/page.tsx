@@ -25,7 +25,11 @@ import {
 import Link from "next/link";
 import { StartShiftDialog } from "@/components/driver/start-shift-dialog";
 import { CurrentShiftCard } from "@/components/driver/current-shift-card";
-import { getCurrentDriverShiftForToday } from "@/actions/driver-shift";
+import {
+  getCurrentDriverShiftForToday,
+  getTodayRouteProgressForDriver,
+} from "@/actions/driver-shift";
+import { RouteProgressWidget } from "@/components/driver-route";
 
 export default async function DashboardPage() {
   const user = await currentUser();
@@ -363,7 +367,7 @@ async function DriverDashboard({
     return <div>No driver associated with this account</div>;
   }
 
-  // Fetch driver statistics and current shift
+  // Fetch driver statistics, current shift, and route progress
   const [
     assignedCount,
     pickedUpCount,
@@ -371,6 +375,7 @@ async function DriverDashboard({
     deliveredTodayCount,
     totalDeliveries,
     currentShiftResult,
+    routeProgressResult,
   ] = await Promise.all([
     prisma.delivery.count({
       where: { driverId: user.driverId, status: "ASSIGNED" },
@@ -394,6 +399,7 @@ async function DriverDashboard({
       where: { driverId: user.driverId },
     }),
     getCurrentDriverShiftForToday(),
+    getTodayRouteProgressForDriver(),
   ]);
 
   // Get next deliveries (assigned or picked up)
@@ -417,6 +423,9 @@ async function DriverDashboard({
   const currentShift = currentShiftResult.success
     ? currentShiftResult.shift
     : null;
+  const routeProgress = routeProgressResult.success
+    ? routeProgressResult.progress
+    : null;
 
   return (
     <div className="space-y-8">
@@ -434,22 +443,28 @@ async function DriverDashboard({
         }
       />
 
-      {/* Current Shift or Start Shift Prompt */}
-      {currentShift ? (
-        <CurrentShiftCard shift={currentShift} />
-      ) : (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">No Active Shift</CardTitle>
-            <CardDescription>
-              Start your shift to begin managing today&apos;s deliveries.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <StartShiftDialog />
-          </CardContent>
-        </Card>
-      )}
+      {/* Current Shift and Route Progress */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Current Shift or Start Shift Prompt */}
+        {currentShift ? (
+          <CurrentShiftCard shift={currentShift} />
+        ) : (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">No Active Shift</CardTitle>
+              <CardDescription>
+                Start your shift to begin managing today&apos;s deliveries.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <StartShiftDialog />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Route Progress Widget */}
+        <RouteProgressWidget progress={routeProgress} />
+      </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4">

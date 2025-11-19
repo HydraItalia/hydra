@@ -1,12 +1,16 @@
 import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentDriverShiftWithStops } from "@/actions/driver-shift";
+import { getTodayRouteProgressForDriver } from "@/actions/driver-shift";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ShiftSummaryCard, ShiftStopList } from "@/components/driver-route";
-import { AlertCircle, ArrowLeft } from "lucide-react";
+import {
+  ShiftSummaryCard,
+  ShiftStopList,
+  NextStopCard,
+} from "@/components/driver-route";
+import { AlertCircle, ArrowLeft, PartyPopper } from "lucide-react";
 
 export default async function RoutePage() {
   const user = await currentUser();
@@ -30,8 +34,8 @@ export default async function RoutePage() {
     );
   }
 
-  // Fetch the current shift with stops
-  const result = await getCurrentDriverShiftWithStops();
+  // Fetch route progress
+  const result = await getTodayRouteProgressForDriver();
 
   if (!result.success) {
     return (
@@ -45,10 +49,10 @@ export default async function RoutePage() {
     );
   }
 
-  const shift = result.shift;
+  const progress = result.progress;
 
   // No active shift - show message with link to start one
-  if (!shift) {
+  if (!progress) {
     return (
       <div className="p-4 md:p-8">
         <PageHeader title="My Route" subtitle="Today's delivery stops" />
@@ -68,11 +72,7 @@ export default async function RoutePage() {
     );
   }
 
-  // Calculate progress
-  const completedStops = shift.stops.filter(
-    (stop) => stop.status === "COMPLETED"
-  ).length;
-  const totalStops = shift.stops.length;
+  const { shift, totalStops, completedStops, currentStop } = progress;
 
   return (
     <div className="space-y-4 p-4 md:space-y-6 md:p-8">
@@ -97,13 +97,34 @@ export default async function RoutePage() {
         totalStops={totalStops}
       />
 
+      {/* Next Stop Card or Completion Message */}
+      {currentStop ? (
+        <NextStopCard
+          stop={currentStop}
+          sequenceNumber={currentStop.sequenceNumber}
+          totalStops={totalStops}
+        />
+      ) : totalStops > 0 ? (
+        <div className="p-6 bg-green-50 border border-green-200 rounded-lg text-center">
+          <PartyPopper className="h-8 w-8 mx-auto text-green-600 mb-2" />
+          <p className="text-green-700 font-medium">
+            All stops completed for today!
+          </p>
+          <Button variant="outline" className="mt-4" asChild>
+            <Link href="/dashboard">Back to Dashboard</Link>
+          </Button>
+        </div>
+      ) : null}
+
       {/* Stops List */}
-      <div>
-        <h2 className="text-lg font-semibold mb-4">
-          Stops ({completedStops} of {totalStops} completed)
-        </h2>
-        <ShiftStopList stops={shift.stops} />
-      </div>
+      {totalStops > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold mb-4">
+            All Stops ({completedStops} of {totalStops} completed)
+          </h2>
+          <ShiftStopList stops={shift.stops} currentStopId={currentStop?.id} />
+        </div>
+      )}
     </div>
   );
 }
