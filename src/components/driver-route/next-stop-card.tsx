@@ -122,7 +122,10 @@ export function NextStopCard({
             variant="outline"
             className="w-full h-12"
             disabled={!canNavigate}
-            onClick={() => canNavigate && window.open(mapsUrl, '_blank', 'noopener,noreferrer')}
+            onClick={() =>
+              canNavigate &&
+              window.open(mapsUrl, "_blank", "noopener,noreferrer")
+            }
           >
             <Navigation className="h-5 w-5 mr-2" />
             Open in Maps
