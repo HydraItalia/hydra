@@ -47,6 +47,8 @@ export function NextStopCard({
       const result = await startStop(stop.id);
       if (!result.success) {
         console.error(result.error);
+        // TODO: Show user-facing error (toast/alert)
+        return;
       }
       router.refresh();
     } finally {
@@ -60,6 +62,8 @@ export function NextStopCard({
       const result = await completeStop(stop.id);
       if (!result.success) {
         console.error(result.error);
+        // TODO: Show user-facing error (toast/alert)
+        return;
       }
       router.refresh();
     } finally {
@@ -73,6 +77,8 @@ export function NextStopCard({
       const result = await skipStop(stop.id);
       if (!result.success) {
         console.error(result.error);
+        // TODO: Show user-facing error (toast/alert)
+        return;
       }
       router.refresh();
     } finally {
@@ -115,18 +121,11 @@ export function NextStopCard({
           <Button
             variant="outline"
             className="w-full h-12"
-            asChild
             disabled={!canNavigate}
+            onClick={() => canNavigate && window.open(mapsUrl, '_blank', 'noopener,noreferrer')}
           >
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={!canNavigate ? "pointer-events-none opacity-50" : ""}
-            >
-              <Navigation className="h-5 w-5 mr-2" />
-              Open in Maps
-            </a>
+            <Navigation className="h-5 w-5 mr-2" />
+            Open in Maps
           </Button>
 
           {/* Start / Complete / Skip buttons */}

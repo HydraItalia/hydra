@@ -33,7 +33,9 @@ const statusConfig: Record<
 
 function formatTime(date: Date | null | undefined): string | null {
   if (!date) return null;
-  return new Date(date).toLocaleTimeString("it-IT", {
+  // Date objects from Prisma are already valid Date instances
+  const dateObj = date instanceof Date ? date : new Date(date);
+  return dateObj.toLocaleTimeString("it-IT", {
     hour: "2-digit",
     minute: "2-digit",
   });
