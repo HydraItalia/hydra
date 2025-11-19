@@ -97,7 +97,7 @@ export default async function CatalogPage({
   const categoryGroups = await getCategoryGroups();
 
   const currentGroup = categoryGroups.find((g) => g.name === selectedGroup);
-  const categories = currentGroup?.categories || [];
+  const categories = currentGroup?.ProductCategory || [];
 
   // Fetch paginated products using data layer
   const catalogResult = await fetchCatalogPage({

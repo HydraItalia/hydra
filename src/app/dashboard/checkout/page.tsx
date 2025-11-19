@@ -19,7 +19,7 @@ export default async function Checkout() {
   const cart = await getCart();
 
   // 3. Check if cart has items
-  if (!cart || cart.items.length === 0) {
+  if (!cart || cart.CartItem.length === 0) {
     redirect("/dashboard/cart");
   }
 

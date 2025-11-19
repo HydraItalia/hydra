@@ -47,18 +47,18 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
       id: orderId,
     },
     include: {
-      items: {
+      OrderItem: {
         include: {
-          vendorProduct: {
+          VendorProduct: {
             include: {
-              product: {
+              Product: {
                 select: {
                   id: true,
                   name: true,
                   imageUrl: true,
                 },
               },
-              vendor: {
+              Vendor: {
                 select: {
                   id: true,
                   name: true,
@@ -158,13 +158,13 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {order.items.map((item) => (
+                {order.OrderItem.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>
-                      {item.vendorProduct.product.imageUrl ? (
+                      {item.VendorProduct.Product.imageUrl ? (
                         <div className="relative h-12 w-12 rounded-md overflow-hidden bg-muted">
                           <Image
-                            src={item.vendorProduct.product.imageUrl}
+                            src={item.VendorProduct.Product.imageUrl}
                             alt={item.productName}
                             fill
                             className="object-cover"
@@ -179,10 +179,10 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
                     <TableCell>
                       <div className="space-y-0.5">
                         <p className="font-medium">
-                          {item.productName || item.vendorProduct.product.name}
+                          {item.productName || item.VendorProduct.Product.name}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {item.vendorName || item.vendorProduct.vendor.name}
+                          {item.vendorName || item.VendorProduct.Vendor.name}
                         </p>
                       </div>
                     </TableCell>

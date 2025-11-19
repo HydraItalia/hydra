@@ -84,16 +84,16 @@ export async function validateCartForCurrentUser(): Promise<CartValidationResult
       status: "ACTIVE",
     },
     include: {
-      items: {
+      CartItem: {
         include: {
-          vendorProduct: {
+          VendorProduct: {
             include: {
-              product: {
+              Product: {
                 select: {
                   name: true,
                 },
               },
-              vendor: {
+              Vendor: {
                 select: {
                   name: true,
                 },
@@ -109,7 +109,7 @@ export async function validateCartForCurrentUser(): Promise<CartValidationResult
   // Decision: Return ok=true with no issues. The createOrderFromCart function
   // will handle empty cart validation and throw its own error. This keeps
   // validation focused on item-level issues.
-  if (!cart || cart.items.length === 0) {
+  if (!cart || cart.CartItem.length === 0) {
     return {
       ok: true,
       issues: [],
@@ -119,7 +119,7 @@ export async function validateCartForCurrentUser(): Promise<CartValidationResult
   // 4. Validate each cart item
   const issues: CartValidationIssue[] = [];
 
-  for (const item of cart.items) {
+  for (const item of cart.CartItem) {
     const quantityRequested = item.qty;
 
     // Validate quantity is positive
@@ -136,7 +136,7 @@ export async function validateCartForCurrentUser(): Promise<CartValidationResult
     }
 
     // Check if vendor product still exists
-    if (!item.vendorProduct) {
+    if (!item.VendorProduct) {
       issues.push({
         cartItemId: item.id,
         vendorProductId: item.vendorProductId,
@@ -148,11 +148,11 @@ export async function validateCartForCurrentUser(): Promise<CartValidationResult
       continue;
     }
 
-    const vendorProduct = item.vendorProduct;
-    const productName = vendorProduct.product.name;
+    const vendorProduct = item.VendorProduct;
+    const productName = vendorProduct.Product.name;
 
     // Check if vendor exists (defensive - should always exist if vendorProduct exists)
-    if (!vendorProduct.vendor) {
+    if (!vendorProduct.Vendor) {
       issues.push({
         cartItemId: item.id,
         vendorProductId: item.vendorProductId,
@@ -165,7 +165,7 @@ export async function validateCartForCurrentUser(): Promise<CartValidationResult
       continue;
     }
 
-    const vendorName = vendorProduct.vendor.name;
+    const vendorName = vendorProduct.Vendor.name;
 
     // Check if vendor product is inactive
     if (!vendorProduct.isActive) {

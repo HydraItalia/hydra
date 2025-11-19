@@ -203,6 +203,7 @@ model DriverShift {
   @@index([driverId, date])
   @@index([driverId])
   @@index([vehicleId])
+  @@index([date])
 }
 
 model DriverStop {

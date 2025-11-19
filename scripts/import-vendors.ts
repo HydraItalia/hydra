@@ -1,6 +1,10 @@
 import { config } from "dotenv";
 import { PrismaClient, CategoryGroupType, ProductUnit } from "@prisma/client";
+import { createId } from "@paralleldrive/cuid2";
 import fs from "fs";
+
+// Note: If createId import fails at runtime, the package may need default import:
+// import createId from "@paralleldrive/cuid2";
 import path from "path";
 import { parse } from "csv-parse/sync";
 
@@ -83,7 +87,7 @@ async function getOrCreateCategoryGroup(categoryName: string): Promise<string> {
   const group = await prisma.categoryGroup.upsert({
     where: { name: groupType },
     update: {},
-    create: { name: groupType },
+    create: { id: createId(), name: groupType },
   });
 
   return group.id;
@@ -127,6 +131,7 @@ async function importCsv(filePath: string) {
         if (!vendor) {
           vendor = await prisma.vendor.create({
             data: {
+              id: createId(),
               name: vendorName,
             },
           });
@@ -146,6 +151,7 @@ async function importCsv(filePath: string) {
         where: { slug: categorySlug },
         update: { groupId },
         create: {
+          id: createId(),
           name: row.category.trim(),
           slug: categorySlug,
           groupId,
@@ -169,6 +175,7 @@ async function importCsv(filePath: string) {
       if (!product) {
         product = await prisma.product.create({
           data: {
+            id: createId(),
             name: row.name.trim(),
             description: "",
             unit: productUnit,
@@ -196,6 +203,7 @@ async function importCsv(filePath: string) {
           isActive: true,
         },
         create: {
+          id: createId(),
           vendorId: vendor.id,
           productId: product.id,
           basePriceCents: priceCents,

@@ -17,13 +17,13 @@ const productSelect = {
   name: true,
   unit: true,
   imageUrl: true,
-  category: {
+  ProductCategory: {
     select: {
       slug: true,
       name: true,
     },
   },
-  vendorProducts: {
+  VendorProduct: {
     where: {
       isActive: true,
       deletedAt: null,
@@ -33,7 +33,7 @@ const productSelect = {
       basePriceCents: true,
       stockQty: true,
       leadTimeDays: true,
-      vendor: {
+      Vendor: {
         select: {
           id: true,
           name: true,
@@ -99,16 +99,16 @@ export async function fetchCatalogPage(
 
   // Group filter
   if (group) {
-    where.category = {
-      ...where.category,
-      group: { name: group },
+    where.ProductCategory = {
+      ...where.ProductCategory,
+      CategoryGroup: { name: group },
     };
   }
 
   // Category filter
   if (categorySlug) {
-    where.category = {
-      ...where.category,
+    where.ProductCategory = {
+      ...where.ProductCategory,
       slug: categorySlug,
     };
   }
@@ -123,7 +123,7 @@ export async function fetchCatalogPage(
 
   // In stock filter (applied in nested query)
   if (inStock) {
-    where.vendorProducts = {
+    where.VendorProduct = {
       some: {
         isActive: true,
         deletedAt: null,
@@ -131,6 +131,41 @@ export async function fetchCatalogPage(
       },
     };
   }
+
+  // Helper to transform Prisma result to CatalogProduct
+  const transformProduct = (product: {
+    id: string;
+    name: string;
+    unit: string;
+    imageUrl: string | null;
+    ProductCategory: { slug: string; name: string };
+    VendorProduct: Array<{
+      id: string;
+      basePriceCents: number;
+      stockQty: number;
+      leadTimeDays: number;
+      Vendor: { id: string; name: string };
+    }>;
+  }): CatalogProduct => ({
+    id: product.id,
+    name: product.name,
+    unit: product.unit,
+    imageUrl: product.imageUrl,
+    category: {
+      slug: product.ProductCategory.slug,
+      name: product.ProductCategory.name,
+    },
+    vendorProducts: product.VendorProduct.map((vp) => ({
+      id: vp.id,
+      basePriceCents: vp.basePriceCents,
+      stockQty: vp.stockQty,
+      leadTimeDays: vp.leadTimeDays,
+      vendor: {
+        id: vp.Vendor.id,
+        name: vp.Vendor.name,
+      },
+    })),
+  });
 
   // Keyset pagination (cursor-based) - fetch one extra to detect next page
   if (cursor) {
@@ -144,15 +179,15 @@ export async function fetchCatalogPage(
     });
 
     const hasNext = items.length > pageSize;
-    const data = hasNext ? items.slice(0, pageSize) : items;
-    const nextCursor = hasNext ? data[data.length - 1].id : null;
+    const rawData = hasNext ? items.slice(0, pageSize) : items;
+    const nextCursor = hasNext ? rawData[rawData.length - 1].id : null;
 
     // Get total count (optional but useful)
     const total = await prisma.product.count({ where });
     const totalPages = Math.ceil(total / pageSize);
 
     return {
-      data: data as CatalogProduct[],
+      data: rawData.map(transformProduct),
       nextCursor,
       hasNext,
       total,
@@ -184,7 +219,7 @@ export async function fetchCatalogPage(
     hasNext && items.length > 0 ? items[items.length - 1].id : null;
 
   return {
-    data: items as CatalogProduct[],
+    data: items.map(transformProduct),
     nextCursor,
     hasNext,
     total,

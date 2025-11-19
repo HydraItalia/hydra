@@ -74,8 +74,8 @@ async function AdminAgentDashboard({
     take: 5,
     orderBy: { createdAt: "desc" },
     include: {
-      client: true,
-      items: true,
+      Client: true,
+      OrderItem: true,
     },
   });
 
@@ -111,9 +111,9 @@ async function AdminAgentDashboard({
                   className="flex items-center justify-between border-b pb-4 last:border-0"
                 >
                   <div>
-                    <p className="font-medium">{order.client.name}</p>
+                    <p className="font-medium">{order.Client.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {order.items.length} items • {order.status}
+                      {order.OrderItem.length} items • {order.status}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" asChild>
@@ -153,9 +153,9 @@ async function VendorDashboard({
     }),
     prisma.order.count({
       where: {
-        items: {
+        OrderItem: {
           some: {
-            vendorProduct: {
+            VendorProduct: {
               vendorId: user.vendorId,
             },
           },
@@ -173,7 +173,7 @@ async function VendorDashboard({
     },
     take: 5,
     include: {
-      product: true,
+      Product: true,
     },
   });
 
@@ -219,9 +219,9 @@ async function VendorDashboard({
                   key={vp.id}
                   className="flex items-center justify-between text-sm"
                 >
-                  <span>{vp.product.name}</span>
+                  <span>{vp.Product.name}</span>
                   <span className="font-medium">
-                    {vp.stockQty} {vp.product.unit}
+                    {vp.stockQty} {vp.Product.unit}
                   </span>
                 </div>
               ))}
@@ -260,7 +260,7 @@ async function ClientDashboard({
         status: "ACTIVE",
       },
       include: {
-        items: true,
+        CartItem: true,
       },
     }),
   ]);
@@ -271,11 +271,11 @@ async function ClientDashboard({
     take: 5,
     orderBy: { createdAt: "desc" },
     include: {
-      items: true,
+      OrderItem: true,
     },
   });
 
-  const cartItemCount = activeCart?.items.length || 0;
+  const cartItemCount = activeCart?.CartItem.length || 0;
 
   return (
     <div className="space-y-8">
@@ -340,7 +340,7 @@ async function ClientDashboard({
                     <div>
                       <p className="text-sm font-medium">{order.status}</p>
                       <p className="text-xs text-muted-foreground">
-                        {order.items.length} items
+                        {order.OrderItem.length} items
                       </p>
                     </div>
                     <Button variant="ghost" size="sm" asChild>

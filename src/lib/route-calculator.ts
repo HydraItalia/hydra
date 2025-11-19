@@ -242,6 +242,7 @@ export async function saveRouteSequence(route: DriverRoute): Promise<void> {
       prisma.delivery.update({
         where: { id: stop.deliveryId },
         // Cast data to any to avoid transient typing mismatches with generated Prisma types
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: { routeSequence: index + 1 } as any,
       })
     )

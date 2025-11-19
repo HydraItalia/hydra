@@ -7,18 +7,18 @@ import { useCartStore, type CartItem } from "@/store/cart"
 type CartProviderProps = {
   children: React.ReactNode
   initialCart?: {
-    items: Array<{
+    CartItem: Array<{
       id: string
       vendorProductId: string
       qty: number
       unitPriceCents: number
-      vendorProduct?: {
-        product?: {
+      VendorProduct?: {
+        Product?: {
           name: string
           unit: string
           imageUrl?: string | null
         }
-        vendor?: {
+        Vendor?: {
           name: string
         }
       }
@@ -30,17 +30,17 @@ export function CartProvider({ children, initialCart }: CartProviderProps) {
   const setItems = useCartStore((state) => state.setItems)
 
   useEffect(() => {
-    if (initialCart?.items) {
-      const items = initialCart.items
+    if (initialCart?.CartItem) {
+      const items = initialCart.CartItem
         .filter((item) => {
-          const isValid = item?.vendorProduct?.product && item?.vendorProduct?.vendor
+          const isValid = item?.VendorProduct?.Product && item?.VendorProduct?.Vendor
           if (!isValid) {
             console.warn('Filtered out invalid cart item:', {
               id: item?.id,
               vendorProductId: item?.vendorProductId,
-              hasVendorProduct: !!item?.vendorProduct,
-              hasProduct: !!item?.vendorProduct?.product,
-              hasVendor: !!item?.vendorProduct?.vendor,
+              hasVendorProduct: !!item?.VendorProduct,
+              hasProduct: !!item?.VendorProduct?.Product,
+              hasVendor: !!item?.VendorProduct?.Vendor,
             })
           }
           return isValid
@@ -50,10 +50,10 @@ export function CartProvider({ children, initialCart }: CartProviderProps) {
           vendorProductId: item.vendorProductId,
           qty: item.qty,
           unitPriceCents: item.unitPriceCents,
-          productName: item.vendorProduct!.product!.name,
-          vendorName: item.vendorProduct!.vendor!.name,
-          productUnit: item.vendorProduct!.product!.unit as ProductUnit,
-          imageUrl: item.vendorProduct!.product!.imageUrl ?? null,
+          productName: item.VendorProduct!.Product!.name,
+          vendorName: item.VendorProduct!.Vendor!.name,
+          productUnit: item.VendorProduct!.Product!.unit as ProductUnit,
+          imageUrl: item.VendorProduct!.Product!.imageUrl ?? null,
         }))
       setItems(items)
     }

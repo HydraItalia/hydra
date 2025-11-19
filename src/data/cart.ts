@@ -1,6 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { createId } = require("@paralleldrive/cuid2");
 import { currentUser } from "@/lib/auth";
 import { getEffectivePriceCents } from "@/lib/pricing";
 import { revalidatePath } from "next/cache";
@@ -10,11 +13,11 @@ const MAX_CART_ITEM_QUANTITY = 9999;
 
 // Shared include configuration for cart queries with full item details
 const CART_WITH_ITEMS_INCLUDE = {
-  items: {
+  CartItem: {
     include: {
-      vendorProduct: {
+      VendorProduct: {
         include: {
-          product: {
+          Product: {
             select: {
               id: true,
               name: true,
@@ -22,7 +25,7 @@ const CART_WITH_ITEMS_INCLUDE = {
               imageUrl: true,
             },
           },
-          vendor: {
+          Vendor: {
             select: {
               id: true,
               name: true,
@@ -65,6 +68,7 @@ export async function getCart() {
   if (!cart) {
     cart = await prisma.cart.create({
       data: {
+        id: createId(),
         clientId: user.clientId,
         createdByUserId: user.id,
         status: "ACTIVE",
@@ -144,7 +148,7 @@ export async function addToCart({
         status: "ACTIVE",
       },
       include: {
-        items: {
+        CartItem: {
           where: {
             vendorProductId,
           },
@@ -155,12 +159,13 @@ export async function addToCart({
     if (!cart) {
       cart = await tx.cart.create({
         data: {
+          id: createId(),
           clientId,
           createdByUserId: user.id,
           status: "ACTIVE",
         },
         include: {
-          items: {
+          CartItem: {
             where: {
               vendorProductId,
             },
@@ -169,7 +174,7 @@ export async function addToCart({
       });
     }
 
-    const existingItem = cart.items[0]; // Only one item due to where filter
+    const existingItem = cart.CartItem[0]; // Only one item due to where filter
 
     if (existingItem) {
       const newQuantity = existingItem.qty + quantity;
@@ -193,6 +198,7 @@ export async function addToCart({
       // Add new item
       await tx.cartItem.create({
         data: {
+          id: createId(),
           cartId: cart.id,
           vendorProductId,
           qty: quantity,
@@ -255,7 +261,7 @@ export async function updateCartItem({
     const item = await tx.cartItem.findUnique({
       where: { id: itemId },
       include: {
-        cart: true,
+        Cart: true,
       },
     });
 
@@ -263,11 +269,11 @@ export async function updateCartItem({
       throw new Error("Cart item not found");
     }
 
-    if (item.cart.clientId !== clientId) {
+    if (item.Cart.clientId !== clientId) {
       throw new Error("Unauthorized to modify this cart item");
     }
 
-    if (item.cart.status !== "ACTIVE") {
+    if (item.Cart.status !== "ACTIVE") {
       throw new Error("Cannot modify items in inactive cart");
     }
 
@@ -337,7 +343,7 @@ export async function removeCartItem({ itemId }: { itemId: string }) {
     const item = await tx.cartItem.findUnique({
       where: { id: itemId },
       include: {
-        cart: true,
+        Cart: true,
       },
     });
 
@@ -345,11 +351,11 @@ export async function removeCartItem({ itemId }: { itemId: string }) {
       throw new Error("Cart item not found");
     }
 
-    if (item.cart.clientId !== user.clientId) {
+    if (item.Cart.clientId !== user.clientId) {
       throw new Error("Unauthorized to modify this cart item");
     }
 
-    if (item.cart.status !== "ACTIVE") {
+    if (item.Cart.status !== "ACTIVE") {
       throw new Error("Cannot remove items from inactive cart");
     }
 
@@ -420,6 +426,7 @@ export async function clearCart() {
     // If no cart exists, create one and return it
     return tx.cart.create({
       data: {
+        id: createId(),
         clientId,
         createdByUserId: user.id,
         status: "ACTIVE",
@@ -453,7 +460,7 @@ export async function getCartSummary() {
       status: "ACTIVE",
     },
     include: {
-      items: {
+      CartItem: {
         select: {
           qty: true,
           unitPriceCents: true,
@@ -469,8 +476,8 @@ export async function getCartSummary() {
     };
   }
 
-  const itemCount = cart.items.reduce((sum, item) => sum + item.qty, 0);
-  const totalCents = cart.items.reduce(
+  const itemCount = cart.CartItem.reduce((sum, item) => sum + item.qty, 0);
+  const totalCents = cart.CartItem.reduce(
     (sum, item) => sum + item.qty * item.unitPriceCents,
     0
   );
