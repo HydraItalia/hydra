@@ -54,8 +54,8 @@ export async function getCurrentDriverShiftForToday(): Promise<
 
     // Get today's date range (start of day to end of day)
     const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
     // Find an open shift for today (no endTime set)
     const shift = await prisma.driverShift.findFirst({
@@ -194,6 +194,21 @@ export async function startDriverShift(
       return { success: false, error: "Invalid fuel level" };
     }
 
+    // Validate optional startTime
+    if (input.startTime) {
+      const providedTime = new Date(input.startTime);
+      const now = new Date();
+      const oneDayInMs = 24 * 60 * 60 * 1000;
+
+      if (providedTime.getTime() > now.getTime() + oneDayInMs) {
+        return { success: false, error: "Start time cannot be more than 1 day in the future" };
+      }
+
+      if (providedTime.getTime() < now.getTime() - 7 * oneDayInMs) {
+        return { success: false, error: "Start time cannot be more than 7 days in the past" };
+      }
+    }
+
     // Check if vehicle exists
     const vehicle = await prisma.vehicle.findUnique({
       where: { id: input.vehicleId },
@@ -205,8 +220,8 @@ export async function startDriverShift(
 
     // Get today's date range
     const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
     // Check if there's already an open shift for today
     const existingShift = await prisma.driverShift.findFirst({
@@ -234,7 +249,7 @@ export async function startDriverShift(
       data: {
         driverId: user.driverId,
         vehicleId: input.vehicleId,
-        date: new Date(new Date().setHours(0, 0, 0, 0)), // Start of today
+        date: startOfDay,
         startKm: input.startKm,
         startFuelLevel: input.startFuelLevel,
         startTime,

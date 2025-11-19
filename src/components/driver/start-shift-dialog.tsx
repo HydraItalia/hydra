@@ -108,7 +108,7 @@ export function StartShiftDialog({ onShiftStarted }: StartShiftDialogProps) {
 
     const kmValue = parseInt(startKm, 10);
     if (isNaN(kmValue) || kmValue < 0) {
-      setError("Please enter a valid starting km (positive number)");
+      setError("Please enter a valid starting km (non-negative number)");
       setLoading(false);
       return;
     }
