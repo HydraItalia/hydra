@@ -973,3 +973,238 @@ export async function skipStop(
     };
   }
 }
+
+// Types for Phase 7.5 - End-of-Shift Close
+export type CloseShiftInput = {
+  endKm: number;
+  endFuelLevel: FuelLevel;
+  closingNotes?: string;
+  cashReturnedConfirmed: boolean;
+};
+
+export type ShiftSummary = {
+  shift: ShiftWithVehicleAndStops;
+  totalStops: number;
+  completedStops: number;
+  skippedStops: number;
+  distanceKm: number | null;
+  totalCashCollectedCents: number;
+  totalBonCollectedCents: number;
+};
+
+/**
+ * Phase 7.5 - Close the current driver shift
+ *
+ * Marks the shift as closed by setting endTime, endKm, endFuelLevel,
+ * and optionally closingNotes. Requires confirmation that cash/bon
+ * has been returned.
+ *
+ * @param input - The closing data
+ * @returns Success or error
+ */
+export async function closeShift(
+  input: CloseShiftInput
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    if (user.role !== "DRIVER") {
+      return { success: false, error: "Only drivers can close shifts" };
+    }
+
+    if (!user.driverId) {
+      return {
+        success: false,
+        error: "User is not associated with a driver account",
+      };
+    }
+
+    // Validate input
+    if (typeof input.endKm !== "number" || input.endKm < 0) {
+      return { success: false, error: "Final km must be a non-negative number" };
+    }
+
+    if (!Number.isInteger(input.endKm)) {
+      return { success: false, error: "Final km must be a whole number" };
+    }
+
+    if (!Object.values(FuelLevel).includes(input.endFuelLevel)) {
+      return { success: false, error: "Invalid fuel level" };
+    }
+
+    if (!input.cashReturnedConfirmed) {
+      return {
+        success: false,
+        error: "You must confirm that cash and bon have been returned",
+      };
+    }
+
+    // Get today's date range
+    const { startOfDay, endOfDay } = getTodayDateRange();
+
+    // Find the current open shift
+    const shift = await prisma.driverShift.findFirst({
+      where: {
+        driverId: user.driverId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+        endTime: null,
+      },
+    });
+
+    if (!shift) {
+      return { success: false, error: "No open shift found for today" };
+    }
+
+    // Validate endKm >= startKm
+    if (input.endKm < shift.startKm) {
+      return {
+        success: false,
+        error: `Final km (${input.endKm}) must be greater than or equal to starting km (${shift.startKm})`,
+      };
+    }
+
+    // Close the shift
+    await prisma.driverShift.update({
+      where: { id: shift.id },
+      data: {
+        endKm: input.endKm,
+        endFuelLevel: input.endFuelLevel,
+        endTime: new Date(),
+        closingNotes: input.closingNotes || null,
+        cashReturnedConfirmed: true,
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error closing shift:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to close shift",
+    };
+  }
+}
+
+/**
+ * Phase 7.5 - Get closed shift summary for today
+ *
+ * Returns the closed shift with computed summary statistics.
+ *
+ * @returns Shift summary with stats
+ */
+export async function getClosedShiftSummary(): Promise<
+  | { success: true; summary: ShiftSummary }
+  | { success: true; summary: null }
+  | { success: false; error: string }
+> {
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    if (user.role !== "DRIVER") {
+      return { success: false, error: "Only drivers can access shift summary" };
+    }
+
+    if (!user.driverId) {
+      return {
+        success: false,
+        error: "User is not associated with a driver account",
+      };
+    }
+
+    // Get today's date range
+    const { startOfDay, endOfDay } = getTodayDateRange();
+
+    // Find today's closed shift
+    const shift = await prisma.driverShift.findFirst({
+      where: {
+        driverId: user.driverId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+        endTime: { not: null },
+      },
+      include: {
+        vehicle: true,
+        stops: {
+          orderBy: {
+            sequenceNumber: "asc",
+          },
+          include: {
+            client: {
+              select: {
+                id: true,
+                name: true,
+                fullAddress: true,
+                shortAddress: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        endTime: "desc",
+      },
+    });
+
+    if (!shift) {
+      return { success: true, summary: null };
+    }
+
+    // Compute summary stats
+    const totalStops = shift.stops.length;
+    const completedStops = shift.stops.filter(
+      (stop) => stop.status === DriverStopStatus.COMPLETED
+    ).length;
+    const skippedStops = shift.stops.filter(
+      (stop) => stop.status === DriverStopStatus.SKIPPED
+    ).length;
+
+    const distanceKm =
+      shift.endKm !== null && shift.startKm !== null
+        ? shift.endKm - shift.startKm
+        : null;
+
+    const totalCashCollectedCents = shift.stops.reduce(
+      (sum, stop) => sum + (stop.cashCollectedCents || 0),
+      0
+    );
+    const totalBonCollectedCents = shift.stops.reduce(
+      (sum, stop) => sum + (stop.bonCollectedCents || 0),
+      0
+    );
+
+    return {
+      success: true,
+      summary: {
+        shift,
+        totalStops,
+        completedStops,
+        skippedStops,
+        distanceKm,
+        totalCashCollectedCents,
+        totalBonCollectedCents,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching shift summary:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch shift summary",
+    };
+  }
+}

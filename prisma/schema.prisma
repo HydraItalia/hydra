@@ -181,18 +181,20 @@ model Driver {
 }
 
 model DriverShift {
-  id             String       @id @default(cuid())
-  driverId       String
-  vehicleId      String
-  date           DateTime
-  startKm        Int
-  startFuelLevel FuelLevel
-  startTime      DateTime
-  endKm          Int?
-  endFuelLevel   FuelLevel?
-  endTime        DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                    String       @id @default(cuid())
+  driverId              String
+  vehicleId             String
+  date                  DateTime
+  startKm               Int
+  startFuelLevel        FuelLevel
+  startTime             DateTime
+  endKm                 Int?
+  endFuelLevel          FuelLevel?
+  endTime               DateTime?
+  closingNotes          String?
+  cashReturnedConfirmed Boolean?     @default(false)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   driver  Driver       @relation(fields: [driverId], references: [id])
   vehicle Vehicle      @relation(fields: [vehicleId], references: [id])
