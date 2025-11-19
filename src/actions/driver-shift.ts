@@ -10,6 +10,33 @@ import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { FuelLevel, DriverShift, Vehicle } from "@prisma/client";
 
+/**
+ * Get today's date range (start of day to end of day)
+ * Avoids Date mutation issues by using explicit Date construction
+ */
+function getTodayDateRange() {
+  const today = new Date();
+  const startOfDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+    0,
+    0,
+    0,
+    0
+  );
+  const endOfDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+    23,
+    59,
+    59,
+    999
+  );
+  return { startOfDay, endOfDay };
+}
+
 // Types for the server actions
 export type StartShiftInput = {
   vehicleId: string;
@@ -52,10 +79,8 @@ export async function getCurrentDriverShiftForToday(): Promise<
       };
     }
 
-    // Get today's date range (start of day to end of day)
-    const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+    // Get today's date range
+    const { startOfDay, endOfDay } = getTodayDateRange();
 
     // Find an open shift for today (no endTime set)
     const shift = await prisma.driverShift.findFirst({
@@ -201,11 +226,17 @@ export async function startDriverShift(
       const oneDayInMs = 24 * 60 * 60 * 1000;
 
       if (providedTime.getTime() > now.getTime() + oneDayInMs) {
-        return { success: false, error: "Start time cannot be more than 1 day in the future" };
+        return {
+          success: false,
+          error: "Start time cannot be more than 1 day in the future",
+        };
       }
 
       if (providedTime.getTime() < now.getTime() - 7 * oneDayInMs) {
-        return { success: false, error: "Start time cannot be more than 7 days in the past" };
+        return {
+          success: false,
+          error: "Start time cannot be more than 7 days in the past",
+        };
       }
     }
 
@@ -219,9 +250,7 @@ export async function startDriverShift(
     }
 
     // Get today's date range
-    const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+    const { startOfDay, endOfDay } = getTodayDateRange();
 
     // Check if there's already an open shift for today
     const existingShift = await prisma.driverShift.findFirst({
