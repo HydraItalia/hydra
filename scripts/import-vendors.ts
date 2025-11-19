@@ -2,6 +2,9 @@ import { config } from "dotenv";
 import { PrismaClient, CategoryGroupType, ProductUnit } from "@prisma/client";
 import { createId } from "@paralleldrive/cuid2";
 import fs from "fs";
+
+// Note: If createId import fails at runtime, the package may need default import:
+// import createId from "@paralleldrive/cuid2";
 import path from "path";
 import { parse } from "csv-parse/sync";
 
@@ -128,6 +131,7 @@ async function importCsv(filePath: string) {
         if (!vendor) {
           vendor = await prisma.vendor.create({
             data: {
+              id: createId(),
               name: vendorName,
             },
           });
