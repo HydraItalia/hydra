@@ -10,6 +10,7 @@ import {
   GitBranch,
   Truck,
   MapPin,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -53,6 +54,11 @@ export function getNavItems(role: Role): NavItem[] {
           label: "Orders",
           href: "/dashboard/orders",
           icon: ShoppingCart,
+        },
+        {
+          label: "Shifts",
+          href: "/dashboard/shifts",
+          icon: ClipboardList,
         },
         {
           label: "Smistamento Ordini",
