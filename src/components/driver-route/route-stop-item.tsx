@@ -31,9 +31,9 @@ const statusConfig: Record<
   SKIPPED: { label: "Skipped", variant: "secondary" },
 };
 
-function formatTime(date: Date | null | undefined): string | null {
+function formatTime(date: Date | string | null | undefined): string | null {
   if (!date) return null;
-  // Date objects from Prisma are already valid Date instances
+  // Dates may be serialized as strings when passed from server to client components
   const dateObj = date instanceof Date ? date : new Date(date);
   return dateObj.toLocaleTimeString("it-IT", {
     hour: "2-digit",
