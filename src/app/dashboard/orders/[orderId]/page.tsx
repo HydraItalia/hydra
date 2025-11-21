@@ -2,6 +2,10 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { fetchOrderById } from "@/data/orders";
+import { getVendorOrderDetail } from "@/actions/vendor-orders";
+import { OrderStatusBadge } from "@/components/vendor-orders/order-status-badge";
+import { OrderItemsTable } from "@/components/vendor-orders/order-items-table";
+import { StatusActionButtons } from "@/components/vendor-orders/status-action-buttons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,7 +25,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { ArrowLeft, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ShoppingCart, MapPin } from "lucide-react";
 
 type PageProps = {
   params: Promise<{
@@ -30,7 +34,7 @@ type PageProps = {
 };
 
 /**
- * Get status badge variant based on order status
+ * Get status badge variant based on order status (for CLIENT view)
  */
 function getStatusVariant(status: string) {
   const variants: Record<
@@ -48,7 +52,7 @@ function getStatusVariant(status: string) {
 }
 
 /**
- * Get status display name
+ * Get status display name (for CLIENT view)
  */
 function getStatusDisplay(status: string): string {
   const displays: Record<string, string> = {
@@ -73,16 +77,25 @@ export default async function OrderDetailPage({ params }: PageProps) {
     redirect("/signin?callbackUrl=/dashboard/orders");
   }
 
-  // Only CLIENT role can access orders
-  if (user.role !== "CLIENT") {
+  // Route based on role
+  if (user.role === "VENDOR") {
+    return <VendorOrderDetailView orderId={orderId} />;
+  } else if (user.role === "CLIENT") {
+    return <ClientOrderDetailView orderId={orderId} />;
+  } else {
+    redirect("/dashboard");
+  }
+}
+
+// CLIENT view (existing functionality)
+async function ClientOrderDetailView({ orderId }: { orderId: string }) {
+  const user = await currentUser();
+
+  if (!user?.clientId) {
     redirect("/dashboard");
   }
 
-  if (!user.clientId) {
-    redirect("/dashboard");
-  }
-
-  // 2. Fetch order with authorization built into data layer
+  // Fetch order with authorization built into data layer
   let order;
   try {
     order = await fetchOrderById(orderId);
@@ -196,6 +209,135 @@ export default async function OrderDetailPage({ params }: PageProps) {
           </Link>
         </Button>
       </div>
+    </div>
+  );
+}
+
+// VENDOR view (new functionality)
+async function VendorOrderDetailView({ orderId }: { orderId: string }) {
+  const user = await currentUser();
+
+  if (!user?.vendorId) {
+    redirect("/dashboard");
+  }
+
+  // Fetch order with vendor authorization
+  const orderResult = await getVendorOrderDetail(orderId);
+
+  if (!orderResult.success || !orderResult.data) {
+    notFound();
+  }
+
+  const order = orderResult.data;
+  const formattedDate = formatDateTime(order.createdAt);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/dashboard/orders">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Orders
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Order {order.orderNumber}</h1>
+            <p className="text-sm text-muted-foreground">{formattedDate}</p>
+          </div>
+        </div>
+        <OrderStatusBadge status={order.status} />
+      </div>
+
+      {/* Order Summary */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Client Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div>
+              <div className="text-sm text-muted-foreground">Client Name</div>
+              <div className="font-medium">{order.Client.name}</div>
+            </div>
+            {order.Client.region && (
+              <div>
+                <div className="text-sm text-muted-foreground">Region</div>
+                <div className="font-medium">{order.Client.region}</div>
+              </div>
+            )}
+            {order.deliveryAddress && (
+              <div>
+                <div className="text-sm text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Delivery Address
+                </div>
+                <div className="font-medium">{order.deliveryAddress}</div>
+              </div>
+            )}
+            {order.Client.fullAddress && !order.deliveryAddress && (
+              <div>
+                <div className="text-sm text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Address
+                </div>
+                <div className="font-medium">{order.Client.fullAddress}</div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Order Status</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="text-sm text-muted-foreground">
+                Current Status
+              </div>
+              <div className="mt-1">
+                <OrderStatusBadge status={order.status} />
+              </div>
+            </div>
+            <Separator />
+            <div>
+              <div className="text-sm text-muted-foreground mb-3">
+                Update Status
+              </div>
+              <StatusActionButtons
+                orderId={order.id}
+                currentStatus={order.status}
+              />
+            </div>
+            {order.notes && (
+              <>
+                <Separator />
+                <div>
+                  <div className="text-sm text-muted-foreground">
+                    Order Notes
+                  </div>
+                  <div className="mt-1 text-sm">{order.notes}</div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Order Items */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Items in This Order</CardTitle>
+          <CardDescription>
+            Products from your inventory included in this order
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <OrderItemsTable order={order} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

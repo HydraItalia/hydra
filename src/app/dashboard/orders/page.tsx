@@ -2,9 +2,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { fetchOrdersForClient } from "@/data/orders";
+import { getVendorOrders } from "@/actions/vendor-orders";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/catalog/pagination";
-import { Badge } from "@/components/ui/badge";
+import { OrderStatusBadge } from "@/components/vendor-orders/order-status-badge";
 import {
   Card,
   CardContent,
@@ -23,14 +24,17 @@ import {
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Package, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { OrderStatus } from "@prisma/client";
 
 type SearchParams = {
   page?: string;
   pageSize?: string;
+  status?: string;
 };
 
 /**
- * Get status badge variant based on order status
+ * Get status badge variant based on order status (for CLIENT view)
  */
 function getStatusVariant(status: string) {
   const variants: Record<
@@ -48,7 +52,7 @@ function getStatusVariant(status: string) {
 }
 
 /**
- * Get status display name
+ * Get status display name (for CLIENT view)
  */
 function getStatusDisplay(status: string): string {
   const displays: Record<string, string> = {
@@ -74,12 +78,25 @@ export default async function OrdersPage({
     redirect("/signin?callbackUrl=/dashboard/orders");
   }
 
-  // Only CLIENT role can access orders
-  if (user.role !== "CLIENT") {
+  // Route based on role
+  if (user.role === "VENDOR") {
+    return <VendorOrdersView searchParams={searchParams} />;
+  } else if (user.role === "CLIENT") {
+    return <ClientOrdersView searchParams={searchParams} />;
+  } else {
     redirect("/dashboard");
   }
+}
 
-  if (!user.clientId) {
+// CLIENT view (existing functionality)
+async function ClientOrdersView({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const user = await currentUser();
+
+  if (!user?.clientId) {
     redirect("/dashboard");
   }
 
@@ -179,6 +196,185 @@ export default async function OrdersPage({
                 Browse Catalog
               </Link>
             </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// VENDOR view (new functionality)
+async function VendorOrdersView({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const user = await currentUser();
+
+  if (!user?.vendorId) {
+    redirect("/dashboard");
+  }
+
+  // Parse search params
+  const params = await searchParams;
+  const statusFilter = params.status?.toUpperCase() as OrderStatus | undefined;
+
+  // Fetch vendor orders
+  const ordersResult = await getVendorOrders(statusFilter);
+
+  if (!ordersResult.success) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Orders" subtitle="Error loading orders" />
+        <Card>
+          <CardContent className="py-12 text-center text-destructive">
+            {ordersResult.error}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const orders = ordersResult.data || [];
+
+  // Calculate vendor item totals
+  const ordersWithTotals = orders.map((order) => {
+    const vendorTotal = order.OrderItem.reduce(
+      (sum, item) => sum + item.lineTotalCents,
+      0
+    );
+    return { ...order, vendorTotal };
+  });
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Orders"
+        subtitle="Manage orders containing your products"
+      />
+
+      {/* Status Filter */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filter by Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              asChild
+              variant={!statusFilter ? "default" : "outline"}
+              size="sm"
+            >
+              <Link href="/dashboard/orders">All Orders</Link>
+            </Button>
+            <Button
+              asChild
+              variant={statusFilter === "SUBMITTED" ? "default" : "outline"}
+              size="sm"
+            >
+              <Link href="/dashboard/orders?status=SUBMITTED">Submitted</Link>
+            </Button>
+            <Button
+              asChild
+              variant={statusFilter === "CONFIRMED" ? "default" : "outline"}
+              size="sm"
+            >
+              <Link href="/dashboard/orders?status=CONFIRMED">Confirmed</Link>
+            </Button>
+            <Button
+              asChild
+              variant={statusFilter === "FULFILLING" ? "default" : "outline"}
+              size="sm"
+            >
+              <Link href="/dashboard/orders?status=FULFILLING">Fulfilling</Link>
+            </Button>
+            <Button
+              asChild
+              variant={statusFilter === "DELIVERED" ? "default" : "outline"}
+              size="sm"
+            >
+              <Link href="/dashboard/orders?status=DELIVERED">Delivered</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {ordersWithTotals.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Orders</CardTitle>
+            <CardDescription>
+              {ordersWithTotals.length} order
+              {ordersWithTotals.length !== 1 ? "s" : ""} found
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order Number</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-center">Your Items</TableHead>
+                  <TableHead className="text-right">Your Total</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ordersWithTotals.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell>
+                      <Link
+                        href={`/dashboard/orders/${order.id}`}
+                        className="font-mono font-medium hover:underline"
+                      >
+                        {order.orderNumber}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{order.Client.name}</div>
+                        {order.Client.region && (
+                          <div className="text-sm text-muted-foreground">
+                            {order.Client.region}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{formatDate(order.createdAt)}</TableCell>
+                    <TableCell className="text-center">
+                      {order.OrderItem.length}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(order.vendorTotal)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <OrderStatusBadge status={order.status} />
+                    </TableCell>
+                    <TableCell>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/dashboard/orders/${order.id}`}>View</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="rounded-full bg-muted p-6 mb-4">
+              <Package className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No orders found</h3>
+            <p className="text-muted-foreground text-center max-w-md">
+              {statusFilter
+                ? `No orders with status "${statusFilter}" found.`
+                : "No orders containing your products yet."}
+            </p>
           </CardContent>
         </Card>
       )}
