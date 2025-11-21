@@ -351,17 +351,22 @@ model User {
 }
 
 model Vendor {
-  id            String          @id
-  name          String
-  region        String?
-  notes         String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
-  AgentVendor   AgentVendor[]
-  Agreement     Agreement[]
-  User          User?
-  VendorProduct VendorProduct[]
+  id                String          @id
+  name              String
+  region            String?
+  notes             String?
+  contactEmail      String?
+  contactPhone      String?
+  address           String?
+  businessHours     String?
+  defaultOrderNotes String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+  AgentVendor       AgentVendor[]
+  Agreement         Agreement[]
+  User              User?
+  VendorProduct     VendorProduct[]
 
   @@index([region])
 }

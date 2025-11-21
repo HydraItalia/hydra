@@ -11,6 +11,7 @@ import {
   Truck,
   MapPin,
   ClipboardList,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -88,6 +89,11 @@ export function getNavItems(role: Role): NavItem[] {
           label: "Orders",
           href: "/dashboard/orders",
           icon: ShoppingCart,
+        },
+        {
+          label: "Settings",
+          href: "/dashboard/vendor/settings",
+          icon: Settings,
         },
       ];
 
