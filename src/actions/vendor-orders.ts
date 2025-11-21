@@ -248,10 +248,11 @@ export async function updateVendorOrderStatus(
     }
 
     // Validate status transition
+    // Note: Vendors can only confirm orders. FULFILLING requires admin/agent to assign delivery.
     const validTransitions: Record<OrderStatus, OrderStatus[]> = {
       DRAFT: ["SUBMITTED", "CANCELED"],
       SUBMITTED: ["CONFIRMED", "CANCELED"],
-      CONFIRMED: ["FULFILLING", "CANCELED"],
+      CONFIRMED: ["CANCELED"], // Removed FULFILLING - requires delivery assignment
       FULFILLING: ["DELIVERED", "CANCELED"],
       DELIVERED: [],
       CANCELED: [],
