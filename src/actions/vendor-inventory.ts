@@ -11,6 +11,9 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { VendorProduct, Product } from "@prisma/client";
 
+// Low stock threshold constant
+const LOW_STOCK_THRESHOLD = 10;
+
 // Filter types for inventory views
 export type InventoryFilter = "ALL" | "ACTIVE" | "INACTIVE" | "LOW_STOCK";
 
@@ -77,9 +80,9 @@ export async function getVendorInventory(
         whereConditions.isActive = false;
         break;
       case "LOW_STOCK":
-        // Low stock: items with stockQty < 10 (hardcoded threshold for now)
+        // Low stock: active items with stockQty below threshold
         whereConditions.isActive = true;
-        whereConditions.stockQty = { lt: 10 };
+        whereConditions.stockQty = { lt: LOW_STOCK_THRESHOLD };
         break;
       case "ALL":
       default:
@@ -216,7 +219,7 @@ export async function getVendorInventoryStats(): Promise<
       };
     }
 
-    const [activeCount, inactiveCount, allProducts] = await Promise.all([
+    const [activeCount, inactiveCount, lowStockCount] = await Promise.all([
       prisma.vendorProduct.count({
         where: {
           vendorId: user.vendorId,
@@ -231,16 +234,15 @@ export async function getVendorInventoryStats(): Promise<
           deletedAt: null,
         },
       }),
-      prisma.vendorProduct.findMany({
+      prisma.vendorProduct.count({
         where: {
           vendorId: user.vendorId,
+          isActive: true,
           deletedAt: null,
+          stockQty: { lt: LOW_STOCK_THRESHOLD },
         },
       }),
     ]);
-
-    // Calculate low stock count (where stockQty < 10, hardcoded threshold)
-    const lowStockCount = allProducts.filter((p) => p.stockQty < 10).length;
 
     const totalCount = activeCount + inactiveCount;
 

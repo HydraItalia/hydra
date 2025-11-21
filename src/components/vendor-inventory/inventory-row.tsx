@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { AlertTriangle, Check, Pencil, X } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 interface InventoryRowProps {
@@ -16,7 +16,7 @@ interface InventoryRowProps {
 
 export function InventoryRow({ item }: InventoryRowProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   // Editable fields
   const [priceEuros, setPriceEuros] = useState(
@@ -28,35 +28,35 @@ export function InventoryRow({ item }: InventoryRowProps) {
   // Check if item is low stock (hardcoded threshold of 10)
   const isLowStock = item.isActive && item.stockQty < 10;
 
-  const handleSave = () => {
-    startTransition(async () => {
-      const priceCents = Math.round(parseFloat(priceEuros) * 100);
-      const qty = parseInt(stockQty);
+  const handleSave = async () => {
+    const priceCents = Math.round(parseFloat(priceEuros) * 100);
+    const qty = parseInt(stockQty);
 
-      if (isNaN(priceCents) || priceCents < 0) {
-        toast.error("Invalid price value");
-        return;
-      }
+    if (isNaN(priceCents) || priceCents < 0) {
+      toast.error("Invalid price value");
+      return;
+    }
 
-      if (isNaN(qty) || qty < 0) {
-        toast.error("Invalid stock quantity");
-        return;
-      }
+    if (isNaN(qty) || qty < 0) {
+      toast.error("Invalid stock quantity");
+      return;
+    }
 
-      const result = await updateVendorInventoryItem({
-        vendorProductId: item.id,
-        basePriceCents: priceCents,
-        isActive,
-        stockQty: qty,
-      });
-
-      if (result.success) {
-        toast.success("Inventory updated successfully");
-        setIsEditing(false);
-      } else {
-        toast.error(result.error || "Failed to update inventory");
-      }
+    setIsPending(true);
+    const result = await updateVendorInventoryItem({
+      vendorProductId: item.id,
+      basePriceCents: priceCents,
+      isActive,
+      stockQty: qty,
     });
+    setIsPending(false);
+
+    if (result.success) {
+      toast.success("Inventory updated successfully");
+      setIsEditing(false);
+    } else {
+      toast.error(result.error || "Failed to update inventory");
+    }
   };
 
   const handleCancel = () => {
@@ -72,19 +72,19 @@ export function InventoryRow({ item }: InventoryRowProps) {
       {/* Product Name */}
       <td className="py-3 px-4">
         <div className="flex items-center gap-2">
-          <span className="font-medium">{item.Product.name}</span>
+          <span className="font-medium">{item.Product?.name}</span>
           {isLowStock && <AlertTriangle className="h-4 w-4 text-yellow-600" />}
         </div>
-        {item.Product.description && (
+        {item.Product?.description && (
           <p className="text-xs text-muted-foreground">
-            {item.Product.description}
+            {item.Product?.description}
           </p>
         )}
       </td>
 
       {/* Unit */}
       <td className="py-3 px-4 text-sm text-muted-foreground">
-        {item.Product.unit}
+        {item.Product?.unit}
       </td>
 
       {/* Price */}

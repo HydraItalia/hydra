@@ -84,6 +84,14 @@ export default async function InventoryPage(props: PageProps) {
     );
   }
 
+  if (!statsResult.success) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title="Error" subtitle={statsResult.error} />
+      </div>
+    );
+  }
+
   const inventory = inventoryResult.data || [];
   const stats = statsResult.data;
 
