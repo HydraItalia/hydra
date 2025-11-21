@@ -202,10 +202,10 @@ async function VendorDashboard({
 
       {/* Low Stock Alert */}
       {lowStockCount > 0 && (
-        <Card className="border-yellow-500 bg-yellow-50">
+        <Card className="border-yellow-500 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-950/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
               Low Stock Alert
             </CardTitle>
             <CardDescription>
