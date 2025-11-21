@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { OrderStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { updateVendorOrderStatus } from "@/actions/vendor-orders";
@@ -53,6 +53,11 @@ export function StatusActionButtons({
   currentStatus,
 }: StatusActionButtonsProps) {
   const [isPending, setIsPending] = useState(false);
+  const [isMounted, setIsMounted] = useState(true);
+
+  useEffect(() => {
+    return () => setIsMounted(false);
+  }, []);
 
   const availableTransitions = statusTransitions[currentStatus] || [];
 
@@ -79,7 +84,9 @@ export function StatusActionButtons({
       toast.error("An unexpected error occurred");
       console.error("Status update error:", error);
     } finally {
-      setIsPending(false);
+      if (isMounted) {
+        setIsPending(false);
+      }
     }
   };
 

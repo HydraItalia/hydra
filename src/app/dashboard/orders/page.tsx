@@ -217,7 +217,19 @@ async function VendorOrdersView({
 
   // Parse search params
   const params = await searchParams;
-  const statusFilter = params.status?.toUpperCase() as OrderStatus | undefined;
+  const statusValue = params.status?.toUpperCase();
+  const validStatuses: OrderStatus[] = [
+    "DRAFT",
+    "SUBMITTED",
+    "CONFIRMED",
+    "FULFILLING",
+    "DELIVERED",
+    "CANCELED",
+  ];
+  const statusFilter =
+    statusValue && validStatuses.includes(statusValue as OrderStatus)
+      ? (statusValue as OrderStatus)
+      : undefined;
 
   // Fetch vendor orders
   const ordersResult = await getVendorOrders(statusFilter);

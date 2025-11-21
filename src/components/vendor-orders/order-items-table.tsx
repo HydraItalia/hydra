@@ -39,7 +39,7 @@ export function OrderItemsTable({ order }: OrderItemsTableProps) {
                   <div>
                     <div className="font-medium">{item.productName}</div>
                     <div className="text-sm text-muted-foreground">
-                      {item.VendorProduct.Product.unit}
+                      {item.VendorProduct?.Product?.unit ?? "N/A"}
                     </div>
                   </div>
                 </TableCell>
