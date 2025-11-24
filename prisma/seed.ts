@@ -538,11 +538,13 @@ async function main() {
   console.log("📋 Creating demo orders with real vendor products...");
 
   // Get some sample products from real vendors
-  const whiteDogProducts = await prisma.vendorProduct.findMany({
-    where: { vendorId: whiteDog?.id, isActive: true, stockQty: { gt: 0 } },
-    include: { Product: true, Vendor: true },
-    take: 2,
-  });
+  const whiteDogProducts = whiteDog
+    ? await prisma.vendorProduct.findMany({
+        where: { vendorId: whiteDog.id, isActive: true, stockQty: { gt: 0 } },
+        include: { Product: true, Vendor: true },
+        take: 2,
+      })
+    : [];
 
   const cdFishProducts = await prisma.vendorProduct.findMany({
     where: { vendorId: cdFish?.id, isActive: true, stockQty: { gt: 0 } },
@@ -895,8 +897,10 @@ async function main() {
   const orderCount = await prisma.order.count();
   const deliveryCount = await prisma.delivery.count();
 
+  const userCount = await prisma.user.count();
+
   console.log(
-    `- Users: 11 (1 admin, 2 agents, 4 vendors, 1 client, 2 drivers, 1 test user)`
+    `- Users: ${userCount}`
   );
   console.log(`- Vendors: ${vendorCount} (Real vendors from CSV)`);
   console.log(`- Clients: 5 (with addresses for map links)`);
