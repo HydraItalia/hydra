@@ -10,8 +10,238 @@ import {
   FuelLevel,
 } from "@prisma/client";
 import { createId } from "@paralleldrive/cuid2";
+import fs from "fs";
+import path from "path";
+import { parse } from "csv-parse/sync";
 
 const prisma = new PrismaClient();
+
+// ===== CSV IMPORT HELPERS =====
+
+type CsvRow = {
+  vendor_name: string;
+  category: string;
+  name: string;
+  unit: string;
+  price_cents: string;
+  in_stock: string;
+  product_code: string;
+  source_price_raw?: string;
+};
+
+// Category name to CategoryGroup mapping
+const categoryGroupMap: Record<string, CategoryGroupType> = {
+  Beverage: "BEVERAGE",
+  Beverages: "BEVERAGE",
+  Drinks: "BEVERAGE",
+  Wine: "BEVERAGE",
+  Spirits: "BEVERAGE",
+  Beer: "BEVERAGE",
+  Food: "FOOD",
+  Produce: "FOOD",
+  Seafood: "FOOD",
+  Fish: "FOOD",
+  Meat: "FOOD",
+  Dairy: "FOOD",
+  Bakery: "FOOD",
+  Pantry: "FOOD",
+  Frozen: "FOOD",
+  "Specialty Produce": "FOOD",
+  Services: "SERVICES",
+  Packaging: "SERVICES",
+  Supplies: "SERVICES",
+  Disposables: "SERVICES",
+  "Cleaning & Disposables": "SERVICES",
+};
+
+// Normalize unit strings to ProductUnit enum
+function normalizeUnit(unitStr: string): ProductUnit {
+  const normalized = unitStr.toLowerCase().trim();
+
+  if (normalized.includes("kg") || normalized.includes("kilogram")) {
+    return "KG";
+  }
+  if (
+    normalized.includes("l") ||
+    normalized.includes("liter") ||
+    normalized.includes("litre") ||
+    normalized.includes("ml") ||
+    normalized.includes("cl")
+  ) {
+    return "L";
+  }
+  if (
+    normalized.includes("box") ||
+    normalized.includes("case") ||
+    normalized.includes("crate")
+  ) {
+    return "BOX";
+  }
+  if (normalized.includes("service") || normalized.includes("delivery")) {
+    return "SERVICE";
+  }
+  return "PIECE";
+}
+
+// Get or create CategoryGroup for a category name
+async function getOrCreateCategoryGroup(categoryName: string): Promise<string> {
+  const groupType = categoryGroupMap[categoryName] || "FOOD";
+
+  const group = await prisma.categoryGroup.upsert({
+    where: { name: groupType },
+    update: {},
+    create: { id: createId(), name: groupType },
+  });
+
+  return group.id;
+}
+
+// Import vendors from CSV files
+async function importVendorsFromCSV() {
+  console.log("📦 Importing vendor products from CSV files...");
+
+  const vendorsDir = path.join(process.cwd(), "prisma", "seed-data", "vendors");
+
+  if (!fs.existsSync(vendorsDir)) {
+    console.log("⚠️  No vendor CSV directory found, skipping import");
+    return;
+  }
+
+  const files = fs.readdirSync(vendorsDir).filter((f) => f.endsWith(".csv"));
+
+  if (files.length === 0) {
+    console.log("⚠️  No CSV files found, skipping import");
+    return;
+  }
+
+  console.log(`   Found ${files.length} vendor CSV file(s)`);
+
+  let totalImported = 0;
+  const vendorCache = new Map<string, string>();
+
+  for (const file of files) {
+    const filePath = path.join(vendorsDir, file);
+    const fileContent = fs.readFileSync(filePath, "utf-8");
+    const rows: CsvRow[] = parse(fileContent, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+    });
+
+    let imported = 0;
+
+    for (const row of rows) {
+      try {
+        if (!row.vendor_name || !row.name || !row.price_cents) {
+          continue;
+        }
+
+        // Get or create vendor
+        const vendorName = row.vendor_name.trim();
+        let vendorId = vendorCache.get(vendorName);
+
+        if (!vendorId) {
+          let vendor = await prisma.vendor.findFirst({
+            where: { name: vendorName },
+          });
+
+          if (!vendor) {
+            vendor = await prisma.vendor.create({
+              data: {
+                id: createId(),
+                name: vendorName,
+              },
+            });
+          }
+
+          vendorId = vendor.id;
+          vendorCache.set(vendorName, vendorId);
+        }
+
+        // Get or create category
+        const groupId = await getOrCreateCategoryGroup(row.category.trim());
+        const categorySlug = row.category
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, "-");
+
+        const category = await prisma.productCategory.upsert({
+          where: { slug: categorySlug },
+          update: { groupId },
+          create: {
+            id: createId(),
+            name: row.category.trim(),
+            slug: categorySlug,
+            groupId,
+          },
+        });
+
+        // Normalize unit
+        const productUnit = normalizeUnit(row.unit || "piece");
+
+        // Get or create product
+        let product = await prisma.product.findFirst({
+          where: {
+            name: row.name.trim(),
+            unit: productUnit,
+          },
+        });
+
+        if (!product) {
+          product = await prisma.product.create({
+            data: {
+              id: createId(),
+              name: row.name.trim(),
+              description: "",
+              unit: productUnit,
+              categoryId: category.id,
+            },
+          });
+        }
+
+        const priceCents = parseInt(row.price_cents) || 0;
+        const inStock =
+          row.in_stock?.toLowerCase() === "true" || row.in_stock === "1";
+
+        // Create or update vendor product
+        await prisma.vendorProduct.upsert({
+          where: {
+            vendorId_productId: {
+              vendorId,
+              productId: product.id,
+            },
+          },
+          update: {
+            basePriceCents: priceCents,
+            stockQty: inStock ? 100 : 0,
+            vendorSku: row.product_code?.trim() || `SKU-${product.id}`,
+            isActive: true,
+          },
+          create: {
+            id: createId(),
+            vendorId,
+            productId: product.id,
+            basePriceCents: priceCents,
+            stockQty: inStock ? 100 : 0,
+            vendorSku: row.product_code?.trim() || `SKU-${product.id}`,
+            leadTimeDays: inStock ? 0 : 7,
+            isActive: true,
+            currency: "EUR",
+          },
+        });
+
+        imported++;
+        totalImported++;
+      } catch (error) {
+        console.error(`   ⚠️  Error importing: ${row.name}`, error);
+      }
+    }
+
+    console.log(`   ✅ ${path.basename(file)}: ${imported} products`);
+  }
+
+  console.log(`   📊 Total imported: ${totalImported} products`);
+}
 
 async function main() {
   console.log("🌱 Starting seed...");
@@ -74,55 +304,72 @@ async function main() {
   });
 
   // ===== VENDORS =====
-  console.log("🏪 Creating vendors...");
+  // Import vendors and products from CSV files
+  await importVendorsFromCSV();
 
-  const freezco = await prisma.vendor.create({
-    data: {
-      id: createId(),
-      name: "Freezco",
-      region: "Sardegna",
-      notes: "Primary food and beverage supplier",
-    },
+  // Create vendor users for real vendors
+  console.log("👥 Creating vendor users...");
+
+  const whiteDog = await prisma.vendor.findFirst({
+    where: { name: "White Dog S.r.l." },
+  });
+  const plustik = await prisma.vendor.findFirst({
+    where: { name: "Plustik Service S.r.l." },
+  });
+  const generalBeverage = await prisma.vendor.findFirst({
+    where: { name: "General Beverage Distributor" },
+  });
+  const cdFish = await prisma.vendor.findFirst({
+    where: { name: "CD Fish S.r.l." },
   });
 
-  const ghiaccioFacile = await prisma.vendor.create({
-    data: {
-      id: createId(),
-      name: "Ghiaccio Facile",
-      region: "Sardegna",
-      notes: "Ice and beverage specialist",
-    },
-  });
+  if (whiteDog) {
+    await prisma.user.create({
+      data: {
+        id: createId(),
+        email: "vendor.whitedog@hydra.local",
+        name: "White Dog Manager",
+        role: Role.VENDOR,
+        vendorId: whiteDog.id,
+      },
+    });
+  }
 
-  const icelike = await prisma.vendor.create({
-    data: {
-      id: createId(),
-      name: "Icelike",
-      region: "Sardegna",
-      notes: "Premium seafood supplier",
-    },
-  });
+  if (plustik) {
+    await prisma.user.create({
+      data: {
+        id: createId(),
+        email: "vendor.plustik@hydra.local",
+        name: "Plustik Manager",
+        role: Role.VENDOR,
+        vendorId: plustik.id,
+      },
+    });
+  }
 
-  // Create vendor users
-  const vendorFreezcoUser = await prisma.user.create({
-    data: {
-      id: createId(),
-      email: "vendor.freezco@hydra.local",
-      name: "Freezco Manager",
-      role: Role.VENDOR,
-      vendorId: freezco.id,
-    },
-  });
+  if (generalBeverage) {
+    await prisma.user.create({
+      data: {
+        id: createId(),
+        email: "vendor.generalbeverage@hydra.local",
+        name: "General Beverage Manager",
+        role: Role.VENDOR,
+        vendorId: generalBeverage.id,
+      },
+    });
+  }
 
-  const vendorGhiaccioUser = await prisma.user.create({
-    data: {
-      id: createId(),
-      email: "vendor.ghiaccio@hydra.local",
-      name: "Ghiaccio Facile Manager",
-      role: Role.VENDOR,
-      vendorId: ghiaccioFacile.id,
-    },
-  });
+  if (cdFish) {
+    await prisma.user.create({
+      data: {
+        id: createId(),
+        email: "vendor.cdfish@hydra.local",
+        name: "CD Fish Manager",
+        role: Role.VENDOR,
+        vendorId: cdFish.id,
+      },
+    });
+  }
 
   // ===== CLIENTS =====
   console.log("🍽️  Creating clients...");
@@ -145,7 +392,8 @@ async function main() {
       name: "Trattoria Trastevere",
       region: "Lazio",
       notes: "Traditional Roman cuisine",
-      fullAddress: "Piazza di Santa Maria in Trastevere 8, 00153 Roma RM, Italy",
+      fullAddress:
+        "Piazza di Santa Maria in Trastevere 8, 00153 Roma RM, Italy",
       shortAddress: "Trastevere, Roma",
     },
   });
@@ -207,401 +455,58 @@ async function main() {
   });
   console.log(`👤 Created CLIENT user: ${clientDemoEmail}`);
 
-  // ===== CATEGORY GROUPS =====
-  console.log("📂 Creating category groups...");
-
-  const foodGroup = await prisma.categoryGroup.create({
-    data: { id: createId(), name: CategoryGroupType.FOOD },
-  });
-
-  const beverageGroup = await prisma.categoryGroup.create({
-    data: { id: createId(), name: CategoryGroupType.BEVERAGE },
-  });
-
-  const servicesGroup = await prisma.categoryGroup.create({
-    data: { id: createId(), name: CategoryGroupType.SERVICES },
-  });
-
-  // ===== PRODUCT CATEGORIES =====
-  console.log("🏷️  Creating product categories...");
-
-  // Beverage categories
-  const distillatiCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: beverageGroup.id,
-      name: "Distillati",
-      slug: "distillati",
-    },
-  });
-
-  const softDrinkCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: beverageGroup.id,
-      name: "Soft Drink",
-      slug: "soft-drink",
-    },
-  });
-
-  const viniCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: beverageGroup.id,
-      name: "Vini",
-      slug: "vini",
-    },
-  });
-
-  const birreCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: beverageGroup.id,
-      name: "Birre",
-      slug: "birre",
-    },
-  });
-
-  const caffettieraCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: beverageGroup.id,
-      name: "Caffettiera",
-      slug: "caffettiera",
-    },
-  });
-
-  const barToolCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: beverageGroup.id,
-      name: "Bar Tool",
-      slug: "bar-tool",
-    },
-  });
-
-  // Food categories
-  const ortoFruttaCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: foodGroup.id,
-      name: "Orto Frutta",
-      slug: "orto-frutta",
-    },
-  });
-
-  const carneCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: foodGroup.id,
-      name: "Carne",
-      slug: "carne",
-    },
-  });
-
-  const pesceCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: foodGroup.id,
-      name: "Pesce",
-      slug: "pesce",
-    },
-  });
-
-  const pastificioCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: foodGroup.id,
-      name: "Pastificio Artigianale",
-      slug: "pastificio-artigianale",
-    },
-  });
-
-  const monoUsoCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: foodGroup.id,
-      name: "Monouso",
-      slug: "monouso",
-    },
-  });
-
-  // Services categories
-  const manutenzioneCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: servicesGroup.id,
-      name: "Manutenzione",
-      slug: "manutenzione",
-    },
-  });
-
-  const socialMediaCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: servicesGroup.id,
-      name: "Social Media Manager",
-      slug: "social-media-manager",
-    },
-  });
-
-  const licenzeCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: servicesGroup.id,
-      name: "Licenze",
-      slug: "licenze",
-    },
-  });
-
-  const haccpCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: servicesGroup.id,
-      name: "HACCP",
-      slug: "haccp",
-    },
-  });
-
-  const disinfeCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: servicesGroup.id,
-      name: "Disinfestazioni",
-      slug: "disinfestazioni",
-    },
-  });
-
-  const rilievi3dCat = await prisma.productCategory.create({
-    data: {
-      id: createId(),
-      groupId: servicesGroup.id,
-      name: "Rilievi 3D",
-      slug: "rilievi-3d",
-    },
-  });
-
-  // ===== PRODUCTS =====
-  console.log("📦 Creating products...");
-
-  // Beverage products
-  const ghiaccioAlimentare = await prisma.product.create({
-    data: {
-      id: createId(),
-      categoryId: softDrinkCat.id,
-      name: "Ghiaccio alimentare 10kg",
-      description: "Ghiaccio alimentare certificato in sacchi da 10kg",
-      unit: ProductUnit.BOX,
-    },
-  });
-
-  const acquaFrizzante = await prisma.product.create({
-    data: {
-      id: createId(),
-      categoryId: softDrinkCat.id,
-      name: "Acqua frizzante 1L x 12",
-      description: "Cassa da 12 bottiglie di acqua frizzante da 1L",
-      unit: ProductUnit.BOX,
-    },
-  });
-
-  const birraArtigianale = await prisma.product.create({
-    data: {
-      id: createId(),
-      categoryId: birreCat.id,
-      name: "Birra artigianale 33cl x 24",
-      description: "Cassa da 24 bottiglie di birra artigianale locale",
-      unit: ProductUnit.BOX,
-    },
-  });
-
-  // Food products
-  const filettoBranzino = await prisma.product.create({
-    data: {
-      id: createId(),
-      categoryId: pesceCat.id,
-      name: "Filetto di branzino 1kg",
-      description: "Filetti di branzino fresco, pescato locale",
-      unit: ProductUnit.KG,
-    },
-  });
-
-  const pastaTrafilata = await prisma.product.create({
-    data: {
-      id: createId(),
-      categoryId: pastificioCat.id,
-      name: "Pasta trafilata al bronzo 5kg",
-      description: "Pasta artigianale trafilata al bronzo, vari formati",
-      unit: ProductUnit.BOX,
-    },
-  });
-
-  const pomodoroSan = await prisma.product.create({
-    data: {
-      id: createId(),
-      categoryId: ortoFruttaCat.id,
-      name: "Pomodoro San Marzano 5kg",
-      description: "Pomodori San Marzano DOP",
-      unit: ProductUnit.BOX,
-    },
-  });
-
-  // Services products
-  const sanificazione = await prisma.product.create({
-    data: {
-      id: createId(),
-      categoryId: disinfeCat.id,
-      name: "Sanificazione locale mensile",
-      description: "Servizio di sanificazione professionale mensile",
-      unit: ProductUnit.SERVICE,
-    },
-  });
-
-  const haccpConsulenza = await prisma.product.create({
-    data: {
-      id: createId(),
-      categoryId: haccpCat.id,
-      name: "Consulenza HACCP annuale",
-      description: "Consulenza e documentazione HACCP annuale",
-      unit: ProductUnit.SERVICE,
-    },
-  });
-
-  // ===== VENDOR PRODUCTS =====
-  console.log("💰 Creating vendor products...");
-
-  // Ghiaccio Facile products
-  await prisma.vendorProduct.create({
-    data: {
-      id: createId(),
-      vendorId: ghiaccioFacile.id,
-      productId: ghiaccioAlimentare.id,
-      vendorSku: "GF-ICE-10KG",
-      basePriceCents: 450, // €4.50
-      currency: "EUR",
-      stockQty: 120,
-      leadTimeDays: 1,
-      minOrderQty: 5,
-      isActive: true,
-    },
-  });
-
-  await prisma.vendorProduct.create({
-    data: {
-      id: createId(),
-      vendorId: ghiaccioFacile.id,
-      productId: sanificazione.id,
-      vendorSku: "GF-SANIF-MONTH",
-      basePriceCents: 9900, // €99.00
-      currency: "EUR",
-      stockQty: 999,
-      leadTimeDays: 7,
-      minOrderQty: 1,
-      isActive: true,
-    },
-  });
-
-  // Freezco products
-  await prisma.vendorProduct.create({
-    data: {
-      id: createId(),
-      vendorId: freezco.id,
-      productId: acquaFrizzante.id,
-      vendorSku: "FRZ-WATER-12",
-      basePriceCents: 900, // €9.00
-      currency: "EUR",
-      stockQty: 60,
-      leadTimeDays: 2,
-      minOrderQty: 3,
-      isActive: true,
-    },
-  });
-
-  await prisma.vendorProduct.create({
-    data: {
-      id: createId(),
-      vendorId: freezco.id,
-      productId: birraArtigianale.id,
-      vendorSku: "FRZ-BEER-24",
-      basePriceCents: 3800, // €38.00
-      currency: "EUR",
-      stockQty: 40,
-      leadTimeDays: 3,
-      minOrderQty: 2,
-      isActive: true,
-    },
-  });
-
-  await prisma.vendorProduct.create({
-    data: {
-      id: createId(),
-      vendorId: freezco.id,
-      productId: pastaTrafilata.id,
-      vendorSku: "FRZ-PASTA-5KG",
-      basePriceCents: 1550, // €15.50
-      currency: "EUR",
-      stockQty: 50,
-      leadTimeDays: 2,
-      minOrderQty: 2,
-      isActive: true,
-    },
-  });
-
-  await prisma.vendorProduct.create({
-    data: {
-      id: createId(),
-      vendorId: freezco.id,
-      productId: pomodoroSan.id,
-      vendorSku: "FRZ-TOM-5KG",
-      basePriceCents: 1899, // €18.99
-      currency: "EUR",
-      stockQty: 35,
-      leadTimeDays: 2,
-      minOrderQty: 3,
-      isActive: true,
-    },
-  });
-
-  // Icelike products
-  await prisma.vendorProduct.create({
-    data: {
-      id: createId(),
-      vendorId: icelike.id,
-      productId: filettoBranzino.id,
-      vendorSku: "ICE-BRAN-1KG",
-      basePriceCents: 1899, // €18.99
-      currency: "EUR",
-      stockQty: 25,
-      leadTimeDays: 2,
-      minOrderQty: 2,
-      isActive: true,
-    },
-  });
+  // Category groups and products are created via CSV import
 
   // ===== AGREEMENTS =====
   console.log("🤝 Creating agreements...");
 
-  await prisma.agreement.create({
-    data: {
-      id: createId(),
-      clientId: demoRistorante.id,
-      vendorId: ghiaccioFacile.id,
-      priceMode: PriceMode.DISCOUNT,
-      discountPct: 0.1, // 10% discount
-      notes: "Volume discount for regular customer",
-    },
-  });
+  if (whiteDog) {
+    await prisma.agreement.create({
+      data: {
+        id: createId(),
+        clientId: demoRistorante.id,
+        vendorId: whiteDog.id,
+        priceMode: PriceMode.DISCOUNT,
+        discountPct: 0.05, // 5% discount
+        notes: "Preferred beverage supplier - volume discount",
+      },
+    });
+  }
+
+  if (cdFish) {
+    await prisma.agreement.create({
+      data: {
+        id: createId(),
+        clientId: demoRistorante.id,
+        vendorId: cdFish.id,
+        priceMode: PriceMode.DISCOUNT,
+        discountPct: 0.1, // 10% discount
+        notes: "Fresh seafood supplier - regular customer discount",
+      },
+    });
+  }
 
   // ===== AGENT ASSIGNMENTS =====
   console.log("👔 Creating agent assignments...");
 
-  // Andrea manages Ghiaccio Facile and Demo Ristorante
-  await prisma.agentVendor.create({
-    data: {
-      userId: andreaAgent.id,
-      vendorId: ghiaccioFacile.id,
-    },
-  });
+  // Andrea manages White Dog, CD Fish and Demo Ristorante
+  if (whiteDog) {
+    await prisma.agentVendor.create({
+      data: {
+        userId: andreaAgent.id,
+        vendorId: whiteDog.id,
+      },
+    });
+  }
+
+  if (cdFish) {
+    await prisma.agentVendor.create({
+      data: {
+        userId: andreaAgent.id,
+        vendorId: cdFish.id,
+      },
+    });
+  }
 
   await prisma.agentClient.create({
     data: {
@@ -610,106 +515,124 @@ async function main() {
     },
   });
 
-  // Manuele manages Freezco
-  await prisma.agentVendor.create({
-    data: {
-      userId: manueleAgent.id,
-      vendorId: freezco.id,
-    },
-  });
-
-  // ===== DEMO ORDER =====
-  console.log("📋 Creating demo order...");
-
-  const demoOrder = await prisma.order.create({
-    data: {
-      id: createId(),
-      clientId: demoRistorante.id,
-      submitterUserId: clientDemoUser.id,
-      orderNumber: "HYD-20241101-0001",
-      status: OrderStatus.SUBMITTED,
-      totalCents: 13200, // Calculated: 10*405 + 5*900 + 3*1550
-      region: "Sardegna",
-      assignedAgentUserId: andreaAgent.id,
-      notes: "Weekly order for restaurant supplies",
-      // Delivery location: Piazza Navona, Roma
-      deliveryAddress: "Piazza Navona, 00186 Roma RM, Italy",
-      deliveryLat: 41.8992,
-      deliveryLng: 12.4731,
-    },
-  });
-
-  // Get vendor products for order items
-  const ghiaccioVP = await prisma.vendorProduct.findFirst({
-    where: { vendorId: ghiaccioFacile.id, productId: ghiaccioAlimentare.id },
-    include: {
-      Product: true,
-      Vendor: true,
-    },
-  });
-
-  const acquaVP = await prisma.vendorProduct.findFirst({
-    where: { vendorId: freezco.id, productId: acquaFrizzante.id },
-    include: {
-      Product: true,
-      Vendor: true,
-    },
-  });
-
-  const pastaVP = await prisma.vendorProduct.findFirst({
-    where: { vendorId: freezco.id, productId: pastaTrafilata.id },
-    include: {
-      Product: true,
-      Vendor: true,
-    },
-  });
-
-  // Create order items with price snapshots
-  if (ghiaccioVP) {
-    // Apply 10% discount from agreement
-    const effectivePrice = Math.round(ghiaccioVP.basePriceCents * 0.9);
-    await prisma.orderItem.create({
+  // Manuele manages General Beverage and Plustik
+  if (generalBeverage) {
+    await prisma.agentVendor.create({
       data: {
-        id: createId(),
-        orderId: demoOrder.id,
-        vendorProductId: ghiaccioVP.id,
-        qty: 10,
-        unitPriceCents: effectivePrice, // €4.05 after 10% discount
-        lineTotalCents: effectivePrice * 10,
-        productName: ghiaccioVP.Product.name,
-        vendorName: ghiaccioVP.Vendor.name,
+        userId: manueleAgent.id,
+        vendorId: generalBeverage.id,
       },
     });
   }
 
-  if (acquaVP) {
-    await prisma.orderItem.create({
+  if (plustik) {
+    await prisma.agentVendor.create({
       data: {
-        id: createId(),
-        orderId: demoOrder.id,
-        vendorProductId: acquaVP.id,
+        userId: manueleAgent.id,
+        vendorId: plustik.id,
+      },
+    });
+  }
+
+  // ===== DEMO ORDERS =====
+  console.log("📋 Creating demo orders with real vendor products...");
+
+  // Get some sample products from real vendors
+  const whiteDogProducts = await prisma.vendorProduct.findMany({
+    where: { vendorId: whiteDog?.id, isActive: true, stockQty: { gt: 0 } },
+    include: { Product: true, Vendor: true },
+    take: 2,
+  });
+
+  const cdFishProducts = await prisma.vendorProduct.findMany({
+    where: { vendorId: cdFish?.id, isActive: true, stockQty: { gt: 0 } },
+    include: { Product: true, Vendor: true },
+    take: 2,
+  });
+
+  const generalBeverageProducts = await prisma.vendorProduct.findMany({
+    where: {
+      vendorId: generalBeverage?.id,
+      isActive: true,
+      stockQty: { gt: 0 },
+    },
+    include: { Product: true, Vendor: true },
+    take: 2,
+  });
+
+  // Create first demo order with White Dog and CD Fish products
+  if (whiteDogProducts.length > 0 || cdFishProducts.length > 0) {
+    const orderItems: Array<{
+      vp: any;
+      qty: number;
+      applyDiscount: boolean;
+    }> = [];
+
+    if (whiteDogProducts[0]) {
+      orderItems.push({
+        vp: whiteDogProducts[0],
         qty: 5,
-        unitPriceCents: acquaVP.basePriceCents, // €9.00
-        lineTotalCents: acquaVP.basePriceCents * 5,
-        productName: acquaVP.Product.name,
-        vendorName: acquaVP.Vendor.name,
-      },
-    });
-  }
+        applyDiscount: true,
+      });
+    }
+    if (cdFishProducts[0]) {
+      orderItems.push({
+        vp: cdFishProducts[0],
+        qty: 3,
+        applyDiscount: true,
+      });
+    }
 
-  if (pastaVP) {
-    await prisma.orderItem.create({
+    const totalCents = orderItems.reduce((sum, item) => {
+      const price = item.applyDiscount
+        ? Math.round(
+            item.vp.basePriceCents *
+              (item.vp.Vendor.name.includes("White Dog") ? 0.95 : 0.9)
+          )
+        : item.vp.basePriceCents;
+      return sum + price * item.qty;
+    }, 0);
+
+    const demoOrder1 = await prisma.order.create({
       data: {
         id: createId(),
-        orderId: demoOrder.id,
-        vendorProductId: pastaVP.id,
-        qty: 3,
-        unitPriceCents: pastaVP.basePriceCents, // €15.50
-        lineTotalCents: pastaVP.basePriceCents * 3,
-        productName: pastaVP.Product.name,
-        vendorName: pastaVP.Vendor.name,
+        clientId: demoRistorante.id,
+        submitterUserId: clientDemoUser.id,
+        orderNumber: "HYD-20241121-0001",
+        status: OrderStatus.SUBMITTED,
+        totalCents,
+        region: "Lazio",
+        assignedAgentUserId: andreaAgent.id,
+        notes: "Weekly order for restaurant supplies",
+        deliveryAddress: "Piazza Navona, 00186 Roma RM, Italy",
+        deliveryLat: 41.8992,
+        deliveryLng: 12.4731,
       },
     });
+
+    for (const item of orderItems) {
+      const unitPrice = item.applyDiscount
+        ? Math.round(
+            item.vp.basePriceCents *
+              (item.vp.Vendor.name.includes("White Dog") ? 0.95 : 0.9)
+          )
+        : item.vp.basePriceCents;
+
+      await prisma.orderItem.create({
+        data: {
+          id: createId(),
+          orderId: demoOrder1.id,
+          vendorProductId: item.vp.id,
+          qty: item.qty,
+          unitPriceCents: unitPrice,
+          lineTotalCents: unitPrice * item.qty,
+          productName: item.vp.Product.name,
+          vendorName: item.vp.Vendor.name,
+        },
+      });
+    }
+
+    console.log(`   ✅ Created demo order: ${demoOrder1.orderNumber}`);
   }
 
   // ===== DRIVERS =====
@@ -772,108 +695,158 @@ async function main() {
   });
 
   // ===== DELIVERIES =====
-  console.log("📦 Creating deliveries...");
+  console.log("📦 Creating deliveries and additional demo orders...");
 
-  // Assign delivery to demo order
-  await prisma.delivery.create({
-    data: {
-      id: createId(),
-      orderId: demoOrder.id,
-      driverId: marcoDriver.id,
-      status: DeliveryStatus.ASSIGNED,
-      notes: "First delivery - demo order",
-    },
-  });
+  // Create order with delivery ASSIGNED status
+  if (generalBeverageProducts.length > 0) {
+    const vp = generalBeverageProducts[0];
+    const qty = 10;
+    const totalCents = vp.basePriceCents * qty;
 
-  // Create additional orders for more delivery scenarios
-  const order2 = await prisma.order.create({
-    data: {
-      id: createId(),
-      clientId: demoRistorante.id,
-      submitterUserId: clientDemoUser.id,
-      orderNumber: "HYD-20241115-0002",
-      status: OrderStatus.CONFIRMED,
-      totalCents: 8100, // 20 * 405 (discounted ghiaccio)
-      region: "Sardegna",
-      assignedAgentUserId: andreaAgent.id,
-      notes: "Weekly fresh produce order",
-      // Delivery location: Trastevere, Roma
-      deliveryAddress: "Piazza di Santa Maria in Trastevere, 00153 Roma RM, Italy",
-      deliveryLat: 41.8894,
-      deliveryLng: 12.4692,
-    },
-  });
+    const order2 = await prisma.order.create({
+      data: {
+        id: createId(),
+        clientId: trattoriaTrastevere.id,
+        submitterUserId: clientDemoUser.id,
+        orderNumber: "HYD-20241121-0002",
+        status: OrderStatus.CONFIRMED,
+        totalCents,
+        region: "Lazio",
+        assignedAgentUserId: manueleAgent.id,
+        notes: "Beverage order for weekend",
+        deliveryAddress:
+          "Piazza di Santa Maria in Trastevere, 00153 Roma RM, Italy",
+        deliveryLat: 41.8894,
+        deliveryLng: 12.4692,
+      },
+    });
 
-  if (ghiaccioVP) {
     await prisma.orderItem.create({
       data: {
         id: createId(),
         orderId: order2.id,
-        vendorProductId: ghiaccioVP.id,
-        qty: 20,
-        unitPriceCents: Math.round(ghiaccioVP.basePriceCents * 0.9),
-        lineTotalCents: Math.round(ghiaccioVP.basePriceCents * 0.9) * 20,
-        productName: ghiaccioVP.Product.name,
-        vendorName: ghiaccioVP.Vendor.name,
+        vendorProductId: vp.id,
+        qty,
+        unitPriceCents: vp.basePriceCents,
+        lineTotalCents: totalCents,
+        productName: vp.Product.name,
+        vendorName: vp.Vendor.name,
       },
     });
+
+    await prisma.delivery.create({
+      data: {
+        id: createId(),
+        orderId: order2.id,
+        driverId: marcoDriver.id,
+        status: DeliveryStatus.ASSIGNED,
+        notes: "Assigned to Marco - ready for pickup",
+      },
+    });
+
+    console.log(`   ✅ Created order: ${order2.orderNumber} (ASSIGNED)`);
   }
 
-  await prisma.delivery.create({
-    data: {
-      id: createId(),
-      orderId: order2.id,
-      driverId: marcoDriver.id,
-      status: DeliveryStatus.PICKED_UP,
-      notes: "Picked up from warehouse",
-      pickedUpAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-    },
-  });
+  // Create order with delivery PICKED_UP status
+  if (cdFishProducts.length > 1) {
+    const vp = cdFishProducts[1];
+    const qty = 5;
+    const totalCents = vp.basePriceCents * qty;
 
-  const order3 = await prisma.order.create({
-    data: {
-      id: createId(),
-      clientId: demoRistorante.id,
-      submitterUserId: clientDemoUser.id,
-      orderNumber: "HYD-20241115-0003",
-      status: OrderStatus.FULFILLING,
-      totalCents: 10800, // 12 * 900 (acqua)
-      region: "Sardegna",
-      assignedAgentUserId: manueleAgent.id,
-      notes: "Urgent beverage restocking",
-      // Delivery location: Testaccio, Roma
-      deliveryAddress: "Via Marmorata 39, 00153 Roma RM, Italy",
-      deliveryLat: 41.8769,
-      deliveryLng: 12.4759,
-    },
-  });
+    const order3 = await prisma.order.create({
+      data: {
+        id: createId(),
+        clientId: osteriaCampoFiori.id,
+        submitterUserId: clientDemoUser.id,
+        orderNumber: "HYD-20241121-0003",
+        status: OrderStatus.FULFILLING,
+        totalCents,
+        region: "Lazio",
+        assignedAgentUserId: andreaAgent.id,
+        notes: "Fresh seafood delivery",
+        deliveryAddress: "Campo de' Fiori 22, 00186 Roma RM, Italy",
+        deliveryLat: 41.8955,
+        deliveryLng: 12.4723,
+      },
+    });
 
-  if (acquaVP) {
     await prisma.orderItem.create({
       data: {
         id: createId(),
         orderId: order3.id,
-        vendorProductId: acquaVP.id,
-        qty: 12,
-        unitPriceCents: acquaVP.basePriceCents,
-        lineTotalCents: acquaVP.basePriceCents * 12,
-        productName: acquaVP.Product.name,
-        vendorName: acquaVP.Vendor.name,
+        vendorProductId: vp.id,
+        qty,
+        unitPriceCents: vp.basePriceCents,
+        lineTotalCents: totalCents,
+        productName: vp.Product.name,
+        vendorName: vp.Vendor.name,
       },
     });
+
+    await prisma.delivery.create({
+      data: {
+        id: createId(),
+        orderId: order3.id,
+        driverId: marcoDriver.id,
+        status: DeliveryStatus.PICKED_UP,
+        notes: "Picked up from CD Fish warehouse",
+        pickedUpAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+      },
+    });
+
+    console.log(`   ✅ Created order: ${order3.orderNumber} (PICKED_UP)`);
   }
 
-  await prisma.delivery.create({
-    data: {
-      id: createId(),
-      orderId: order3.id,
-      driverId: giuliaDriver.id,
-      status: DeliveryStatus.IN_TRANSIT,
-      notes: "On the way to customer",
-      pickedUpAt: new Date(Date.now() - 90 * 60 * 1000), // 90 minutes ago
-      inTransitAt: new Date(Date.now() - 60 * 60 * 1000), // 60 minutes ago
-    },
-  });
+  // Create order with delivery IN_TRANSIT status
+  if (whiteDogProducts.length > 1) {
+    const vp = whiteDogProducts[1];
+    const qty = 8;
+    const totalCents = vp.basePriceCents * qty;
+
+    const order4 = await prisma.order.create({
+      data: {
+        id: createId(),
+        clientId: ristoranteTestaccio.id,
+        submitterUserId: clientDemoUser.id,
+        orderNumber: "HYD-20241121-0004",
+        status: OrderStatus.FULFILLING,
+        totalCents,
+        region: "Lazio",
+        assignedAgentUserId: andreaAgent.id,
+        notes: "Beverage restock",
+        deliveryAddress: "Via Marmorata 39, 00153 Roma RM, Italy",
+        deliveryLat: 41.8769,
+        deliveryLng: 12.4759,
+      },
+    });
+
+    await prisma.orderItem.create({
+      data: {
+        id: createId(),
+        orderId: order4.id,
+        vendorProductId: vp.id,
+        qty,
+        unitPriceCents: vp.basePriceCents,
+        lineTotalCents: totalCents,
+        productName: vp.Product.name,
+        vendorName: vp.Vendor.name,
+      },
+    });
+
+    await prisma.delivery.create({
+      data: {
+        id: createId(),
+        orderId: order4.id,
+        driverId: giuliaDriver.id,
+        status: DeliveryStatus.IN_TRANSIT,
+        notes: "On the way to Testaccio",
+        pickedUpAt: new Date(Date.now() - 90 * 60 * 1000), // 90 minutes ago
+        inTransitAt: new Date(Date.now() - 60 * 60 * 1000), // 60 minutes ago
+      },
+    });
+
+    console.log(`   ✅ Created order: ${order4.orderNumber} (IN_TRANSIT)`);
+  }
 
   // ===== DRIVER SHIFTS & STOPS =====
   console.log("🗓️  Creating driver shifts and stops...");
@@ -912,32 +885,47 @@ async function main() {
     console.log("✅ Created demo shift for Marco");
   }
 
-  console.log("✅ Seed completed successfully!");
+  console.log("\n✅ Seed completed successfully!");
   console.log("\n📊 Summary:");
-  console.log(`- Users: 8 (1 admin, 2 agents, 2 vendors, 1 client, 2 drivers)`);
-  console.log(`- Vendors: 3`);
+
+  const vendorCount = await prisma.vendor.count();
+  const productCount = await prisma.product.count();
+  const vendorProductCount = await prisma.vendorProduct.count();
+  const categoryCount = await prisma.productCategory.count();
+  const orderCount = await prisma.order.count();
+  const deliveryCount = await prisma.delivery.count();
+
+  console.log(
+    `- Users: 11 (1 admin, 2 agents, 4 vendors, 1 client, 2 drivers, 1 test user)`
+  );
+  console.log(`- Vendors: ${vendorCount} (Real vendors from CSV)`);
   console.log(`- Clients: 5 (with addresses for map links)`);
   console.log(`- Drivers: 2`);
   console.log(`- Vehicles: 2`);
-  console.log(`- Category Groups: 3`);
-  console.log(`- Categories: 16`);
-  console.log(`- Products: 8`);
-  console.log(`- Vendor Products: 7`);
-  console.log(`- Agreements: 1`);
-  console.log(`- Agent Assignments: 3`);
-  console.log(`- Demo Orders: 3 with items`);
-  console.log(`- Deliveries: 3 (1 assigned, 1 picked up, 1 in transit)`);
+  console.log(`- Categories: ${categoryCount}`);
+  console.log(`- Products: ${productCount}`);
+  console.log(`- Vendor Products: ${vendorProductCount}`);
+  console.log(`- Agreements: 2`);
+  console.log(`- Agent Assignments: 5`);
+  console.log(`- Demo Orders: ${orderCount}`);
+  console.log(`- Deliveries: ${deliveryCount} (various statuses)`);
   console.log(`- Driver Shifts: 1 (open shift for Marco)`);
-  console.log(`- Driver Stops: 5 (1 completed, 4 pending)`);
+
   console.log("\n🔐 Test Users:");
   console.log("- admin@hydra.local (ADMIN)");
-  console.log("- andrea@hydra.local (AGENT)");
-  console.log("- manuele@hydra.local (AGENT)");
-  console.log("- vendor.freezco@hydra.local (VENDOR)");
-  console.log("- vendor.ghiaccio@hydra.local (VENDOR)");
-  console.log(`- ${clientDemoEmail} (CLIENT)`);
-  console.log("- driver.marco@hydra.local (DRIVER - has 2 deliveries)");
-  console.log("- driver.giulia@hydra.local (DRIVER - has 1 delivery)");
+  console.log("- andrea@hydra.local (AGENT - manages White Dog, CD Fish)");
+  console.log(
+    "- manuele@hydra.local (AGENT - manages General Beverage, Plustik)"
+  );
+  console.log("- vendor.whitedog@hydra.local (VENDOR - White Dog S.r.l.)");
+  console.log("- vendor.cdfish@hydra.local (VENDOR - CD Fish S.r.l.)");
+  console.log(
+    "- vendor.generalbeverage@hydra.local (VENDOR - General Beverage Distributor)"
+  );
+  console.log("- vendor.plustik@hydra.local (VENDOR - Plustik Service S.r.l.)");
+  console.log(`- ${clientDemoEmail} (CLIENT - Demo Ristorante)`);
+  console.log("- driver.marco@hydra.local (DRIVER - has active deliveries)");
+  console.log("- driver.giulia@hydra.local (DRIVER - has active deliveries)");
 }
 
 main()
