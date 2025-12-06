@@ -46,7 +46,10 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary rounded-full">
+        <button 
+          className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary rounded-full"
+          aria-label="Open user menu"
+        >
           <UserAvatar />
         </button>
       </DropdownMenuTrigger>

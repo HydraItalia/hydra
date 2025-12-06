@@ -17,7 +17,7 @@ export function useRequireRole(
   const { user, role, isLoading } = useUser();
   const router = useRouter();
 
-  const hasRequiredRole = role && allowedRoles.includes(role);
+  const hasRequiredRole = !!role && allowedRoles.includes(role);
 
   useEffect(() => {
     if (!isLoading && user && !hasRequiredRole) {

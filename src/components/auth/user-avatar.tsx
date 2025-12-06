@@ -20,7 +20,8 @@ export function UserAvatar({ className, showName = false }: UserAvatarProps) {
 
   const initials = user.name
     ? user.name
-        .split(" ")
+        .trim()
+        .split(/\s+/)
         .map((n) => n[0])
         .join("")
         .toUpperCase()
