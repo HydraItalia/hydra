@@ -34,15 +34,6 @@ export default function HomePage() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
-              <Link
-                href="/dashboard/catalog"
-                className="group relative px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-red-600 to-rose-600 rounded-xl hover:from-red-700 hover:to-rose-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
-              >
-                Sign In
-                <span className="ml-2 inline-block transition-transform group-hover:translate-x-1">
-                  →
-                </span>
-              </Link>
               {process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true" ? (
                 <Link
                   href="/demo-signin"
@@ -53,11 +44,22 @@ export default function HomePage() {
               ) : (
                 <Link
                   href="/signin"
+                  aria-label="Sign in to your account"
                   className="px-8 py-4 text-lg font-semibold text-red-600 dark:text-red-400 bg-white dark:bg-slate-800 border-2 border-red-600 dark:border-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-slate-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
                 >
                   Sign In
                 </Link>
               )}
+              <Link
+                href="/signin"
+                aria-label="Explore catalog"
+                className="group relative px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-red-600 to-rose-600 rounded-xl hover:from-red-700 hover:to-rose-700 transition-all shadow-lg hover:shadow-xl hover:scale-105"
+              >
+                Explore Catalog
+                <span className="ml-2 inline-block transition-transform group-hover:translate-x-1">
+                  →
+                </span>
+              </Link>
             </div>
           </div>
 
