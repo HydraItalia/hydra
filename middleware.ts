@@ -1,5 +1,10 @@
-export { auth as middleware } from './auth'
+import { auth } from "./auth";
+import type { NextRequest } from "next/server";
+
+export default async function middleware(req: NextRequest) {
+  // use auth(req) here with proper try/catch, only on dashboard routes
+}
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$).*)'],
-}
+  matcher: ["/dashboard/:path*"],
+};
