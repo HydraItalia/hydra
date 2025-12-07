@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CartSheet } from "@/components/cart/cart-sheet";
 import { CartProvider } from "@/components/cart/cart-provider";
+import { DemoModeBanner } from "@/components/auth/demo-mode-banner";
 import { getCart } from "@/data/cart";
 
 export default async function DashboardLayout({
@@ -35,6 +36,9 @@ export default async function DashboardLayout({
   return (
     <CartProvider initialCart={initialCart}>
       <div className="min-h-screen bg-background">
+        {/* Demo Mode Banner */}
+        <DemoModeBanner />
+
         {/* Top Bar */}
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex h-16 items-center px-4 md:px-6">
