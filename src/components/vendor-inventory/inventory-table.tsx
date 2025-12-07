@@ -15,26 +15,38 @@ export function InventoryTable({ items }: InventoryTableProps) {
   }
 
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <table className="w-full">
-        <thead className="bg-muted">
-          <tr>
-            <th className="text-left py-3 px-4 font-medium text-sm">
-              Product Name
-            </th>
-            <th className="text-left py-3 px-4 font-medium text-sm">Unit</th>
-            <th className="text-left py-3 px-4 font-medium text-sm">Price</th>
-            <th className="text-left py-3 px-4 font-medium text-sm">Stock</th>
-            <th className="text-left py-3 px-4 font-medium text-sm">Status</th>
-            <th className="text-left py-3 px-4 font-medium text-sm">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <InventoryRow key={item.id} item={item} />
-          ))}
-        </tbody>
-      </table>
+    <div className="w-full overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+      <div className="rounded-lg border min-w-full inline-block align-middle">
+        <table className="w-full min-w-[640px]">
+          <thead className="bg-muted">
+            <tr>
+              <th className="text-left py-3 px-4 font-medium text-sm whitespace-nowrap">
+                Product Name
+              </th>
+              <th className="text-left py-3 px-4 font-medium text-sm whitespace-nowrap">
+                Unit
+              </th>
+              <th className="text-left py-3 px-4 font-medium text-sm whitespace-nowrap">
+                Price
+              </th>
+              <th className="text-left py-3 px-4 font-medium text-sm whitespace-nowrap">
+                Stock
+              </th>
+              <th className="text-left py-3 px-4 font-medium text-sm whitespace-nowrap">
+                Status
+              </th>
+              <th className="text-left py-3 px-4 font-medium text-sm whitespace-nowrap">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <InventoryRow key={item.id} item={item} />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
