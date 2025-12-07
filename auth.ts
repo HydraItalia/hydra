@@ -1,8 +1,10 @@
 import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import EmailProvider from "next-auth/providers/email";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { authConfig } from "./auth.config";
 import { prisma } from "@/lib/prisma";
+import { isDemoModeEnabled, DEMO_USERS } from "@/lib/demo-mode";
 
 /**
  * NextAuth Configuration for Hydra
@@ -11,7 +13,12 @@ import { prisma } from "@/lib/prisma";
  * - AUTH_EMAIL_DEV_MODE not set or "true" (default): Magic links are logged to terminal only
  * - AUTH_EMAIL_DEV_MODE="false" (case-insensitive): Magic links are logged AND sent via EMAIL_SERVER
  *
- * All user roles (ADMIN, AGENT, VENDOR, CLIENT) can sign in via magic link.
+ * Demo Mode (when ENABLE_DEMO_MODE="true"):
+ * - Adds Credentials provider for one-click demo user signin
+ * - Only works with emails in DEMO_USERS list
+ * - Bypasses email verification for fast testing/demos
+ *
+ * All user roles (ADMIN, AGENT, VENDOR, CLIENT, DRIVER) can sign in.
  * Role-specific access is controlled by RoleGate components and auth callbacks.
  */
 
@@ -25,6 +32,59 @@ export const {
   adapter: PrismaAdapter(prisma) as any,
   session: { strategy: "jwt" },
   providers: [
+    // Demo Mode Credentials Provider (only when ENABLE_DEMO_MODE=true)
+    ...(isDemoModeEnabled()
+      ? [
+          CredentialsProvider({
+            id: "demo",
+            name: "Demo User",
+            credentials: {
+              email: { label: "Email", type: "text" },
+            },
+            async authorize(credentials) {
+              if (!credentials?.email) {
+                return null;
+              }
+
+              // Check if email is in demo users list
+              const demoUser = DEMO_USERS.find(
+                (u) => u.email === credentials.email
+              );
+              if (!demoUser) {
+                console.warn(
+                  `[Demo Mode] Attempted signin with unauthorized email`
+                );
+                return null;
+              }
+
+              // Find user in database
+              const user = await prisma.user.findUnique({
+                where: { email: credentials.email as string },
+              });
+
+              if (!user) {
+                console.error(
+                  `[Demo Mode] User not found in database: ${credentials.email}`
+                );
+                return null;
+              }
+
+              console.log(
+                `[Demo Mode] Signing in with role: ${user.role}`
+              );
+
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+              };
+            },
+          }),
+        ]
+      : []),
+
+    // Email Provider (magic links)
     EmailProvider({
       server: process.env.EMAIL_SERVER || "smtp://localhost:25",
       from: process.env.EMAIL_FROM || "hydra@localhost.dev",
