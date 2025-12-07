@@ -37,6 +37,9 @@ export default function DemoSigninPage() {
         // Redirect to dashboard
         router.push("/dashboard");
         router.refresh();
+      } else {
+        setError("Unexpected sign-in response. Please try again.");
+        console.error("Unexpected signin result:", result);
       }
     } catch (err) {
       setError("An unexpected error occurred");

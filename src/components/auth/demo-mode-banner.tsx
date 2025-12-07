@@ -29,7 +29,7 @@ export function DemoModeBanner() {
               <span>•</span>
               <span className="flex items-center gap-1">
                 <User className="h-3 w-3" />
-                {user.name} ({role})
+                {user.name || "Unknown"} ({role || "No role"})
               </span>
             </>
           )}

@@ -52,7 +52,7 @@ export const {
               );
               if (!demoUser) {
                 console.warn(
-                  `[Demo Mode] Attempted signin with non-demo email: ${credentials.email}`
+                  `[Demo Mode] Attempted signin with unauthorized email`
                 );
                 return null;
               }
@@ -70,7 +70,7 @@ export const {
               }
 
               console.log(
-                `[Demo Mode] Signing in as: ${user.name} (${user.role})`
+                `[Demo Mode] Signing in with role: ${user.role}`
               );
 
               return {

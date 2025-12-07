@@ -16,7 +16,9 @@ export type DemoUser = {
  * Demo mode allows one-click signin for testing and demos
  */
 export function isDemoModeEnabled(): boolean {
-  return process.env.ENABLE_DEMO_MODE?.toLowerCase() === "true";
+  const isProduction = process.env.NODE_ENV === "production";
+  const demoEnabled = process.env.ENABLE_DEMO_MODE?.toLowerCase() === "true";
+  return !isProduction && demoEnabled;
 }
 
 /**
