@@ -19,7 +19,7 @@ type Category = {
 
 type CatalogSidebarProps = {
   categoryGroups: CategoryGroup[];
-  selectedGroup: CategoryGroupType;
+  selectedGroup?: CategoryGroupType;
   selectedCategory?: string;
   categories: Category[];
 };
@@ -39,9 +39,13 @@ export function CatalogSidebar({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const updateGroup = (group: CategoryGroupType) => {
+  const updateGroup = (group: CategoryGroupType | null) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("group", group.toLowerCase());
+    if (group) {
+      params.set("group", group.toLowerCase());
+    } else {
+      params.delete("group");
+    }
     params.delete("category"); // Reset category when changing group
     router.push(`/dashboard/catalog?${params.toString()}`);
   };
@@ -62,6 +66,13 @@ export function CatalogSidebar({
       <div>
         <h3 className="font-semibold text-sm mb-3">Product Type</h3>
         <div className="space-y-1">
+          <Button
+            variant={!selectedGroup ? "secondary" : "ghost"}
+            className="w-full justify-start font-medium"
+            onClick={() => updateGroup(null)}
+          >
+            All Products
+          </Button>
           {categoryGroups.map((group) => {
             const Icon = groupIcons[group.name];
             const isSelected = group.name === selectedGroup;

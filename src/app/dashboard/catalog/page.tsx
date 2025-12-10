@@ -71,9 +71,9 @@ export default async function CatalogPage({
 
   // Parse search params (await in Next.js 15)
   const params = await searchParams;
-  const groupParam = (
-    params.group || "food"
-  ).toUpperCase() as CategoryGroupType;
+  const groupParam = params.group?.toUpperCase() as
+    | CategoryGroupType
+    | undefined;
   const categorySlug = params.category;
   const searchQuery = params.q;
 
@@ -89,14 +89,17 @@ export default async function CatalogPage({
   if (params.inStock) searchParamsObj.set("inStock", params.inStock);
   const inStockOnly = parseBoolParam(searchParamsObj, "inStock");
 
-  // Validate group
+  // Validate group (optional - if not provided, show all)
   const validGroups: CategoryGroupType[] = ["FOOD", "BEVERAGE", "SERVICES"];
-  const selectedGroup = validGroups.includes(groupParam) ? groupParam : "FOOD";
+  const selectedGroup =
+    groupParam && validGroups.includes(groupParam) ? groupParam : undefined;
 
   // Fetch category groups and categories (cached)
   const categoryGroups = await getCategoryGroups();
 
-  const currentGroup = categoryGroups.find((g) => g.name === selectedGroup);
+  const currentGroup = selectedGroup
+    ? categoryGroups.find((g) => g.name === selectedGroup)
+    : null;
   const categories = currentGroup?.ProductCategory || [];
 
   // Fetch paginated products using data layer
@@ -178,13 +181,19 @@ export default async function CatalogPage({
   const hasActiveFilters = !!(searchQuery || inStockOnly || categorySlug);
 
   // Create a unique key for Suspense based on search params to trigger loading state on filter changes
-  const suspenseKey = `${selectedGroup}-${categorySlug || "all"}-${searchQuery || "none"}-${inStockOnly ? "instock" : "all"}-${page}`;
+  const suspenseKey = `${selectedGroup}-${categorySlug || "all"}-${
+    searchQuery || "none"
+  }-${inStockOnly ? "instock" : "all"}-${page}`;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Product Catalog"
-        subtitle={`Browse ${selectedGroup.toLowerCase()} products from all vendors`}
+        subtitle={
+          selectedGroup
+            ? `Browse ${selectedGroup.toLowerCase()} products from all vendors`
+            : "Browse all products from all vendors"
+        }
       />
 
       <div className="flex flex-col lg:flex-row gap-6">
@@ -203,10 +212,11 @@ export default async function CatalogPage({
           {/* Filters */}
           <CatalogFilters
             initial={{
-              group: selectedGroup.toLowerCase() as
+              group: selectedGroup?.toLowerCase() as
                 | "food"
                 | "beverage"
-                | "services",
+                | "services"
+                | undefined,
               category: categorySlug,
               q: searchQuery,
               inStock: inStockOnly,

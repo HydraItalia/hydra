@@ -11,7 +11,7 @@ import { Search, X } from "lucide-react";
 
 type CatalogFiltersProps = {
   initial: {
-    group: "food" | "beverage" | "services";
+    group?: "food" | "beverage" | "services";
     category?: string;
     q?: string;
     inStock?: boolean;
@@ -65,7 +65,8 @@ export function CatalogFilters({ initial }: CatalogFiltersProps) {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, updateURL]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const handleInStockToggle = (checked: boolean) => {
     setInStockOnly(checked);
