@@ -17,35 +17,39 @@ import { Button } from "@/components/ui/button";
  */
 export default function DemoSigninPage() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingEmail, setLoadingEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleDemoSignin = async (email: string) => {
     try {
-      setIsLoading(true);
+      setLoadingEmail(email);
       setError(null);
 
-      const result = await signIn("demo", {
-        email,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError("Failed to sign in. Please try again.");
-        console.error("Demo signin error:", result.error);
-      } else if (result?.ok) {
-        // Redirect to dashboard
-        router.push("/dashboard");
-        router.refresh();
-      } else {
-        setError("Unexpected sign-in response. Please try again.");
-        console.error("Unexpected signin result:", result);
-      }
+      // Show spinner for at least 500ms so users see feedback
+      await Promise.all([
+        signIn("demo", {
+          email,
+          redirect: false,
+        }).then((result) => {
+          if (result?.error) {
+            setError("Failed to sign in. Please try again.");
+            console.error("Demo signin error:", result.error);
+          } else if (result?.ok) {
+            // Redirect to dashboard
+            router.push("/dashboard");
+            router.refresh();
+          } else {
+            setError("Unexpected sign-in response. Please try again.");
+            console.error("Unexpected signin result:", result);
+          }
+        }),
+        new Promise((resolve) => setTimeout(resolve, 500)),
+      ]);
     } catch (err) {
       setError("An unexpected error occurred");
       console.error("Demo signin error:", err);
     } finally {
-      setIsLoading(false);
+      setLoadingEmail(null);
     }
   };
 
@@ -89,7 +93,7 @@ export default function DemoSigninPage() {
               key={user.email}
               user={user}
               onClick={() => handleDemoSignin(user.email)}
-              isLoading={isLoading}
+              isLoading={loadingEmail === user.email}
             />
           ))}
         </div>
