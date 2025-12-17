@@ -1,11 +1,14 @@
-// middleware.ts
-// Auth middleware is disabled for Vercel compatibility.
-// All auth is handled in layouts & server components instead.
-// See: src/app/dashboard/layout.tsx for auth enforcement
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-// If you want to re-enable later with a compatible setup:
-// export { auth as middleware } from "./auth";
+/**
+ * Minimal middleware - auth is handled in dashboard/layout.tsx
+ * This exists to satisfy Next.js but does nothing
+ */
+export default function middleware(_req: NextRequest) {
+  return NextResponse.next()
+}
 
-// export const config = {
-//   matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$).*)"],
-// };
+export const config = {
+  matcher: ['/dashboard/:path*'],
+}
