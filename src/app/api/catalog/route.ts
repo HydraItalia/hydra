@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchCatalogPage } from "@/data/catalog";
 import { CategoryGroupType } from "@prisma/client";
 
+// Force Node.js runtime for Prisma/RDS compatibility
+export const runtime = 'nodejs'
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
