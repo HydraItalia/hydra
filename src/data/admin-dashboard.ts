@@ -131,10 +131,10 @@ export async function getRecentSubmittedOrders(
     status: order.status,
     createdAt: order.createdAt,
     client: {
-      id: order.Client.id,
-      name: order.Client.name,
+      id: order.Client?.id ?? "",
+      name: order.Client?.name ?? "Unknown",
     },
-    itemCount: order.OrderItem.length,
+    itemCount: order.OrderItem?.length ?? 0,
     totalCents: order.totalCents,
   }));
 }
@@ -250,7 +250,9 @@ export type ActiveShift = {
  * @param limit - Number of shifts to fetch (default: 10)
  * @returns Array of active shifts
  */
-export async function getActiveShifts(limit: number = 10): Promise<ActiveShift[]> {
+export async function getActiveShifts(
+  limit: number = 10
+): Promise<ActiveShift[]> {
   const shifts = await prisma.driverShift.findMany({
     where: {
       endTime: null,

@@ -70,13 +70,28 @@ async function AdminAgentDashboard({
   user: { role: string; name?: string | null; email: string };
 }) {
   // Fetch dashboard data in parallel
-  const [stats, recentOrders, recentDeliveries, activeShifts] =
-    await Promise.all([
+  let stats, recentOrders, recentDeliveries, activeShifts;
+  try {
+    [stats, recentOrders, recentDeliveries, activeShifts] = await Promise.all([
       getDashboardStats(),
       getRecentSubmittedOrders(5),
       getRecentDeliveries(5, true),
       getActiveShifts(10),
     ]);
+  } catch (error) {
+    console.error("Failed to fetch dashboard data:", error);
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={user.role === "ADMIN" ? "Admin Dashboard" : "Agent Dashboard"}
+          subtitle="Mission control for daily operations"
+        />
+        <div className="text-center text-muted-foreground">
+          Failed to load dashboard data. Please try again later.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -88,31 +103,46 @@ async function AdminAgentDashboard({
       {/* Quick Links */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Button variant="outline" asChild className="h-auto py-3">
-          <Link href="/dashboard/orders" className="flex flex-col items-center gap-1">
+          <Link
+            href="/dashboard/orders"
+            className="flex flex-col items-center gap-1"
+          >
             <ShoppingCart className="h-5 w-5" />
             <span className="text-xs font-medium">Orders</span>
           </Link>
         </Button>
         <Button variant="outline" asChild className="h-auto py-3">
-          <Link href="/dashboard/clients" className="flex flex-col items-center gap-1">
+          <Link
+            href="/dashboard/clients"
+            className="flex flex-col items-center gap-1"
+          >
             <Users className="h-5 w-5" />
             <span className="text-xs font-medium">Clients</span>
           </Link>
         </Button>
         <Button variant="outline" asChild className="h-auto py-3">
-          <Link href="/dashboard/vendors" className="flex flex-col items-center gap-1">
+          <Link
+            href="/dashboard/vendors"
+            className="flex flex-col items-center gap-1"
+          >
             <Store className="h-5 w-5" />
             <span className="text-xs font-medium">Vendors</span>
           </Link>
         </Button>
         <Button variant="outline" asChild className="h-auto py-3">
-          <Link href="/dashboard/deliveries" className="flex flex-col items-center gap-1">
+          <Link
+            href="/dashboard/deliveries"
+            className="flex flex-col items-center gap-1"
+          >
             <Truck className="h-5 w-5" />
             <span className="text-xs font-medium">Deliveries</span>
           </Link>
         </Button>
         <Button variant="outline" asChild className="h-auto py-3">
-          <Link href="/dashboard/agents" className="flex flex-col items-center gap-1">
+          <Link
+            href="/dashboard/agents"
+            className="flex flex-col items-center gap-1"
+          >
             <UserCog className="h-5 w-5" />
             <span className="text-xs font-medium">Agents</span>
           </Link>
