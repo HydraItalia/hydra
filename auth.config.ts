@@ -17,6 +17,9 @@ import type { NextAuthConfig } from 'next-auth'
  */
 
 export const authConfig = {
+  // Required for AWS Amplify and other proxied environments
+  // Tells Auth.js to trust X-Forwarded-Host and X-Forwarded-Proto headers
+  trustHost: true,
   pages: {
     signIn: '/signin',
   },
