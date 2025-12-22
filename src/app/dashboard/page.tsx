@@ -21,8 +21,17 @@ import {
   Truck,
   CheckCircle2,
   Clock,
+  ClipboardList,
+  UserCog,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  getDashboardStats,
+  getRecentSubmittedOrders,
+  getRecentDeliveries,
+  getActiveShifts,
+} from "@/data/admin-dashboard";
+import { ActivityFeed } from "@/components/admin/activity-feed";
 import { StartShiftDialog } from "@/components/driver/start-shift-dialog";
 import { CurrentShiftCard } from "@/components/driver/current-shift-card";
 import {
@@ -54,77 +63,142 @@ export default async function DashboardPage() {
   }
 }
 
-// Admin/Agent Dashboard
+// Admin/Agent Dashboard - Mission Control (Phase 9.0)
 async function AdminAgentDashboard({
   user,
 }: {
   user: { role: string; name?: string | null; email: string };
 }) {
-  // Fetch statistics
-  const [vendorCount, clientCount, productCount, orderCount] =
-    await Promise.all([
-      prisma.vendor.count({ where: { deletedAt: null } }),
-      prisma.client.count({ where: { deletedAt: null } }),
-      prisma.product.count({ where: { deletedAt: null } }),
-      prisma.order.count(),
+  // Fetch dashboard data in parallel
+  let stats, recentOrders, recentDeliveries, activeShifts;
+  try {
+    [stats, recentOrders, recentDeliveries, activeShifts] = await Promise.all([
+      getDashboardStats(),
+      getRecentSubmittedOrders(5),
+      getRecentDeliveries(5, true),
+      getActiveShifts(10),
     ]);
-
-  // Get recent orders
-  const recentOrders = await prisma.order.findMany({
-    take: 5,
-    orderBy: { createdAt: "desc" },
-    include: {
-      Client: true,
-      OrderItem: true,
-    },
-  });
+  } catch (error) {
+    console.error("Failed to fetch dashboard data:", error);
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={user.role === "ADMIN" ? "Admin Dashboard" : "Agent Dashboard"}
+          subtitle="Mission control for daily operations"
+        />
+        <div className="text-center text-muted-foreground">
+          Failed to load dashboard data. Please try again later.
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title={user.role === "ADMIN" ? "Admin Dashboard" : "Agent Dashboard"}
-        subtitle={`Welcome back, ${user.name || user.email}`}
+        subtitle="Mission control for daily operations"
       />
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <DataCard title="Total Vendors" value={vendorCount} icon={Store} />
-        <DataCard title="Total Clients" value={clientCount} icon={Users} />
-        <DataCard title="Products" value={productCount} icon={Package} />
-        <DataCard title="Orders" value={orderCount} icon={ShoppingCart} />
+      {/* Quick Links */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/orders"
+            className="flex flex-col items-center gap-1"
+          >
+            <ShoppingCart className="h-5 w-5" />
+            <span className="text-xs font-medium">Orders</span>
+          </Link>
+        </Button>
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/clients"
+            className="flex flex-col items-center gap-1"
+          >
+            <Users className="h-5 w-5" />
+            <span className="text-xs font-medium">Clients</span>
+          </Link>
+        </Button>
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/vendors"
+            className="flex flex-col items-center gap-1"
+          >
+            <Store className="h-5 w-5" />
+            <span className="text-xs font-medium">Vendors</span>
+          </Link>
+        </Button>
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/deliveries"
+            className="flex flex-col items-center gap-1"
+          >
+            <Truck className="h-5 w-5" />
+            <span className="text-xs font-medium">Deliveries</span>
+          </Link>
+        </Button>
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/agents"
+            className="flex flex-col items-center gap-1"
+          >
+            <UserCog className="h-5 w-5" />
+            <span className="text-xs font-medium">Agents</span>
+          </Link>
+        </Button>
       </div>
 
-      {/* Recent Orders */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Orders</CardTitle>
-          <CardDescription>Latest orders across all clients</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {recentOrders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No orders yet</p>
-          ) : (
-            <div className="space-y-4">
-              {recentOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between border-b pb-4 last:border-0"
-                >
-                  <div>
-                    <p className="font-medium">{order.Client.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {order.OrderItem.length} items • {order.status}
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/dashboard/orders/${order.id}`}>View</Link>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Real-time Stats - Action Required */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <DataCard
+          title="Unassigned Orders"
+          value={stats.unassignedOrders}
+          icon={ClipboardList}
+          description="Orders needing agent assignment"
+        />
+        <DataCard
+          title="Pending Deliveries"
+          value={stats.pendingDeliveries}
+          icon={Truck}
+          description="Orders ready for delivery"
+        />
+        <DataCard
+          title="Active Shifts"
+          value={stats.activeShifts}
+          icon={Clock}
+          description="Drivers currently on shift"
+        />
+      </div>
+
+      {/* Platform Overview Stats */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <DataCard
+          title="Total Vendors"
+          value={stats.totalVendors}
+          icon={Store}
+        />
+        <DataCard
+          title="Total Clients"
+          value={stats.totalClients}
+          icon={Users}
+        />
+        <DataCard
+          title="Total Orders"
+          value={stats.totalOrders}
+          icon={ShoppingCart}
+        />
+      </div>
+
+      {/* Activity Feed */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
+        <ActivityFeed
+          recentOrders={recentOrders}
+          recentDeliveries={recentDeliveries}
+          activeShifts={activeShifts}
+        />
+      </div>
     </div>
   );
 }
