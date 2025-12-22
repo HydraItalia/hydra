@@ -63,11 +63,19 @@ export async function updateOrderStatus(
       };
     }
 
-    // Update order status
-    await prisma.order.update({
-      where: { id: orderId },
+    // Atomic conditional update - only update if status hasn't changed
+    // This prevents race conditions (TOCTOU) between check and update
+    const result = await prisma.order.updateMany({
+      where: { id: orderId, status: order.status },
       data: { status: newStatus },
     });
+
+    if (result.count === 0) {
+      return {
+        success: false,
+        error: "Order status changed concurrently, please retry",
+      };
+    }
 
     // Log the status change
     await logAction({
@@ -128,11 +136,19 @@ export async function cancelOrder(
       return { success: false, error: "Cannot cancel a delivered order" };
     }
 
-    // Update order status to CANCELED
-    await prisma.order.update({
-      where: { id: orderId },
+    // Atomic conditional update - only update if status hasn't changed
+    // This prevents race conditions (TOCTOU) between check and update
+    const result = await prisma.order.updateMany({
+      where: { id: orderId, status: order.status },
       data: { status: "CANCELED" },
     });
+
+    if (result.count === 0) {
+      return {
+        success: false,
+        error: "Order status changed concurrently, please retry",
+      };
+    }
 
     // Log the cancellation with reason
     await logAction({

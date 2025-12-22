@@ -16,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
     order: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
   },
 }));
@@ -62,7 +63,7 @@ describe("updateOrderStatus", () => {
     } as any);
 
     // Mock order update
-    vi.mocked(prisma.order.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.order.updateMany).mockResolvedValue({ count: 1 } as any);
 
     const result = await updateOrderStatus("order-456", "CONFIRMED");
 
@@ -75,8 +76,8 @@ describe("updateOrderStatus", () => {
         status: true,
       },
     });
-    expect(prisma.order.update).toHaveBeenCalledWith({
-      where: { id: "order-456" },
+    expect(prisma.order.updateMany).toHaveBeenCalledWith({
+      where: { id: "order-456", status: "SUBMITTED" },
       data: { status: "CONFIRMED" },
     });
     expect(logAction).toHaveBeenCalledWith({
@@ -113,7 +114,7 @@ describe("updateOrderStatus", () => {
       success: false,
       error: "Cannot transition from SUBMITTED to DELIVERED",
     });
-    expect(prisma.order.update).not.toHaveBeenCalled();
+    expect(prisma.order.updateMany).not.toHaveBeenCalled();
     expect(logAction).not.toHaveBeenCalled();
   });
 
@@ -135,7 +136,7 @@ describe("updateOrderStatus", () => {
     const result = await updateOrderStatus("order-999", "CONFIRMED");
 
     expect(result).toEqual({ success: false, error: "Order not found" });
-    expect(prisma.order.update).not.toHaveBeenCalled();
+    expect(prisma.order.updateMany).not.toHaveBeenCalled();
     expect(logAction).not.toHaveBeenCalled();
   });
 
@@ -186,7 +187,7 @@ describe("updateOrderStatus", () => {
       driverId: null,
     });
 
-    vi.mocked(prisma.order.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.order.updateMany).mockResolvedValue({ count: 1 } as any);
 
     const validTransitions: Array<[OrderStatus, OrderStatus]> = [
       ["DRAFT", "SUBMITTED"],
@@ -210,6 +211,8 @@ describe("updateOrderStatus", () => {
       const result = await updateOrderStatus("order-123", to);
 
       expect(result).toEqual({ success: true });
+      expect(logAction).toHaveBeenCalled();
+      expect(revalidatePath).toHaveBeenCalledWith("/dashboard/orders");
     }
   });
 
@@ -243,6 +246,36 @@ describe("updateOrderStatus", () => {
     const result2 = await updateOrderStatus("order-123", "SUBMITTED");
     expect(result2.success).toBe(false);
   });
+
+  it("should handle concurrent status changes (race condition)", async () => {
+    vi.mocked(requireRole).mockResolvedValue({
+      id: "admin-123",
+      email: "admin@hydra.local",
+      name: "Admin User",
+      role: "ADMIN",
+      vendorId: null,
+      clientId: null,
+      agentCode: null,
+      driverId: null,
+    });
+
+    // Order is in SUBMITTED state when fetched
+    vi.mocked(prisma.order.findUnique).mockResolvedValue({
+      id: "order-456",
+      status: "SUBMITTED",
+    } as any);
+
+    // But status changed concurrently, so updateMany affects 0 rows
+    vi.mocked(prisma.order.updateMany).mockResolvedValue({ count: 0 } as any);
+
+    const result = await updateOrderStatus("order-456", "CONFIRMED");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Order status changed concurrently, please retry",
+    });
+    expect(logAction).not.toHaveBeenCalled();
+  });
 });
 
 describe("cancelOrder", () => {
@@ -267,13 +300,13 @@ describe("cancelOrder", () => {
       status: "SUBMITTED",
     } as any);
 
-    vi.mocked(prisma.order.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.order.updateMany).mockResolvedValue({ count: 1 } as any);
 
     const result = await cancelOrder("order-456", "Client requested");
 
     expect(result).toEqual({ success: true });
-    expect(prisma.order.update).toHaveBeenCalledWith({
-      where: { id: "order-456" },
+    expect(prisma.order.updateMany).toHaveBeenCalledWith({
+      where: { id: "order-456", status: "SUBMITTED" },
       data: { status: "CANCELED" },
     });
     expect(logAction).toHaveBeenCalledWith({
@@ -306,7 +339,7 @@ describe("cancelOrder", () => {
       status: "CONFIRMED",
     } as any);
 
-    vi.mocked(prisma.order.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.order.updateMany).mockResolvedValue({ count: 1 } as any);
 
     const result = await cancelOrder("order-456");
 
@@ -346,7 +379,7 @@ describe("cancelOrder", () => {
       success: false,
       error: "Order is already canceled",
     });
-    expect(prisma.order.update).not.toHaveBeenCalled();
+    expect(prisma.order.updateMany).not.toHaveBeenCalled();
     expect(logAction).not.toHaveBeenCalled();
   });
 
@@ -373,7 +406,7 @@ describe("cancelOrder", () => {
       success: false,
       error: "Cannot cancel a delivered order",
     });
-    expect(prisma.order.update).not.toHaveBeenCalled();
+    expect(prisma.order.updateMany).not.toHaveBeenCalled();
     expect(logAction).not.toHaveBeenCalled();
   });
 
@@ -394,7 +427,7 @@ describe("cancelOrder", () => {
     const result = await cancelOrder("order-999");
 
     expect(result).toEqual({ success: false, error: "Order not found" });
-    expect(prisma.order.update).not.toHaveBeenCalled();
+    expect(prisma.order.updateMany).not.toHaveBeenCalled();
     expect(logAction).not.toHaveBeenCalled();
   });
 
