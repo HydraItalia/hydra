@@ -336,3 +336,215 @@ export async function fetchAllOrdersForAdmin(
     pageSize,
   };
 }
+
+/**
+ * Admin order detail with full information
+ */
+export type AdminOrderDetail = {
+  id: string;
+  orderNumber: string;
+  status: string;
+  totalCents: number;
+  notes: string | null;
+  deliveryAddress: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  createdAt: string;
+  updatedAt: string;
+  client: {
+    id: string;
+    name: string;
+    region: string | null;
+    fullAddress: string | null;
+    shortAddress: string | null;
+  };
+  submittedBy: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+  assignedAgent: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+  orderItems: {
+    id: string;
+    productName: string;
+    vendorName: string;
+    qty: number;
+    unitPriceCents: number;
+    lineTotalCents: number;
+  }[];
+  delivery: {
+    id: string;
+    status: string;
+    driverName: string | null;
+  } | null;
+  auditLogs: {
+    id: string;
+    action: string;
+    diff: any;
+    createdAt: string;
+    actorName: string | null;
+    actorEmail: string | null;
+  }[];
+};
+
+/**
+ * Fetch full order details for ADMIN/AGENT users
+ *
+ * Authorization: Only ADMIN and AGENT users can access this
+ *
+ * @param orderId - The order ID to fetch
+ * @returns Full order details with audit logs
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+export async function fetchAdminOrderDetail(
+  orderId: string
+): Promise<AdminOrderDetail> {
+  // 1. Authorization check
+  const user = await currentUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  if (user.role !== "ADMIN" && user.role !== "AGENT") {
+    throw new Error("Only ADMIN and AGENT users can access order details");
+  }
+
+  // 2. Fetch order with full details and audit logs
+  const [order, auditLogs] = await Promise.all([
+    prisma.order.findUnique({
+      where: { id: orderId, deletedAt: null },
+      include: {
+        Client: {
+          select: {
+            id: true,
+            name: true,
+            region: true,
+            fullAddress: true,
+            shortAddress: true,
+          },
+        },
+        User_Order_submitterUserIdToUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        User_Order_assignedAgentUserIdToUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        OrderItem: {
+          select: {
+            id: true,
+            productName: true,
+            vendorName: true,
+            qty: true,
+            unitPriceCents: true,
+            lineTotalCents: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+        Delivery: {
+          select: {
+            id: true,
+            status: true,
+            Driver: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.auditLog.findMany({
+      where: {
+        entityType: "Order",
+        entityId: orderId,
+      },
+      include: {
+        User: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    }),
+  ]);
+
+  // 3. Validate order exists
+  if (!order) {
+    throw new Error("Order not found");
+  }
+
+  // 4. Format and return
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    status: order.status,
+    totalCents: order.totalCents,
+    notes: order.notes,
+    deliveryAddress: order.deliveryAddress,
+    deliveryLat: order.deliveryLat,
+    deliveryLng: order.deliveryLng,
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString(),
+    client: {
+      id: order.Client.id,
+      name: order.Client.name,
+      region: order.Client.region,
+      fullAddress: order.Client.fullAddress,
+      shortAddress: order.Client.shortAddress,
+    },
+    submittedBy: {
+      id: order.User_Order_submitterUserIdToUser.id,
+      name: order.User_Order_submitterUserIdToUser.name,
+      email: order.User_Order_submitterUserIdToUser.email,
+    },
+    assignedAgent: order.User_Order_assignedAgentUserIdToUser
+      ? {
+          id: order.User_Order_assignedAgentUserIdToUser.id,
+          name: order.User_Order_assignedAgentUserIdToUser.name,
+          email: order.User_Order_assignedAgentUserIdToUser.email,
+        }
+      : null,
+    orderItems: order.OrderItem.map((item) => ({
+      id: item.id,
+      productName: item.productName,
+      vendorName: item.vendorName,
+      qty: item.qty,
+      unitPriceCents: item.unitPriceCents,
+      lineTotalCents: item.lineTotalCents,
+    })),
+    delivery: order.Delivery
+      ? {
+          id: order.Delivery.id,
+          status: order.Delivery.status,
+          driverName: order.Delivery.Driver?.name || null,
+        }
+      : null,
+    auditLogs: auditLogs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      diff: log.diff,
+      createdAt: log.createdAt.toISOString(),
+      actorName: log.User?.name || null,
+      actorEmail: log.User?.email || null,
+    })),
+  };
+}

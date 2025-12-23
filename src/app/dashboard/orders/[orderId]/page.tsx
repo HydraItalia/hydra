@@ -1,11 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
-import { fetchOrderById } from "@/data/orders";
+import { fetchOrderById, fetchAdminOrderDetail } from "@/data/orders";
 import { getVendorOrderDetail } from "@/actions/vendor-orders";
 import { OrderStatusBadge } from "@/components/vendor-orders/order-status-badge";
 import { OrderItemsTable } from "@/components/vendor-orders/order-items-table";
 import { StatusActionButtons } from "@/components/vendor-orders/status-action-buttons";
+import { OrderDetailActions } from "@/components/admin/order-detail-actions";
+import { OrderTimeline } from "@/components/admin/order-timeline";
+import { OrderNotesEditor } from "@/components/admin/order-notes-editor";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -82,6 +85,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
     return <VendorOrderDetailView orderId={orderId} />;
   } else if (user.role === "CLIENT") {
     return <ClientOrderDetailView orderId={orderId} />;
+  } else if (user.role === "ADMIN" || user.role === "AGENT") {
+    return <AdminOrderDetailView orderId={orderId} />;
   } else {
     redirect("/dashboard");
   }
@@ -338,6 +343,212 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
           <OrderItemsTable order={order} />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+// ADMIN/AGENT view (new functionality for #64)
+async function AdminOrderDetailView({ orderId }: { orderId: string }) {
+  const user = await currentUser();
+
+  if (!user || (user.role !== "ADMIN" && user.role !== "AGENT")) {
+    redirect("/dashboard");
+  }
+
+  // Fetch full order details with audit logs
+  let order;
+  try {
+    order = await fetchAdminOrderDetail(orderId);
+  } catch {
+    notFound();
+  }
+
+  const formattedDate = formatDateTime(order.createdAt);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/dashboard/orders">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Orders
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold">Order {order.orderNumber}</h1>
+          <p className="text-sm text-muted-foreground">{formattedDate}</p>
+        </div>
+      </div>
+
+      {/* Order Info Grid */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Client Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Client Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <div className="text-sm text-muted-foreground">Client Name</div>
+              <Link
+                href={`/dashboard/clients/${order.client.id}`}
+                className="font-medium hover:underline"
+              >
+                {order.client.name}
+              </Link>
+            </div>
+            {order.client.region && (
+              <div>
+                <div className="text-sm text-muted-foreground">Region</div>
+                <div className="font-medium">{order.client.region}</div>
+              </div>
+            )}
+            {order.deliveryAddress && (
+              <div>
+                <div className="text-sm text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Delivery Address
+                </div>
+                <div className="font-medium">{order.deliveryAddress}</div>
+                {order.deliveryLat && order.deliveryLng && (
+                  <a
+                    href={`https://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    View on map →
+                  </a>
+                )}
+              </div>
+            )}
+            {order.client.fullAddress && !order.deliveryAddress && (
+              <div>
+                <div className="text-sm text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Address
+                </div>
+                <div className="font-medium">{order.client.fullAddress}</div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Order Status & Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Order Status</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="text-sm text-muted-foreground mb-2">
+                Current Status
+              </div>
+              <Badge variant={getStatusVariant(order.status)}>
+                {getStatusDisplay(order.status)}
+              </Badge>
+            </div>
+            <Separator />
+            <div>
+              <div className="text-sm text-muted-foreground mb-3">
+                Status Actions
+              </div>
+              <OrderDetailActions
+                orderId={order.id}
+                currentStatus={order.status}
+              />
+            </div>
+            {order.assignedAgent && (
+              <>
+                <Separator />
+                <div>
+                  <div className="text-sm text-muted-foreground">
+                    Assigned Agent
+                  </div>
+                  <div className="font-medium">{order.assignedAgent.name}</div>
+                </div>
+              </>
+            )}
+            {order.delivery && (
+              <>
+                <Separator />
+                <div>
+                  <div className="text-sm text-muted-foreground">Delivery</div>
+                  <Link
+                    href={`/dashboard/deliveries/${order.delivery.id}`}
+                    className="font-medium hover:underline"
+                  >
+                    View Delivery Details →
+                  </Link>
+                  {order.delivery.driverName && (
+                    <p className="text-sm text-muted-foreground">
+                      Driver: {order.delivery.driverName}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Order Items */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Order Items</CardTitle>
+          <CardDescription>{order.orderItems.length} items</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Product</TableHead>
+                <TableHead>Vendor</TableHead>
+                <TableHead className="text-center">Qty</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="text-right">Line Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {order.orderItems.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">
+                    {item.productName}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {item.vendorName}
+                  </TableCell>
+                  <TableCell className="text-center">{item.qty}</TableCell>
+                  <TableCell className="text-right">
+                    {formatCurrency(item.unitPriceCents)}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(item.lineTotalCents)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          <Separator className="my-4" />
+
+          {/* Order Total */}
+          <div className="flex justify-end">
+            <div className="w-full max-w-sm space-y-3">
+              <div className="flex items-center justify-between text-lg font-bold">
+                <span>Grand Total</span>
+                <span>{formatCurrency(order.totalCents)}</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Order Notes (Editable) */}
+      <OrderNotesEditor orderId={order.id} initialNotes={order.notes} />
+
+      {/* Order Timeline */}
+      <OrderTimeline auditLogs={order.auditLogs} />
     </div>
   );
 }
