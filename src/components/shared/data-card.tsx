@@ -1,15 +1,17 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { LucideIcon } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LucideIcon } from "lucide-react";
+import Link from "next/link";
 
 interface DataCardProps {
-  title: string
-  value: string | number
-  icon?: LucideIcon
-  description?: string
+  title: string;
+  value: string | number;
+  icon?: LucideIcon;
+  description?: string;
   trend?: {
-    value: number
-    isPositive: boolean
-  }
+    value: number;
+    isPositive: boolean;
+  };
+  href?: string;
 }
 
 /**
@@ -21,9 +23,10 @@ export function DataCard({
   icon: Icon,
   description,
   trend,
+  href,
 }: DataCardProps) {
-  return (
-    <Card>
+  const content = (
+    <>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
@@ -36,14 +39,26 @@ export function DataCard({
         {trend && (
           <p
             className={`text-xs mt-1 ${
-              trend.isPositive ? 'text-green-600' : 'text-red-600'
+              trend.isPositive ? "text-green-600" : "text-red-600"
             }`}
           >
-            {trend.isPositive ? '+' : ''}
+            {trend.isPositive ? "+" : ""}
             {trend.value}% from last period
           </p>
         )}
       </CardContent>
-    </Card>
-  )
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className="block">
+        <Card className="transition-colors hover:bg-muted/50 cursor-pointer">
+          {content}
+        </Card>
+      </Link>
+    );
+  }
+
+  return <Card>{content}</Card>;
 }

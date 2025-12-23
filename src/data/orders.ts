@@ -28,6 +28,25 @@ async function requireClientUser(): Promise<string> {
 }
 
 /**
+ * Shared authorization helper for ADMIN/AGENT users
+ * @returns user object for the authenticated ADMIN or AGENT user
+ * @throws Error if user is not authenticated or not an ADMIN/AGENT
+ */
+async function requireAdminOrAgent() {
+  const user = await currentUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  if (user.role !== "ADMIN" && user.role !== "AGENT") {
+    throw new Error("Only ADMIN and AGENT users can access this resource");
+  }
+
+  return user;
+}
+
+/**
  * Paginated orders result
  */
 export type OrdersResult = {
@@ -240,15 +259,7 @@ export async function fetchAllOrdersForAdmin(
   filters: AdminOrderFilters = {}
 ): Promise<AdminOrdersResult> {
   // 1. Authorization check
-  const user = await currentUser();
-
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  if (user.role !== "ADMIN" && user.role !== "AGENT") {
-    throw new Error("Only ADMIN and AGENT users can access all orders");
-  }
+  await requireAdminOrAgent();
 
   // 2. Parse and validate params
   const page = Math.max(filters.page || 1, 1);
@@ -405,15 +416,7 @@ export async function fetchAdminOrderDetail(
   orderId: string
 ): Promise<AdminOrderDetail> {
   // 1. Authorization check
-  const user = await currentUser();
-
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  if (user.role !== "ADMIN" && user.role !== "AGENT") {
-    throw new Error("Only ADMIN and AGENT users can access order details");
-  }
+  await requireAdminOrAgent();
 
   // 2. Fetch order with full details and audit logs
   const [order, auditLogs] = await Promise.all([
@@ -548,4 +551,150 @@ export async function fetchAdminOrderDetail(
       actorEmail: log.User?.email || null,
     })),
   };
+}
+
+/**
+ * Unassigned order result type
+ */
+export type UnassignedOrder = {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  status: OrderStatus;
+  totalCents: number;
+  itemCount: number;
+  client: {
+    id: string;
+    name: string;
+    region: string | null;
+    suggestedAgents: {
+      id: string;
+      name: string | null;
+      email: string;
+      agentCode: string | null;
+    }[];
+  };
+};
+
+/**
+ * Fetch unassigned orders for ADMIN/AGENT users
+ *
+ * Returns orders that are SUBMITTED but have no assigned agent.
+ * Includes suggested agents based on AgentClient relationships.
+ *
+ * Authorization: Only ADMIN and AGENT users can access this
+ *
+ * @returns Unassigned orders with suggested agents
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+export async function fetchUnassignedOrders(): Promise<UnassignedOrder[]> {
+  // 1. Authorization check
+  await requireAdminOrAgent();
+
+  // 2. Fetch orders with no assigned agent and SUBMITTED status
+  const orders = await prisma.order.findMany({
+    where: {
+      status: "SUBMITTED",
+      assignedAgentUserId: null,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      orderNumber: true,
+      createdAt: true,
+      status: true,
+      totalCents: true,
+      _count: {
+        select: {
+          OrderItem: true,
+        },
+      },
+      Client: {
+        select: {
+          id: true,
+          name: true,
+          region: true,
+          AgentClient: {
+            select: {
+              User: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  agentCode: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "asc", // Oldest first
+    },
+  });
+
+  // 3. Map to result format
+  return orders.map((order) => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    createdAt: order.createdAt.toISOString(),
+    status: order.status,
+    totalCents: order.totalCents,
+    itemCount: order._count.OrderItem,
+    client: {
+      id: order.Client.id,
+      name: order.Client.name,
+      region: order.Client.region,
+      suggestedAgents: order.Client.AgentClient.map((ac) => ({
+        id: ac.User.id,
+        name: ac.User.name,
+        email: ac.User.email,
+        agentCode: ac.User.agentCode,
+      })),
+    },
+  }));
+}
+
+/**
+ * Agent result type
+ */
+export type Agent = {
+  id: string;
+  name: string | null;
+  email: string;
+  agentCode: string | null;
+};
+
+/**
+ * Fetch all agents for ADMIN/AGENT users
+ *
+ * Returns all users with AGENT role.
+ *
+ * Authorization: Only ADMIN and AGENT users can access this
+ *
+ * @returns List of all agents
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+export async function fetchAllAgents(): Promise<Agent[]> {
+  // 1. Authorization check
+  await requireAdminOrAgent();
+
+  // 2. Fetch all agents
+  const agents = await prisma.user.findMany({
+    where: {
+      role: "AGENT",
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      agentCode: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+
+  return agents;
 }

@@ -156,6 +156,7 @@ async function AdminAgentDashboard({
           value={stats.unassignedOrders}
           icon={ClipboardList}
           description="Orders needing agent assignment"
+          href="/dashboard/orders?unassigned=true"
         />
         <DataCard
           title="Pending Deliveries"

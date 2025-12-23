@@ -174,3 +174,178 @@ export async function cancelOrder(
     };
   }
 }
+/**
+ * Assign an agent to an order
+ *
+ * @param orderId - The ID of the order
+ * @param agentUserId - The ID of the agent user to assign
+ * @returns Success result or error
+ */
+export async function assignAgentToOrder(
+  orderId: string,
+  agentUserId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    // Require ADMIN or AGENT role
+    await requireRole("ADMIN", "AGENT");
+
+    // Validate order exists
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        assignedAgentUserId: true,
+      },
+    });
+
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    // Validate agent exists and has AGENT role
+    const agent = await prisma.user.findUnique({
+      where: { id: agentUserId },
+      select: {
+        id: true,
+        role: true,
+        name: true,
+      },
+    });
+
+    if (!agent || agent.role !== "AGENT") {
+      return { success: false, error: "Invalid agent user" };
+    }
+
+    // Check if agent is already assigned (idempotent)
+    if (order.assignedAgentUserId === agentUserId) {
+      return { success: true };
+    }
+
+    // Fetch previous agent name if there was one assigned
+    let previousAgentName = null;
+    if (order.assignedAgentUserId) {
+      const previousAgent = await prisma.user.findUnique({
+        where: { id: order.assignedAgentUserId },
+        select: { name: true },
+      });
+      previousAgentName = previousAgent?.name;
+    }
+
+    // Atomic conditional update - only update if assignment hasn't changed
+    // This prevents race conditions (TOCTOU) between check and update
+    const result = await prisma.order.updateMany({
+      where: { id: orderId, assignedAgentUserId: order.assignedAgentUserId },
+      data: { assignedAgentUserId: agentUserId },
+    });
+
+    if (result.count === 0) {
+      return {
+        success: false,
+        error: "Order assignment changed concurrently, please retry",
+      };
+    }
+
+    // Log the assignment
+    await logAction({
+      entityType: "Order",
+      entityId: orderId,
+      action: AuditAction.AGENT_ASSIGNED_TO_ORDER,
+      diff: {
+        from: order.assignedAgentUserId,
+        to: agentUserId,
+        fromAgentName: previousAgentName,
+        agentName: agent.name,
+      },
+    });
+
+    // Revalidate order pages
+    revalidatePath("/dashboard/orders");
+    revalidatePath(`/dashboard/orders/${orderId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error assigning agent to order:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to assign agent",
+    };
+  }
+}
+
+/**
+ * Unassign an agent from an order
+ *
+ * @param orderId - The ID of the order
+ * @returns Success result or error
+ */
+export async function unassignAgentFromOrder(
+  orderId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    // Require ADMIN or AGENT role
+    await requireRole("ADMIN", "AGENT");
+
+    // Validate order exists
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        assignedAgentUserId: true,
+      },
+    });
+
+    if (!order) {
+      return { success: false, error: "Order not found" };
+    }
+
+    // Check if order has an assigned agent (idempotent)
+    if (!order.assignedAgentUserId) {
+      return { success: true };
+    }
+
+    // Fetch agent name for audit log
+    const assignedAgent = await prisma.user.findUnique({
+      where: { id: order.assignedAgentUserId },
+      select: { name: true },
+    });
+
+    // Atomic conditional update - only update if assignment hasn't changed
+    // This prevents race conditions (TOCTOU) between check and update
+    const result = await prisma.order.updateMany({
+      where: { id: orderId, assignedAgentUserId: order.assignedAgentUserId },
+      data: { assignedAgentUserId: null },
+    });
+
+    if (result.count === 0) {
+      return {
+        success: false,
+        error: "Order assignment changed concurrently, please retry",
+      };
+    }
+
+    // Log the unassignment
+    await logAction({
+      entityType: "Order",
+      entityId: orderId,
+      action: AuditAction.AGENT_UNASSIGNED_FROM_ORDER,
+      diff: {
+        from: order.assignedAgentUserId,
+        to: null,
+        fromAgentName: assignedAgent?.name,
+      },
+    });
+
+    // Revalidate order pages
+    revalidatePath("/dashboard/orders");
+    revalidatePath(`/dashboard/orders/${orderId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error unassigning agent from order:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to unassign agent",
+    };
+  }
+}
