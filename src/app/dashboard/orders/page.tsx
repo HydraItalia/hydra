@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
-import { fetchOrdersForClient } from "@/data/orders";
+import { fetchOrdersForClient, fetchAllOrdersForAdmin } from "@/data/orders";
 import { getVendorOrders } from "@/actions/vendor-orders";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/catalog/pagination";
 import { OrderStatusBadge } from "@/components/vendor-orders/order-status-badge";
+import { AdminOrdersFilters } from "@/components/admin/orders-filters";
+import { AdminOrdersTable } from "@/components/admin/orders-table";
 import {
   Card,
   CardContent,
@@ -31,6 +33,7 @@ type SearchParams = {
   page?: string;
   pageSize?: string;
   status?: string;
+  search?: string;
 };
 
 /**
@@ -83,6 +86,8 @@ export default async function OrdersPage({
     return <VendorOrdersView searchParams={searchParams} />;
   } else if (user.role === "CLIENT") {
     return <ClientOrdersView searchParams={searchParams} />;
+  } else if (user.role === "ADMIN" || user.role === "AGENT") {
+    return <AdminOrdersView searchParams={searchParams} />;
   } else {
     redirect("/dashboard");
   }
@@ -386,6 +391,95 @@ async function VendorOrdersView({
               {statusFilter
                 ? `No orders with status "${statusFilter}" found.`
                 : "No orders containing your products yet."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ADMIN/AGENT view (new functionality for #63)
+async function AdminOrdersView({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const user = await currentUser();
+
+  if (!user || (user.role !== "ADMIN" && user.role !== "AGENT")) {
+    redirect("/dashboard");
+  }
+
+  // Parse search params
+  const params = await searchParams;
+  const page = Math.max(parseInt(params.page || "1", 10) || 1, 1);
+  const pageSize = Math.min(
+    Math.max(parseInt(params.pageSize || "20", 10) || 20, 10),
+    100
+  );
+  const status = params.status || undefined;
+  const searchQuery = params.search || undefined;
+
+  // Fetch all orders with filters
+  const ordersResult = await fetchAllOrdersForAdmin({
+    status,
+    searchQuery,
+    page,
+    pageSize,
+  });
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="All Orders"
+        subtitle="Manage and track all orders across the platform"
+      />
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <AdminOrdersFilters />
+        </CardContent>
+      </Card>
+
+      {/* Orders Table */}
+      {ordersResult.data.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Orders</CardTitle>
+            <CardDescription>
+              {ordersResult.total} order{ordersResult.total !== 1 ? "s" : ""}{" "}
+              total
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AdminOrdersTable orders={ordersResult.data} />
+
+            {/* Pagination */}
+            {ordersResult.total > ordersResult.pageSize && (
+              <div className="mt-4">
+                <Pagination
+                  page={ordersResult.currentPage}
+                  pageSize={ordersResult.pageSize}
+                  total={ordersResult.total}
+                  totalPages={ordersResult.totalPages}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="rounded-full bg-muted p-6 mb-4">
+              <Package className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No orders found</h3>
+            <p className="text-muted-foreground text-center max-w-md">
+              {searchQuery || status
+                ? "No orders match your current filters. Try adjusting your search criteria."
+                : "No orders have been created yet."}
             </p>
           </CardContent>
         </Card>

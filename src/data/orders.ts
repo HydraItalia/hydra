@@ -193,3 +193,146 @@ export async function fetchOrderById(orderId: string): Promise<OrderDetail> {
     createdAt: order.createdAt.toISOString(),
   };
 }
+
+/**
+ * Admin orders result type
+ */
+export type AdminOrdersResult = {
+  data: {
+    id: string;
+    orderNumber: string;
+    createdAt: string;
+    status: string;
+    totalCents: number;
+    clientName: string;
+    assignedAgentName: string | null;
+    itemCount: number;
+  }[];
+  total: number;
+  currentPage: number;
+  totalPages: number;
+  pageSize: number;
+};
+
+/**
+ * Admin orders filter parameters
+ */
+export type AdminOrderFilters = {
+  status?: string;
+  clientId?: string;
+  agentUserId?: string;
+  searchQuery?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+/**
+ * Fetch all orders for ADMIN/AGENT users with filters
+ *
+ * Authorization: Only ADMIN and AGENT users can access this
+ *
+ * @param filters - Filter and pagination parameters
+ * @returns Paginated orders with client and agent info
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+export async function fetchAllOrdersForAdmin(
+  filters: AdminOrderFilters = {}
+): Promise<AdminOrdersResult> {
+  // 1. Authorization check
+  const user = await currentUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  if (user.role !== "ADMIN" && user.role !== "AGENT") {
+    throw new Error("Only ADMIN and AGENT users can access all orders");
+  }
+
+  // 2. Parse and validate params
+  const page = Math.max(filters.page || 1, 1);
+  const pageSize = Math.min(Math.max(filters.pageSize || 20, 10), 100);
+  const offset = (page - 1) * pageSize;
+
+  // 3. Build where clause
+  const where: any = {
+    deletedAt: null,
+  };
+
+  if (filters.status) {
+    where.status = filters.status;
+  }
+
+  if (filters.clientId) {
+    where.clientId = filters.clientId;
+  }
+
+  if (filters.agentUserId) {
+    where.assignedAgentUserId = filters.agentUserId;
+  }
+
+  if (filters.searchQuery) {
+    where.orderNumber = {
+      contains: filters.searchQuery,
+      mode: "insensitive",
+    };
+  }
+
+  // 4. Fetch orders and count in parallel
+  const [orders, total] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      select: {
+        id: true,
+        orderNumber: true,
+        createdAt: true,
+        status: true,
+        totalCents: true,
+        Client: {
+          select: {
+            name: true,
+          },
+        },
+        User_Order_assignedAgentUserIdToUser: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            OrderItem: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: pageSize,
+      skip: offset,
+    }),
+    prisma.order.count({ where }),
+  ]);
+
+  // 5. Map to result format
+  const data = orders.map((order) => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    createdAt: order.createdAt.toISOString(),
+    status: order.status,
+    totalCents: order.totalCents,
+    clientName: order.Client.name || "Unknown Client",
+    assignedAgentName: order.User_Order_assignedAgentUserIdToUser?.name || null,
+    itemCount: order._count.OrderItem,
+  }));
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  return {
+    data,
+    total,
+    currentPage: page,
+    totalPages,
+    pageSize,
+  };
+}
