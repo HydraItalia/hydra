@@ -34,21 +34,26 @@ export function AdminOrdersFilters() {
     searchParams.get("status") || "all"
   );
 
+  useEffect(() => {
+    setSearchQuery(searchParams.get("search") || "");
+    setStatusFilter(searchParams.get("status") || "all");
+  }, [searchParams.toString()]);
+
   // Debounced search handler
   useEffect(() => {
+    const currentParams = new URLSearchParams(searchParams.toString());
     const timer = setTimeout(() => {
-      const params = new URLSearchParams(searchParams);
       if (searchQuery) {
-        params.set("search", searchQuery);
+        currentParams.set("search", searchQuery);
       } else {
-        params.delete("search");
+        currentParams.delete("search");
       }
-      params.delete("page"); // Reset to page 1 on search
-      router.push(`/dashboard/orders?${params.toString()}`);
+      currentParams.delete("page"); // Reset to page 1 on search
+      router.push(`/dashboard/orders?${currentParams.toString()}`);
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, router, searchParams]);
+  }, [searchQuery, router, searchParams.toString()]);
 
   const handleStatusChange = useCallback(
     (value: string) => {

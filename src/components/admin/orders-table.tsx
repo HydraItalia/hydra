@@ -68,10 +68,7 @@ export function AdminOrdersTable({ orders }: OrdersTableProps) {
           </TableHeader>
           <TableBody>
             {orders.map((order) => (
-              <TableRow
-                key={order.id}
-                className="cursor-pointer hover:bg-muted/50"
-              >
+              <TableRow key={order.id}>
                 <TableCell>
                   <Link
                     href={`/dashboard/orders/${order.id}`}
@@ -103,7 +100,6 @@ export function AdminOrdersTable({ orders }: OrdersTableProps) {
                   )}
                 </TableCell>
               </TableRow>
-            ))}
           </TableBody>
         </Table>
       </div>

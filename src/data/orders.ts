@@ -321,7 +321,7 @@ export async function fetchAllOrdersForAdmin(
     createdAt: order.createdAt.toISOString(),
     status: order.status,
     totalCents: order.totalCents,
-    clientName: order.Client.name,
+    clientName: order.Client.name || "Unknown Client",
     assignedAgentName: order.User_Order_assignedAgentUserIdToUser?.name || null,
     itemCount: order._count.OrderItem,
   }));
