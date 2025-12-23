@@ -216,11 +216,34 @@ export async function assignAgentToOrder(
       return { success: false, error: "Invalid agent user" };
     }
 
-    // Update order
-    await prisma.order.update({
-      where: { id: orderId },
+    // Check if agent is already assigned (idempotent)
+    if (order.assignedAgentUserId === agentUserId) {
+      return { success: true };
+    }
+
+    // Fetch previous agent name if there was one assigned
+    let previousAgentName = null;
+    if (order.assignedAgentUserId) {
+      const previousAgent = await prisma.user.findUnique({
+        where: { id: order.assignedAgentUserId },
+        select: { name: true },
+      });
+      previousAgentName = previousAgent?.name;
+    }
+
+    // Atomic conditional update - only update if assignment hasn't changed
+    // This prevents race conditions (TOCTOU) between check and update
+    const result = await prisma.order.updateMany({
+      where: { id: orderId, assignedAgentUserId: order.assignedAgentUserId },
       data: { assignedAgentUserId: agentUserId },
     });
+
+    if (result.count === 0) {
+      return {
+        success: false,
+        error: "Order assignment changed concurrently, please retry",
+      };
+    }
 
     // Log the assignment
     await logAction({
@@ -230,6 +253,7 @@ export async function assignAgentToOrder(
       diff: {
         from: order.assignedAgentUserId,
         to: agentUserId,
+        fromAgentName: previousAgentName,
         agentName: agent.name,
       },
     });
@@ -274,16 +298,30 @@ export async function unassignAgentFromOrder(
       return { success: false, error: "Order not found" };
     }
 
-    // Check if order has an assigned agent
+    // Check if order has an assigned agent (idempotent)
     if (!order.assignedAgentUserId) {
-      return { success: false, error: "Order has no assigned agent" };
+      return { success: true };
     }
 
-    // Update order
-    await prisma.order.update({
-      where: { id: orderId },
+    // Fetch agent name for audit log
+    const assignedAgent = await prisma.user.findUnique({
+      where: { id: order.assignedAgentUserId },
+      select: { name: true },
+    });
+
+    // Atomic conditional update - only update if assignment hasn't changed
+    // This prevents race conditions (TOCTOU) between check and update
+    const result = await prisma.order.updateMany({
+      where: { id: orderId, assignedAgentUserId: order.assignedAgentUserId },
       data: { assignedAgentUserId: null },
     });
+
+    if (result.count === 0) {
+      return {
+        success: false,
+        error: "Order assignment changed concurrently, please retry",
+      };
+    }
 
     // Log the unassignment
     await logAction({
@@ -293,6 +331,7 @@ export async function unassignAgentFromOrder(
       diff: {
         from: order.assignedAgentUserId,
         to: null,
+        fromAgentName: assignedAgent?.name,
       },
     });
 

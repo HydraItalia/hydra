@@ -28,6 +28,25 @@ async function requireClientUser(): Promise<string> {
 }
 
 /**
+ * Shared authorization helper for ADMIN/AGENT users
+ * @returns user object for the authenticated ADMIN or AGENT user
+ * @throws Error if user is not authenticated or not an ADMIN/AGENT
+ */
+async function requireAdminOrAgent() {
+  const user = await currentUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  if (user.role !== "ADMIN" && user.role !== "AGENT") {
+    throw new Error("Only ADMIN and AGENT users can access this resource");
+  }
+
+  return user;
+}
+
+/**
  * Paginated orders result
  */
 export type OrdersResult = {
@@ -240,15 +259,7 @@ export async function fetchAllOrdersForAdmin(
   filters: AdminOrderFilters = {}
 ): Promise<AdminOrdersResult> {
   // 1. Authorization check
-  const user = await currentUser();
-
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  if (user.role !== "ADMIN" && user.role !== "AGENT") {
-    throw new Error("Only ADMIN and AGENT users can access all orders");
-  }
+  await requireAdminOrAgent();
 
   // 2. Parse and validate params
   const page = Math.max(filters.page || 1, 1);
@@ -405,15 +416,7 @@ export async function fetchAdminOrderDetail(
   orderId: string
 ): Promise<AdminOrderDetail> {
   // 1. Authorization check
-  const user = await currentUser();
-
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  if (user.role !== "ADMIN" && user.role !== "AGENT") {
-    throw new Error("Only ADMIN and AGENT users can access order details");
-  }
+  await requireAdminOrAgent();
 
   // 2. Fetch order with full details and audit logs
   const [order, auditLogs] = await Promise.all([
@@ -586,15 +589,7 @@ export type UnassignedOrder = {
  */
 export async function fetchUnassignedOrders(): Promise<UnassignedOrder[]> {
   // 1. Authorization check
-  const user = await currentUser();
-
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  if (user.role !== "ADMIN" && user.role !== "AGENT") {
-    throw new Error("Only ADMIN and AGENT users can access unassigned orders");
-  }
+  await requireAdminOrAgent();
 
   // 2. Fetch orders with no assigned agent and SUBMITTED status
   const orders = await prisma.order.findMany({
@@ -683,15 +678,7 @@ export type Agent = {
  */
 export async function fetchAllAgents(): Promise<Agent[]> {
   // 1. Authorization check
-  const user = await currentUser();
-
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  if (user.role !== "ADMIN" && user.role !== "AGENT") {
-    throw new Error("Only ADMIN and AGENT users can access agents list");
-  }
+  await requireAdminOrAgent();
 
   // 2. Fetch all agents
   const agents = await prisma.user.findMany({
