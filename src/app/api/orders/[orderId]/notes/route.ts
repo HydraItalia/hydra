@@ -8,16 +8,16 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ orderId: string }> }
 ) {
-  try {
-    // Require ADMIN or AGENT role
-    await requireRole("ADMIN", "AGENT");
+  // Require ADMIN or AGENT role (outside try-catch for proper error codes)
+  await requireRole("ADMIN", "AGENT");
 
+  try {
     const { orderId } = await context.params;
     const body = await request.json();
     const { notes } = body;
 
-    // Validate input
-    if (typeof notes !== "string") {
+    // Validate input (allow null to clear notes)
+    if (typeof notes !== "string" && notes !== null) {
       return NextResponse.json(
         { error: "Invalid notes format" },
         { status: 400 }
@@ -34,10 +34,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    // Transform notes (trim and convert empty to null, handle explicit null)
+    const trimmedNotes = notes === null ? null : notes.trim() || null;
+
     // Update notes
     await prisma.order.update({
       where: { id: orderId },
-      data: { notes: notes.trim() || null },
+      data: { notes: trimmedNotes },
     });
 
     // Log the notes update
@@ -48,7 +51,7 @@ export async function PATCH(
       diff: {
         field: "notes",
         from: currentOrder.notes,
-        to: notes.trim() || null,
+        to: trimmedNotes,
       },
     });
 

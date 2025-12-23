@@ -362,6 +362,10 @@ async function AdminOrderDetailView({ orderId }: { orderId: string }) {
     notFound();
   }
 
+  if (!order) {
+    notFound();
+  }
+
   const formattedDate = formatDateTime(order.createdAt);
 
   return (

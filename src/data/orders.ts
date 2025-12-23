@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
+import type { OrderStatus } from "@prisma/client";
 
 /**
  * Shared authorization helper for CLIENT users
@@ -343,7 +344,7 @@ export async function fetchAllOrdersForAdmin(
 export type AdminOrderDetail = {
   id: string;
   orderNumber: string;
-  status: string;
+  status: OrderStatus;
   totalCents: number;
   notes: string | null;
   deliveryAddress: string | null;

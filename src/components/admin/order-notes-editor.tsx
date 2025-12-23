@@ -23,6 +23,7 @@ export function OrderNotesEditor({
   useEffect(() => {
     if (!hasChanges) return;
 
+    const abortController = new AbortController();
     const timer = setTimeout(async () => {
       setIsSaving(true);
       try {
@@ -30,6 +31,7 @@ export function OrderNotesEditor({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notes }),
+          signal: abortController.signal,
         });
 
         if (!response.ok) {
@@ -39,13 +41,19 @@ export function OrderNotesEditor({
         toast.success("Notes saved");
         setHasChanges(false);
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return; // Request was cancelled, don't show error
+        }
         toast.error("Failed to save notes");
       } finally {
         setIsSaving(false);
       }
     }, 1000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
   }, [notes, orderId, hasChanges]);
 
   const handleChange = (value: string) => {

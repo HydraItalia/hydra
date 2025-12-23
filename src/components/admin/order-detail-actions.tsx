@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -20,7 +19,7 @@ import type { OrderStatus } from "@prisma/client";
 
 type OrderDetailActionsProps = {
   orderId: string;
-  currentStatus: string;
+  currentStatus: OrderStatus;
 };
 
 export function OrderDetailActions({
@@ -138,13 +137,13 @@ export function OrderDetailActions({
                 <AlertDialogCancel disabled={isLoading}>
                   Keep Order
                 </AlertDialogCancel>
-                <AlertDialogAction
+                <Button
                   onClick={handleCancelOrder}
                   disabled={isLoading}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  variant="destructive"
                 >
                   {isLoading ? "Canceling..." : "Cancel Order"}
-                </AlertDialogAction>
+                </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
