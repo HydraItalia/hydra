@@ -100,6 +100,7 @@ export function AdminOrdersTable({ orders }: OrdersTableProps) {
                   )}
                 </TableCell>
               </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>
