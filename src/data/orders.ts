@@ -699,3 +699,149 @@ export async function fetchAllAgents(): Promise<Agent[]> {
 
   return agents;
 }
+
+/**
+ * Order ready for delivery result type
+ */
+export type OrderReadyForDelivery = {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  totalCents: number;
+  deliveryAddress: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  updatedAt: string;
+  client: {
+    id: string;
+    name: string;
+    shortAddress: string | null;
+  };
+  itemCount: number;
+};
+
+/**
+ * Fetch orders ready for delivery (CONFIRMED with no Delivery record)
+ *
+ * Authorization: Only ADMIN and AGENT users can access this
+ *
+ * @returns Orders ready for driver assignment
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+export async function fetchOrdersReadyForDelivery(): Promise<
+  OrderReadyForDelivery[]
+> {
+  // 1. Authorization check
+  await requireAdminOrAgent();
+
+  // 2. Fetch confirmed orders without delivery
+  const orders = await prisma.order.findMany({
+    where: {
+      status: "CONFIRMED",
+      Delivery: null, // No delivery exists
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      totalCents: true,
+      deliveryAddress: true,
+      deliveryLat: true,
+      deliveryLng: true,
+      updatedAt: true,
+      Client: {
+        select: {
+          id: true,
+          name: true,
+          shortAddress: true,
+        },
+      },
+      _count: {
+        select: {
+          OrderItem: true,
+        },
+      },
+    },
+    orderBy: {
+      updatedAt: "asc", // Oldest first
+    },
+  });
+
+  // 3. Map to result format
+  return orders.map((order) => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    status: order.status,
+    totalCents: order.totalCents,
+    deliveryAddress: order.deliveryAddress,
+    deliveryLat: order.deliveryLat,
+    deliveryLng: order.deliveryLng,
+    updatedAt: order.updatedAt.toISOString(),
+    client: {
+      id: order.Client.id,
+      name: order.Client.name,
+      shortAddress: order.Client.shortAddress,
+    },
+    itemCount: order._count.OrderItem,
+  }));
+}
+
+/**
+ * Available driver result type
+ */
+export type AvailableDriver = {
+  id: string;
+  name: string;
+  status: string;
+  activeDeliveryCount: number;
+};
+
+/**
+ * Fetch available drivers (ONLINE or OFFLINE status)
+ *
+ * Authorization: Only ADMIN and AGENT users can access this
+ *
+ * @returns List of available drivers with workload
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+export async function fetchAvailableDrivers(): Promise<AvailableDriver[]> {
+  // 1. Authorization check
+  await requireAdminOrAgent();
+
+  // 2. Fetch drivers with active delivery count
+  const drivers = await prisma.driver.findMany({
+    where: {
+      status: {
+        in: ["ONLINE", "OFFLINE"],
+      },
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      Delivery: {
+        where: {
+          status: {
+            in: ["ASSIGNED", "PICKED_UP", "IN_TRANSIT"],
+          },
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+
+  // 3. Map to result format with active delivery count
+  return drivers.map((driver) => ({
+    id: driver.id,
+    name: driver.name,
+    status: driver.status,
+    activeDeliveryCount: driver.Delivery.length,
+  }));
+}

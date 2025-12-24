@@ -6,6 +6,8 @@ import {
   fetchAllOrdersForAdmin,
   fetchUnassignedOrders,
   fetchAllAgents,
+  fetchOrdersReadyForDelivery,
+  fetchAvailableDrivers,
 } from "@/data/orders";
 import { getVendorOrders } from "@/actions/vendor-orders";
 import { PageHeader } from "@/components/shared/page-header";
@@ -14,6 +16,7 @@ import { OrderStatusBadge } from "@/components/vendor-orders/order-status-badge"
 import { AdminOrdersFilters } from "@/components/admin/orders-filters";
 import { AdminOrdersTable } from "@/components/admin/orders-table";
 import { UnassignedOrdersTable } from "@/components/admin/unassigned-orders-table";
+import { ReadyForDeliveryTable } from "@/components/admin/ready-for-delivery-table";
 import {
   Card,
   CardContent,
@@ -42,6 +45,7 @@ type SearchParams = {
   search?: string;
   unassigned?: string;
   agent?: string;
+  readyForDelivery?: string;
 };
 
 /**
@@ -427,6 +431,11 @@ async function AdminOrdersView({
     return <UnassignedOrdersView />;
   }
 
+  // Check if we should show ready for delivery view
+  if (params.readyForDelivery === "true") {
+    return <ReadyForDeliveryView />;
+  }
+
   const page = Math.max(parseInt(params.page || "1", 10) || 1, 1);
   const pageSize = Math.min(
     Math.max(parseInt(params.pageSize || "20", 10) || 20, 10),
@@ -556,6 +565,50 @@ async function UnassignedOrdersView() {
             orders={unassignedOrders}
             allAgents={allAgents}
           />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Ready for Delivery View (new functionality for #67)
+async function ReadyForDeliveryView() {
+  const user = await currentUser();
+
+  if (!user || (user.role !== "ADMIN" && user.role !== "AGENT")) {
+    redirect("/dashboard");
+  }
+
+  // Fetch ready for delivery orders and available drivers in parallel
+  const [readyOrders, drivers] = await Promise.all([
+    fetchOrdersReadyForDelivery(),
+    fetchAvailableDrivers(),
+  ]);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Ready for Delivery"
+        subtitle="Assign confirmed orders to drivers"
+      />
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Orders Awaiting Driver Assignment</CardTitle>
+              <CardDescription>
+                {readyOrders.length} order
+                {readyOrders.length !== 1 ? "s" : ""} ready for delivery
+              </CardDescription>
+            </div>
+            <Button asChild variant="outline">
+              <Link href="/dashboard/orders">View All Orders</Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ReadyForDeliveryTable orders={readyOrders} drivers={drivers} />
         </CardContent>
       </Card>
     </div>
