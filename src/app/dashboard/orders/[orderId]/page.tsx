@@ -1,7 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
-import { fetchOrderById, fetchAdminOrderDetail } from "@/data/orders";
+import {
+  fetchOrderById,
+  fetchAdminOrderDetail,
+  fetchAvailableDrivers,
+} from "@/data/orders";
 import { getVendorOrderDetail } from "@/actions/vendor-orders";
 import { OrderStatusBadge } from "@/components/vendor-orders/order-status-badge";
 import { OrderItemsTable } from "@/components/vendor-orders/order-items-table";
@@ -9,6 +13,7 @@ import { StatusActionButtons } from "@/components/vendor-orders/status-action-bu
 import { OrderDetailActions } from "@/components/admin/order-detail-actions";
 import { OrderTimeline } from "@/components/admin/order-timeline";
 import { OrderNotesEditor } from "@/components/admin/order-notes-editor";
+import { DriverManagementDropdown } from "@/components/admin/driver-management-dropdown";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -354,10 +359,24 @@ async function AdminOrderDetailView({ orderId }: { orderId: string }) {
     redirect("/dashboard");
   }
 
-  // Fetch full order details with audit logs
+  // Fetch full order details and available drivers in parallel
   let order;
+  let drivers: Awaited<ReturnType<typeof fetchAvailableDrivers>> = [];
   try {
-    order = await fetchAdminOrderDetail(orderId);
+    const [orderResult, driversResult] = await Promise.allSettled([
+      fetchAdminOrderDetail(orderId),
+      fetchAvailableDrivers(),
+    ]);
+
+    if (orderResult.status === "rejected") {
+      throw orderResult.reason;
+    }
+    order = orderResult.value;
+
+    if (driversResult.status === "fulfilled") {
+      drivers = driversResult.value;
+    }
+    // If driversResult is rejected, drivers remains an empty array
   } catch {
     notFound();
   }
@@ -473,25 +492,32 @@ async function AdminOrderDetailView({ orderId }: { orderId: string }) {
                 </div>
               </>
             )}
-            {order.delivery && (
-              <>
-                <Separator />
-                <div>
-                  <div className="text-sm text-muted-foreground">Delivery</div>
-                  <Link
-                    href={`/dashboard/deliveries/${order.delivery.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    View Delivery Details →
-                  </Link>
-                  {order.delivery.driverName && (
-                    <p className="text-sm text-muted-foreground">
-                      Driver: {order.delivery.driverName}
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
+            <Separator />
+            <div className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                Driver Assignment
+              </div>
+              <DriverManagementDropdown
+                orderId={order.id}
+                drivers={drivers}
+                currentDriver={
+                  order.delivery?.driverName
+                    ? {
+                        id: order.delivery.id,
+                        name: order.delivery.driverName,
+                      }
+                    : null
+                }
+              />
+              {order.delivery && (
+                <Link
+                  href={`/dashboard/deliveries/${order.delivery.id}`}
+                  className="text-sm text-primary hover:underline block"
+                >
+                  View Full Delivery Details →
+                </Link>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

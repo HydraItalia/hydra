@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
 import { DeliveryStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { startOfDay } from "date-fns";
 
 /**
  * Helper function to verify driver authentication and authorization
@@ -329,5 +330,182 @@ export async function getDeliveryStats() {
     exception,
     totalToday,
     activeDeliveries: assigned + pickedUp + inTransit,
+  };
+}
+
+/**
+ * Helper function to verify admin/agent authentication
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+async function requireAdminOrAgent() {
+  const user = await currentUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  if (user.role !== "ADMIN" && user.role !== "AGENT") {
+    throw new Error("Only ADMIN and AGENT users can access this resource");
+  }
+
+  return user;
+}
+
+/**
+ * Admin delivery filters
+ */
+export type AdminDeliveryFilters = {
+  status?: DeliveryStatus;
+  driverId?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+/**
+ * Admin delivery result type
+ */
+export type AdminDeliveryResult = {
+  id: string;
+  orderNumber: string;
+  clientName: string;
+  driverName: string;
+  status: DeliveryStatus;
+  assignedAt: string;
+  orderId: string;
+  deliveryAddress: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+};
+
+/**
+ * Fetch all deliveries for ADMIN/AGENT users with filters
+ */
+export async function fetchAllDeliveriesForAdmin(
+  filters: AdminDeliveryFilters = {}
+): Promise<{
+  data: AdminDeliveryResult[];
+  total: number;
+  currentPage: number;
+  totalPages: number;
+  pageSize: number;
+}> {
+  // Authorization check
+  await requireAdminOrAgent();
+
+  // Parse and validate params
+  const page = Math.max(filters.page || 1, 1);
+  const pageSize = Math.min(Math.max(filters.pageSize || 20, 10), 100);
+  const offset = (page - 1) * pageSize;
+
+  // Build where clause
+  const where: any = {};
+
+  if (filters.status) {
+    where.status = filters.status;
+  }
+
+  if (filters.driverId) {
+    where.driverId = filters.driverId;
+  }
+
+  // Fetch deliveries and count in parallel
+  const [deliveries, total] = await Promise.all([
+    prisma.delivery.findMany({
+      where,
+      include: {
+        Order: {
+          select: {
+            orderNumber: true,
+            deliveryAddress: true,
+            deliveryLat: true,
+            deliveryLng: true,
+            Client: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        Driver: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: { assignedAt: "desc" },
+      skip: offset,
+      take: pageSize,
+    }),
+    prisma.delivery.count({ where }),
+  ]);
+
+  // Map to result format
+  const data: AdminDeliveryResult[] = deliveries.map((delivery) => ({
+    id: delivery.id,
+    orderNumber: delivery.Order.orderNumber,
+    clientName: delivery.Order.Client.name,
+    driverName: delivery.Driver.name,
+    status: delivery.status,
+    assignedAt: delivery.assignedAt.toISOString(),
+    orderId: delivery.orderId,
+    deliveryAddress: delivery.Order.deliveryAddress,
+    deliveryLat: delivery.Order.deliveryLat,
+    deliveryLng: delivery.Order.deliveryLng,
+  }));
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  return {
+    data,
+    total,
+    currentPage: page,
+    totalPages,
+    pageSize,
+  };
+}
+
+/**
+ * Get delivery statistics for ADMIN/AGENT users
+ */
+export async function getDeliveryStatsForAdmin(): Promise<{
+  assigned: number;
+  pickedUp: number;
+  inTransit: number;
+  deliveredToday: number;
+  exception: number;
+}> {
+  // Authorization check
+  await requireAdminOrAgent();
+
+  const startOfToday = startOfDay(new Date());
+
+  const [assigned, pickedUp, inTransit, deliveredToday, exception] =
+    await Promise.all([
+      prisma.delivery.count({
+        where: { status: "ASSIGNED" },
+      }),
+      prisma.delivery.count({
+        where: { status: "PICKED_UP" },
+      }),
+      prisma.delivery.count({
+        where: { status: "IN_TRANSIT" },
+      }),
+      prisma.delivery.count({
+        where: {
+          status: "DELIVERED",
+          deliveredAt: { gte: startOfToday },
+        },
+      }),
+      prisma.delivery.count({
+        where: { status: "EXCEPTION" },
+      }),
+    ]);
+
+  return {
+    assigned,
+    pickedUp,
+    inTransit,
+    deliveredToday,
+    exception,
   };
 }

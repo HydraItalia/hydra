@@ -227,6 +227,11 @@ export type AdminOrdersResult = {
     clientName: string;
     assignedAgentName: string | null;
     itemCount: number;
+    delivery: {
+      id: string;
+      status: string;
+      driverName: string | null;
+    } | null;
   }[];
   total: number;
   currentPage: number;
@@ -241,6 +246,7 @@ export type AdminOrderFilters = {
   status?: string;
   clientId?: string;
   agentUserId?: string | null; // null = filter for unassigned orders
+  driverId?: string | null; // null = filter for orders with no driver assigned
   searchQuery?: string;
   page?: number;
   pageSize?: number;
@@ -284,6 +290,19 @@ export async function fetchAllOrdersForAdmin(
     where.assignedAgentUserId = filters.agentUserId;
   }
 
+  if (filters.driverId !== undefined) {
+    // Explicitly check for undefined to allow null (no driver filter)
+    if (filters.driverId === null) {
+      // Filter for orders with no delivery assigned
+      where.Delivery = null;
+    } else {
+      // Filter for orders with specific driver
+      where.Delivery = {
+        driverId: filters.driverId,
+      };
+    }
+  }
+
   if (filters.searchQuery) {
     where.orderNumber = {
       contains: filters.searchQuery,
@@ -312,6 +331,17 @@ export async function fetchAllOrdersForAdmin(
             email: true,
           },
         },
+        Delivery: {
+          select: {
+            id: true,
+            status: true,
+            Driver: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             OrderItem: true,
@@ -337,6 +367,13 @@ export async function fetchAllOrdersForAdmin(
     clientName: order.Client.name || "Unknown Client",
     assignedAgentName: order.User_Order_assignedAgentUserIdToUser?.name || null,
     itemCount: order._count.OrderItem,
+    delivery: order.Delivery
+      ? {
+          id: order.Delivery.id,
+          status: order.Delivery.status,
+          driverName: order.Delivery.Driver?.name || null,
+        }
+      : null,
   }));
 
   const totalPages = Math.ceil(total / pageSize);
@@ -698,4 +735,150 @@ export async function fetchAllAgents(): Promise<Agent[]> {
   });
 
   return agents;
+}
+
+/**
+ * Order ready for delivery result type
+ */
+export type OrderReadyForDelivery = {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  totalCents: number;
+  deliveryAddress: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  updatedAt: string;
+  client: {
+    id: string;
+    name: string;
+    shortAddress: string | null;
+  };
+  itemCount: number;
+};
+
+/**
+ * Fetch orders ready for delivery (CONFIRMED with no Delivery record)
+ *
+ * Authorization: Only ADMIN and AGENT users can access this
+ *
+ * @returns Orders ready for driver assignment
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+export async function fetchOrdersReadyForDelivery(): Promise<
+  OrderReadyForDelivery[]
+> {
+  // 1. Authorization check
+  await requireAdminOrAgent();
+
+  // 2. Fetch confirmed orders without delivery
+  const orders = await prisma.order.findMany({
+    where: {
+      status: "CONFIRMED",
+      Delivery: null, // No delivery exists
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      totalCents: true,
+      deliveryAddress: true,
+      deliveryLat: true,
+      deliveryLng: true,
+      updatedAt: true,
+      Client: {
+        select: {
+          id: true,
+          name: true,
+          shortAddress: true,
+        },
+      },
+      _count: {
+        select: {
+          OrderItem: true,
+        },
+      },
+    },
+    orderBy: {
+      updatedAt: "asc", // Oldest first
+    },
+  });
+
+  // 3. Map to result format
+  return orders.map((order) => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    status: order.status,
+    totalCents: order.totalCents,
+    deliveryAddress: order.deliveryAddress,
+    deliveryLat: order.deliveryLat,
+    deliveryLng: order.deliveryLng,
+    updatedAt: order.updatedAt.toISOString(),
+    client: {
+      id: order.Client.id,
+      name: order.Client.name,
+      shortAddress: order.Client.shortAddress,
+    },
+    itemCount: order._count.OrderItem,
+  }));
+}
+
+/**
+ * Available driver result type
+ */
+export type AvailableDriver = {
+  id: string;
+  name: string;
+  status: string;
+  activeDeliveryCount: number;
+};
+
+/**
+ * Fetch available drivers (ONLINE or OFFLINE status)
+ *
+ * Authorization: Only ADMIN and AGENT users can access this
+ *
+ * @returns List of available drivers with workload
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+export async function fetchAvailableDrivers(): Promise<AvailableDriver[]> {
+  // 1. Authorization check
+  await requireAdminOrAgent();
+
+  // 2. Fetch drivers with active delivery count
+  const drivers = await prisma.driver.findMany({
+    where: {
+      status: {
+        in: ["ONLINE", "OFFLINE"],
+      },
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      Delivery: {
+        where: {
+          status: {
+            in: ["ASSIGNED", "PICKED_UP", "IN_TRANSIT"],
+          },
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+
+  // 3. Map to result format with active delivery count
+  return drivers.map((driver) => ({
+    id: driver.id,
+    name: driver.name,
+    status: driver.status,
+    activeDeliveryCount: driver.Delivery.length,
+  }));
 }

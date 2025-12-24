@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import type { Agent } from "@/data/orders";
+import type { Agent, AvailableDriver } from "@/data/orders";
 
 const ORDER_STATUSES = [
   { value: "DRAFT", label: "Draft" },
@@ -26,9 +26,13 @@ const ORDER_STATUSES = [
 
 type AdminOrdersFiltersProps = {
   agents: Agent[];
+  drivers: AvailableDriver[];
 };
 
-export function AdminOrdersFilters({ agents }: AdminOrdersFiltersProps) {
+export function AdminOrdersFilters({
+  agents,
+  drivers,
+}: AdminOrdersFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -41,11 +45,15 @@ export function AdminOrdersFilters({ agents }: AdminOrdersFiltersProps) {
   const [agentFilter, setAgentFilter] = useState(
     searchParams.get("agent") || "all"
   );
+  const [driverFilter, setDriverFilter] = useState(
+    searchParams.get("driver") || "all"
+  );
 
   useEffect(() => {
     setSearchQuery(searchParams.get("search") || "");
     setStatusFilter(searchParams.get("status") || "all");
     setAgentFilter(searchParams.get("agent") || "all");
+    setDriverFilter(searchParams.get("driver") || "all");
   }, [searchParams.toString()]);
 
   // Debounced search handler
@@ -94,17 +102,34 @@ export function AdminOrdersFilters({ agents }: AdminOrdersFiltersProps) {
     [router, searchParams]
   );
 
+  const handleDriverChange = useCallback(
+    (value: string) => {
+      setDriverFilter(value);
+      const params = new URLSearchParams(searchParams);
+      if (value && value !== "all") {
+        params.set("driver", value);
+      } else {
+        params.delete("driver");
+      }
+      params.delete("page"); // Reset to page 1 on filter change
+      router.push(`/dashboard/orders?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
+
   const handleClearFilters = useCallback(() => {
     setSearchQuery("");
     setStatusFilter("all");
     setAgentFilter("all");
+    setDriverFilter("all");
     router.push("/dashboard/orders");
   }, [router]);
 
   const hasActiveFilters =
     searchQuery ||
     (statusFilter && statusFilter !== "all") ||
-    (agentFilter && agentFilter !== "all");
+    (agentFilter && agentFilter !== "all") ||
+    (driverFilter && driverFilter !== "all");
 
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-end">
@@ -155,6 +180,25 @@ export function AdminOrdersFilters({ agents }: AdminOrdersFiltersProps) {
             {agents.map((agent) => (
               <SelectItem key={agent.id} value={agent.id}>
                 {agent.name || agent.email}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Assigned Driver Filter */}
+      <div className="space-y-2 md:w-[200px]">
+        <Label htmlFor="driver">Assigned Driver</Label>
+        <Select value={driverFilter} onValueChange={handleDriverChange}>
+          <SelectTrigger id="driver">
+            <SelectValue placeholder="All Drivers" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Drivers</SelectItem>
+            <SelectItem value="unassigned">No Driver</SelectItem>
+            {drivers.map((driver) => (
+              <SelectItem key={driver.id} value={driver.id}>
+                {driver.name}
               </SelectItem>
             ))}
           </SelectContent>

@@ -163,6 +163,7 @@ async function AdminAgentDashboard({
           value={stats.pendingDeliveries}
           icon={Truck}
           description="Orders ready for delivery"
+          href="/dashboard/orders?readyForDelivery=true"
         />
         <DataCard
           title="Active Shifts"
