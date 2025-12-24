@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { MapPin, ExternalLink } from "lucide-react";
+import { MapPin, Map } from "lucide-react";
 import { DriverAssignDropdown } from "./driver-assign-dropdown";
 import type { OrderReadyForDelivery, AvailableDriver } from "@/data/orders";
 
@@ -123,7 +123,7 @@ export function ReadyForDeliveryTable({
                           rel="noopener noreferrer"
                           title="Open in Google Maps"
                         >
-                          <ExternalLink className="h-4 w-4" />
+                          <Map className="h-4 w-4" />
                         </a>
                       </Button>
                     )}
@@ -170,7 +170,7 @@ export function ReadyForDeliveryTable({
                         rel="noopener noreferrer"
                         title="Open in Google Maps"
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        <Map className="h-4 w-4" />
                       </a>
                     </Button>
                   )}

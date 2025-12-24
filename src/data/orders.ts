@@ -227,6 +227,11 @@ export type AdminOrdersResult = {
     clientName: string;
     assignedAgentName: string | null;
     itemCount: number;
+    delivery: {
+      id: string;
+      status: string;
+      driverName: string | null;
+    } | null;
   }[];
   total: number;
   currentPage: number;
@@ -312,6 +317,17 @@ export async function fetchAllOrdersForAdmin(
             email: true,
           },
         },
+        Delivery: {
+          select: {
+            id: true,
+            status: true,
+            Driver: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             OrderItem: true,
@@ -337,6 +353,13 @@ export async function fetchAllOrdersForAdmin(
     clientName: order.Client.name || "Unknown Client",
     assignedAgentName: order.User_Order_assignedAgentUserIdToUser?.name || null,
     itemCount: order._count.OrderItem,
+    delivery: order.Delivery
+      ? {
+          id: order.Delivery.id,
+          status: order.Delivery.status,
+          driverName: order.Delivery.Driver?.name || null,
+        }
+      : null,
   }));
 
   const totalPages = Math.ceil(total / pageSize);

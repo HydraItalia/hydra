@@ -453,8 +453,8 @@ async function AdminOrdersView({
       ? agentParam
       : undefined;
 
-  // Fetch orders and agents in parallel
-  const [ordersResult, agents] = await Promise.all([
+  // Fetch orders, agents, and drivers in parallel
+  const [ordersResult, agents, drivers] = await Promise.all([
     fetchAllOrdersForAdmin({
       status,
       searchQuery,
@@ -463,6 +463,7 @@ async function AdminOrdersView({
       pageSize,
     }),
     fetchAllAgents(),
+    fetchAvailableDrivers(),
   ]);
 
   return (
@@ -490,7 +491,7 @@ async function AdminOrdersView({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AdminOrdersTable orders={ordersResult.data} />
+            <AdminOrdersTable orders={ordersResult.data} drivers={drivers} />
 
             {/* Pagination */}
             {ordersResult.total > ordersResult.pageSize && (

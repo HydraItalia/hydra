@@ -10,10 +10,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
-import type { AdminOrdersResult } from "@/data/orders";
+import { DriverManagementDropdown } from "@/components/admin/driver-management-dropdown";
+import type { AdminOrdersResult, AvailableDriver } from "@/data/orders";
 
 type OrdersTableProps = {
   orders: AdminOrdersResult["data"];
+  drivers: AvailableDriver[];
 };
 
 /**
@@ -49,7 +51,7 @@ function getStatusDisplay(status: string): string {
   return displays[status] || status;
 }
 
-export function AdminOrdersTable({ orders }: OrdersTableProps) {
+export function AdminOrdersTable({ orders, drivers }: OrdersTableProps) {
   return (
     <>
       {/* Desktop Table View */}
@@ -64,6 +66,7 @@ export function AdminOrdersTable({ orders }: OrdersTableProps) {
               <TableHead className="text-right">Total</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead>Assigned Agent</TableHead>
+              <TableHead>Driver</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -98,6 +101,20 @@ export function AdminOrdersTable({ orders }: OrdersTableProps) {
                       Unassigned
                     </span>
                   )}
+                </TableCell>
+                <TableCell>
+                  <DriverManagementDropdown
+                    orderId={order.id}
+                    drivers={drivers}
+                    currentDriver={
+                      order.delivery?.driverName
+                        ? {
+                            id: order.delivery.id,
+                            name: order.delivery.driverName,
+                          }
+                        : null
+                    }
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -137,6 +154,17 @@ export function AdminOrdersTable({ orders }: OrdersTableProps) {
                       {order.assignedAgentName || (
                         <span className="text-muted-foreground">
                           Unassigned
+                        </span>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Driver:</span>
+                    <span className="font-medium">
+                      {order.delivery?.driverName || (
+                        <span className="text-muted-foreground">
+                          Not Assigned
                         </span>
                       )}
                     </span>
