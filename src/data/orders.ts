@@ -246,6 +246,7 @@ export type AdminOrderFilters = {
   status?: string;
   clientId?: string;
   agentUserId?: string | null; // null = filter for unassigned orders
+  driverId?: string | null; // null = filter for orders with no driver assigned
   searchQuery?: string;
   page?: number;
   pageSize?: number;
@@ -287,6 +288,19 @@ export async function fetchAllOrdersForAdmin(
   if (filters.agentUserId !== undefined) {
     // Explicitly check for undefined to allow null (unassigned filter)
     where.assignedAgentUserId = filters.agentUserId;
+  }
+
+  if (filters.driverId !== undefined) {
+    // Explicitly check for undefined to allow null (no driver filter)
+    if (filters.driverId === null) {
+      // Filter for orders with no delivery assigned
+      where.Delivery = null;
+    } else {
+      // Filter for orders with specific driver
+      where.Delivery = {
+        driverId: filters.driverId,
+      };
+    }
   }
 
   if (filters.searchQuery) {
