@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { currentUser } from "@/lib/auth";
 import { SidebarNav } from "@/components/dashboard/sidebar-nav";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -41,15 +42,18 @@ export default async function DashboardLayout({
 
         {/* Top Bar */}
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex h-16 items-center px-4 md:px-6">
+          <div className="flex h-24 items-center px-4 md:px-6">
             <MobileNav role={user.role} />
 
             <div className="flex items-center gap-2">
               <Link href="/dashboard" className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <span className="text-lg font-bold">H</span>
-                </div>
-                <span className="hidden font-bold md:inline-block">Hydra</span>
+                <Image
+                  src="/hydra-icon.png"
+                  alt="Hydra"
+                  width={96}
+                  height={96}
+                  className="h-20 w-20"
+                />
               </Link>
             </div>
 

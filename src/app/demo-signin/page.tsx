@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { DemoUserCard } from "@/components/auth/demo-user-card";
 import { DEMO_USERS } from "@/lib/demo-mode";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -58,9 +59,13 @@ export default function DemoSigninPage() {
       <div className="w-full max-w-6xl">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <span className="text-2xl font-bold">H</span>
-            </div>
+            <Image
+              src="/hydra-icon.png"
+              alt="Hydra"
+              width={96}
+              height={96}
+              className="h-20 w-20"
+            />
             <h1 className="text-4xl font-bold">Hydra</h1>
           </div>
           <h2 className="text-2xl font-semibold mb-2">Demo Mode</h2>
