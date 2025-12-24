@@ -1,35 +1,30 @@
 import Link from "next/link";
+import Image from "next/image";
 import { FeatureCard } from "@/components/home/feature-card";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-rose-50 to-pink-50 dark:from-slate-950 dark:via-slate-900 dark:to-red-950">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-600 to-gray-300 dark:from-black dark:via-gray-800 dark:to-gray-700">
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-1/2 -right-1/2 w-96 h-96 bg-red-400/20 dark:bg-red-600/10 rounded-full blur-3xl"></div>
-          <div className="absolute -bottom-1/2 -left-1/2 w-96 h-96 bg-pink-400/20 dark:bg-pink-600/10 rounded-full blur-3xl"></div>
+          <div className="absolute -top-1/2 -right-1/2 w-96 h-96 bg-gray-400/20 dark:bg-gray-600/10 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-1/2 -left-1/2 w-96 h-96 bg-gray-500/20 dark:bg-gray-700/10 rounded-full blur-3xl"></div>
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-24">
           {/* Main Hero Content */}
           <div className="text-center space-y-8 mb-20">
-            <div className="space-y-6">
-              <h1 className="text-7xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 dark:from-red-400 dark:via-rose-400 dark:to-pink-400">
-                Hydra
-              </h1>
-              <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-100">
-                Restaurant Procurement,{" "}
-                <span className="text-red-600 dark:text-red-400">
-                  Simplified
-                </span>
-              </p>
-              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                Unite multiple suppliers into one seamless platform. Real-time
-                inventory, intelligent ordering, and complete transparency for
-                the modern restaurant.
-              </p>
+            <div className="flex justify-center px-4">
+              <Image
+                src="/hydra-logo.png"
+                alt="Hydra - Restaurant Procurement, Simplified"
+                width={700}
+                height={450}
+                priority
+                className="w-full max-w-4xl h-auto"
+              />
             </div>
 
             {/* CTA Buttons */}
@@ -37,7 +32,7 @@ export default function HomePage() {
               {process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true" ? (
                 <Link
                   href="/demo-signin"
-                  className="px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl hover:from-amber-600 hover:to-orange-600 transition-all shadow-lg hover:shadow-xl hover:scale-105"
+                  className="px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-red-500 to-rose-500 rounded-xl hover:from-red-600 hover:to-rose-600 transition-all shadow-lg hover:shadow-xl hover:scale-105"
                 >
                   Try Demo Mode
                 </Link>
