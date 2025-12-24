@@ -57,6 +57,11 @@ export function getNavItems(role: Role): NavItem[] {
           icon: ShoppingCart,
         },
         {
+          label: "Deliveries",
+          href: "/dashboard/deliveries",
+          icon: Truck,
+        },
+        {
           label: "Shifts",
           href: "/dashboard/shifts",
           icon: ClipboardList,

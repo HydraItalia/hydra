@@ -26,7 +26,7 @@ function getGoogleMapsUrl(
   lat?: number | null,
   lng?: number | null
 ): string {
-  if (lat && lng) {
+  if (lat != null && lng != null) {
     return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   }
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -76,7 +76,7 @@ export function ReadyForDeliveryTable({
                 order.deliveryAddress ||
                 order.client.shortAddress ||
                 "No address";
-              const hasLocation = order.deliveryLat && order.deliveryLng;
+              const hasLocation = order.deliveryLat != null && order.deliveryLng != null;
 
               return (
                 <TableRow key={order.id}>
@@ -140,7 +140,7 @@ export function ReadyForDeliveryTable({
         {orders.map((order) => {
           const address =
             order.deliveryAddress || order.client.shortAddress || "No address";
-          const hasLocation = order.deliveryLat && order.deliveryLng;
+          const hasLocation = order.deliveryLat != null && order.deliveryLng != null;
 
           return (
             <Card key={order.id}>

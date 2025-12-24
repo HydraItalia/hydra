@@ -78,6 +78,21 @@ export async function createDeliveryForOrder(
       return { success: false, error: "Driver not found" };
     }
 
+    // Validate driver is available for assignment
+    if (driver.status === "BUSY") {
+      return {
+        success: false,
+        error: "Driver is currently busy and cannot be assigned to this order",
+      };
+    }
+
+    if (driver.status === "OFFLINE") {
+      return {
+        success: false,
+        error: "Driver is offline and cannot be assigned to this order",
+      };
+    }
+
     // Create delivery
     const delivery = await prisma.delivery.create({
       data: {
@@ -263,6 +278,21 @@ export async function reassignDriverToOrder(
 
     if (!newDriver) {
       return { success: false, error: "Driver not found" };
+    }
+
+    // Validate new driver is available for assignment
+    if (newDriver.status === "BUSY") {
+      return {
+        success: false,
+        error: "Driver is currently busy and cannot be assigned to this order",
+      };
+    }
+
+    if (newDriver.status === "OFFLINE") {
+      return {
+        success: false,
+        error: "Driver is offline and cannot be assigned to this order",
+      };
     }
 
     // Update the delivery

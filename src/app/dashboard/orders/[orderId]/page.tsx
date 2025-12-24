@@ -361,12 +361,22 @@ async function AdminOrderDetailView({ orderId }: { orderId: string }) {
 
   // Fetch full order details and available drivers in parallel
   let order;
-  let drivers;
+  let drivers: Awaited<ReturnType<typeof fetchAvailableDrivers>> = [];
   try {
-    [order, drivers] = await Promise.all([
+    const [orderResult, driversResult] = await Promise.allSettled([
       fetchAdminOrderDetail(orderId),
       fetchAvailableDrivers(),
     ]);
+
+    if (orderResult.status === "rejected") {
+      throw orderResult.reason;
+    }
+    order = orderResult.value;
+
+    if (driversResult.status === "fulfilled") {
+      drivers = driversResult.value;
+    }
+    // If driversResult is rejected, drivers remains an empty array
   } catch {
     notFound();
   }

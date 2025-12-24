@@ -9,7 +9,7 @@ import {
 import { fetchAvailableDrivers } from "@/data/orders";
 import { DeliveryList } from "@/components/deliveries/delivery-list";
 import { DeliveryStats } from "@/components/deliveries/delivery-stats";
-import { AdminDeliveriesTable } from "@/components/admin/deliveries-table";
+import { DeliveriesViewToggle } from "@/components/admin/deliveries-view-toggle";
 import { AdminDeliveriesFilters } from "@/components/admin/deliveries-filters";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/catalog/pagination";
@@ -206,7 +206,7 @@ async function AdminDeliveriesView({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AdminDeliveriesTable deliveries={deliveriesResult.data} />
+            <DeliveriesViewToggle deliveries={deliveriesResult.data} />
 
             {/* Pagination */}
             {deliveriesResult.total > deliveriesResult.pageSize && (

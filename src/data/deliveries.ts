@@ -372,6 +372,9 @@ export type AdminDeliveryResult = {
   status: DeliveryStatus;
   assignedAt: string;
   orderId: string;
+  deliveryAddress: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
 };
 
 /**
@@ -413,6 +416,9 @@ export async function fetchAllDeliveriesForAdmin(
         Order: {
           select: {
             orderNumber: true,
+            deliveryAddress: true,
+            deliveryLat: true,
+            deliveryLng: true,
             Client: {
               select: {
                 name: true,
@@ -442,6 +448,9 @@ export async function fetchAllDeliveriesForAdmin(
     status: delivery.status,
     assignedAt: delivery.assignedAt.toISOString(),
     orderId: delivery.orderId,
+    deliveryAddress: delivery.Order.deliveryAddress,
+    deliveryLat: delivery.Order.deliveryLat,
+    deliveryLng: delivery.Order.deliveryLng,
   }));
 
   const totalPages = Math.ceil(total / pageSize);
