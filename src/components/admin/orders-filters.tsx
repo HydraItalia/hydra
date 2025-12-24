@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import type { Agent } from "@/data/orders";
 
 const ORDER_STATUSES = [
   { value: "DRAFT", label: "Draft" },
@@ -23,7 +24,11 @@ const ORDER_STATUSES = [
   { value: "CANCELED", label: "Canceled" },
 ];
 
-export function AdminOrdersFilters() {
+type AdminOrdersFiltersProps = {
+  agents: Agent[];
+};
+
+export function AdminOrdersFilters({ agents }: AdminOrdersFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -33,10 +38,14 @@ export function AdminOrdersFilters() {
   const [statusFilter, setStatusFilter] = useState(
     searchParams.get("status") || "all"
   );
+  const [agentFilter, setAgentFilter] = useState(
+    searchParams.get("agent") || "all"
+  );
 
   useEffect(() => {
     setSearchQuery(searchParams.get("search") || "");
     setStatusFilter(searchParams.get("status") || "all");
+    setAgentFilter(searchParams.get("agent") || "all");
   }, [searchParams.toString()]);
 
   // Debounced search handler
@@ -70,14 +79,32 @@ export function AdminOrdersFilters() {
     [router, searchParams]
   );
 
+  const handleAgentChange = useCallback(
+    (value: string) => {
+      setAgentFilter(value);
+      const params = new URLSearchParams(searchParams);
+      if (value && value !== "all") {
+        params.set("agent", value);
+      } else {
+        params.delete("agent");
+      }
+      params.delete("page"); // Reset to page 1 on filter change
+      router.push(`/dashboard/orders?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
+
   const handleClearFilters = useCallback(() => {
     setSearchQuery("");
     setStatusFilter("all");
+    setAgentFilter("all");
     router.push("/dashboard/orders");
   }, [router]);
 
   const hasActiveFilters =
-    searchQuery || (statusFilter && statusFilter !== "all");
+    searchQuery ||
+    (statusFilter && statusFilter !== "all") ||
+    (agentFilter && agentFilter !== "all");
 
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-end">
@@ -109,6 +136,25 @@ export function AdminOrdersFilters() {
             {ORDER_STATUSES.map((status) => (
               <SelectItem key={status.value} value={status.value}>
                 {status.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Assigned Agent Filter */}
+      <div className="space-y-2 md:w-[200px]">
+        <Label htmlFor="agent">Assigned Agent</Label>
+        <Select value={agentFilter} onValueChange={handleAgentChange}>
+          <SelectTrigger id="agent">
+            <SelectValue placeholder="All Agents" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Agents</SelectItem>
+            <SelectItem value="unassigned">Unassigned</SelectItem>
+            {agents.map((agent) => (
+              <SelectItem key={agent.id} value={agent.id}>
+                {agent.name || agent.email}
               </SelectItem>
             ))}
           </SelectContent>

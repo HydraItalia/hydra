@@ -41,6 +41,7 @@ type SearchParams = {
   status?: string;
   search?: string;
   unassigned?: string;
+  agent?: string;
 };
 
 /**
@@ -433,14 +434,27 @@ async function AdminOrdersView({
   );
   const status = params.status || undefined;
   const searchQuery = params.search || undefined;
+  const agentParam = params.agent;
 
-  // Fetch all orders with filters
-  const ordersResult = await fetchAllOrdersForAdmin({
-    status,
-    searchQuery,
-    page,
-    pageSize,
-  });
+  // Handle agent filter - "unassigned" is a special case
+  const agentUserId =
+    agentParam === "unassigned"
+      ? null
+      : agentParam && agentParam !== "all"
+      ? agentParam
+      : undefined;
+
+  // Fetch orders and agents in parallel
+  const [ordersResult, agents] = await Promise.all([
+    fetchAllOrdersForAdmin({
+      status,
+      searchQuery,
+      agentUserId,
+      page,
+      pageSize,
+    }),
+    fetchAllAgents(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -452,7 +466,7 @@ async function AdminOrdersView({
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <AdminOrdersFilters />
+          <AdminOrdersFilters agents={agents} />
         </CardContent>
       </Card>
 

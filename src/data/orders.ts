@@ -240,7 +240,7 @@ export type AdminOrdersResult = {
 export type AdminOrderFilters = {
   status?: string;
   clientId?: string;
-  agentUserId?: string;
+  agentUserId?: string | null; // null = filter for unassigned orders
   searchQuery?: string;
   page?: number;
   pageSize?: number;
@@ -279,7 +279,8 @@ export async function fetchAllOrdersForAdmin(
     where.clientId = filters.clientId;
   }
 
-  if (filters.agentUserId) {
+  if (filters.agentUserId !== undefined) {
+    // Explicitly check for undefined to allow null (unassigned filter)
     where.assignedAgentUserId = filters.agentUserId;
   }
 
