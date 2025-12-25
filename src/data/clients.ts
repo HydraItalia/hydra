@@ -236,3 +236,197 @@ export async function getAgentsForClientFilter(): Promise<
 
   return agents;
 }
+
+export type ClientDetail = {
+  // Basic info
+  id: string;
+  name: string;
+  region: string | null;
+  fullAddress: string | null;
+  shortAddress: string | null;
+  deliveryAddress: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  notes: string | null;
+
+  // Contact
+  contactPerson: string | null;
+  email: string | null;
+  phone: string | null;
+  taxId: string | null;
+
+  // UI
+  pinColor: string | null;
+  hidden: boolean;
+
+  // Integration
+  externalId: string | null;
+  freezco: boolean | null;
+  mandanti: string | null;
+
+  // Tracking
+  lastVisitAt: string | null;
+  createdAt: string;
+
+  // Relationships
+  user: { email: string; name: string | null } | null;
+  assignedAgents: Array<{
+    userId: string;
+    name: string | null;
+    agentCode: string | null;
+  }>;
+  agreements: Array<{
+    id: string;
+    vendor: { id: string; name: string };
+    priceMode: string;
+    discountPct: number | null;
+    createdAt: string;
+  }>;
+  recentOrders: Array<{
+    id: string;
+    orderNumber: string;
+    createdAt: string;
+    totalCents: number;
+    status: string;
+  }>;
+  stats: {
+    totalVisits: number;
+    agreementCount: number;
+    orderCount: number;
+  } | null;
+};
+
+/**
+ * Fetch single client by ID for detail view
+ */
+export async function getClientById(clientId: string): Promise<ClientDetail> {
+  await requireRole("ADMIN", "AGENT");
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId, deletedAt: null },
+    include: {
+      User: {
+        select: {
+          email: true,
+          name: true,
+        },
+      },
+      AgentClient: {
+        include: {
+          User: {
+            select: {
+              id: true,
+              name: true,
+              agentCode: true,
+            },
+          },
+        },
+      },
+      Agreement: {
+        where: { deletedAt: null },
+        include: {
+          Vendor: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+      Order: {
+        select: {
+          id: true,
+          orderNumber: true,
+          createdAt: true,
+          totalCents: true,
+          status: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      },
+      ClientStats: true,
+      _count: {
+        select: {
+          Agreement: true,
+          Order: true,
+        },
+      },
+    },
+  });
+
+  if (!client) {
+    throw new Error("Client not found");
+  }
+
+  // Map to result type
+  return {
+    id: client.id,
+    name: client.name,
+    region: client.region,
+    fullAddress: client.fullAddress,
+    shortAddress: client.shortAddress,
+    deliveryAddress: client.deliveryAddress,
+    deliveryLat: client.deliveryLat,
+    deliveryLng: client.deliveryLng,
+    notes: client.notes,
+
+    // Contact
+    contactPerson: client.contactPerson,
+    email: client.email,
+    phone: client.phone,
+    taxId: client.taxId,
+
+    // UI
+    pinColor: client.pinColor,
+    hidden: client.hidden,
+
+    // Integration
+    externalId: client.externalId,
+    freezco: client.freezco,
+    mandanti: client.mandanti,
+
+    // Tracking
+    lastVisitAt: client.lastVisitAt?.toISOString() || null,
+    createdAt: client.createdAt.toISOString(),
+
+    // Relationships
+    user: client.User
+      ? {
+          email: client.User.email,
+          name: client.User.name,
+        }
+      : null,
+    assignedAgents: (client as any).AgentClient.filter(
+      (ac: any) => ac.User != null
+    ).map((ac: any) => ({
+      userId: ac.User.id,
+      name: ac.User.name,
+      agentCode: ac.User.agentCode,
+    })),
+    agreements: (client as any).Agreement.map((agreement: any) => ({
+      id: agreement.id,
+      vendor: {
+        id: agreement.Vendor.id,
+        name: agreement.Vendor.name,
+      },
+      priceMode: agreement.priceMode,
+      discountPct: agreement.discountPct,
+      createdAt: agreement.createdAt.toISOString(),
+    })),
+    recentOrders: (client as any).Order.map((order: any) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      createdAt: order.createdAt.toISOString(),
+      totalCents: order.totalCents,
+      status: order.status,
+    })),
+    stats: (client as any).ClientStats
+      ? {
+          totalVisits: (client as any).ClientStats.totalVisits,
+          agreementCount: (client as any)._count.Agreement,
+          orderCount: (client as any)._count.Order,
+        }
+      : null,
+  };
+}
