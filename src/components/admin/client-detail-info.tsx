@@ -10,6 +10,23 @@ type ClientDetailInfoProps = {
   client: ClientDetail;
 };
 
+function DetailField({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <div className="text-sm text-muted-foreground">{label}</div>
+      <div className="font-medium">{children}</div>
+    </div>
+  );
+}
+
 export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
   return (
     <Card>
@@ -22,10 +39,7 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
       <CardContent className="space-y-4">
         {/* Name & Region */}
         <div className="space-y-2">
-          <div>
-            <div className="text-sm text-muted-foreground">Client Name</div>
-            <div className="font-medium">{client.name}</div>
-          </div>
+          <DetailField label="Client Name">{client.name}</DetailField>
           {client.region && (
             <div>
               <div className="text-sm text-muted-foreground">Region</div>
@@ -38,31 +52,33 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
         <div className="space-y-2 pt-3 border-t">
           <h4 className="text-sm font-semibold">Contact Information</h4>
           {client.contactPerson && (
-            <div>
-              <div className="text-sm text-muted-foreground">
-                Contact Person
-              </div>
-              <div className="font-medium">{client.contactPerson}</div>
-            </div>
+            <DetailField label="Contact Person">
+              {client.contactPerson}
+            </DetailField>
           )}
           {client.email && (
             <div>
               <div className="text-sm text-muted-foreground">Email</div>
-              <div className="font-medium">{client.email}</div>
+              <a
+                href={`mailto:${client.email}`}
+                className="font-medium text-primary hover:underline"
+              >
+                {client.email}
+              </a>
             </div>
           )}
           {client.phone && (
             <div>
               <div className="text-sm text-muted-foreground">Phone</div>
-              <div className="font-medium">{client.phone}</div>
+              <a
+                href={`tel:${client.phone}`}
+                className="font-medium text-primary hover:underline"
+              >
+                {client.phone}
+              </a>
             </div>
           )}
-          {client.taxId && (
-            <div>
-              <div className="text-sm text-muted-foreground">Tax ID</div>
-              <div className="font-medium">{client.taxId}</div>
-            </div>
-          )}
+          {client.taxId && <DetailField label="Tax ID">{client.taxId}</DetailField>}
           {!client.contactPerson &&
             !client.email &&
             !client.phone &&
@@ -77,26 +93,17 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
         <div className="space-y-2 pt-3 border-t">
           <h4 className="text-sm font-semibold">Address Information</h4>
           {client.fullAddress && (
-            <div>
-              <div className="text-sm text-muted-foreground">Full Address</div>
-              <div className="font-medium">{client.fullAddress}</div>
-            </div>
+            <DetailField label="Full Address">{client.fullAddress}</DetailField>
           )}
           {client.deliveryAddress && (
-            <div>
-              <div className="text-sm text-muted-foreground">
-                Delivery Address
-              </div>
-              <div className="font-medium">{client.deliveryAddress}</div>
-            </div>
+            <DetailField label="Delivery Address">
+              {client.deliveryAddress}
+            </DetailField>
           )}
           {client.shortAddress && (
-            <div>
-              <div className="text-sm text-muted-foreground">Short Address</div>
-              <div className="font-medium">{client.shortAddress}</div>
-            </div>
+            <DetailField label="Short Address">{client.shortAddress}</DetailField>
           )}
-          {client.deliveryLat && client.deliveryLng && (
+          {client.deliveryLat != null && client.deliveryLng != null && (
             <div>
               <div className="text-sm text-muted-foreground">Coordinates</div>
               <div className="font-medium text-xs">
@@ -106,7 +113,9 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
           )}
           {!client.fullAddress &&
             !client.deliveryAddress &&
-            !client.shortAddress && (
+            !client.shortAddress &&
+            client.deliveryLat == null &&
+            client.deliveryLng == null && (
               <p className="text-sm text-muted-foreground">
                 No address information
               </p>
@@ -142,16 +151,12 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
 
         {/* Last Visit & Created */}
         <div className="space-y-2 pt-3 border-t">
-          <div>
-            <div className="text-sm text-muted-foreground">Last Visit</div>
-            <div className="font-medium">
-              {client.lastVisitAt ? formatDate(client.lastVisitAt) : "Never"}
-            </div>
-          </div>
-          <div>
-            <div className="text-sm text-muted-foreground">Client Since</div>
-            <div className="font-medium">{formatDate(client.createdAt)}</div>
-          </div>
+          <DetailField label="Last Visit">
+            {client.lastVisitAt ? formatDate(client.lastVisitAt) : "Never"}
+          </DetailField>
+          <DetailField label="Client Since">
+            {formatDate(client.createdAt)}
+          </DetailField>
         </div>
 
         {/* Notes */}
@@ -163,21 +168,23 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
         )}
 
         {/* UI Settings */}
-        <div className="pt-3 border-t">
-          <h4 className="text-sm font-semibold mb-2">UI Settings</h4>
-          <div className="flex gap-2">
-            {client.hidden && <Badge variant="secondary">Hidden on Map</Badge>}
-            {client.pinColor && (
-              <Badge variant="outline">
-                Pin Color:{" "}
-                <span
-                  className="inline-block w-3 h-3 rounded-full ml-1"
-                  style={{ backgroundColor: client.pinColor }}
-                />
-              </Badge>
-            )}
+        {(client.hidden || client.pinColor) && (
+          <div className="pt-3 border-t">
+            <h4 className="text-sm font-semibold mb-2">UI Settings</h4>
+            <div className="flex gap-2">
+              {client.hidden && <Badge variant="secondary">Hidden on Map</Badge>}
+              {client.pinColor && (
+                <Badge variant="outline">
+                  Pin Color:{" "}
+                  <span
+                    className="inline-block w-3 h-3 rounded-full ml-1"
+                    style={{ backgroundColor: client.pinColor }}
+                  />
+                </Badge>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Integration Info */}
         {(client.externalId || client.freezco || client.mandanti) && (

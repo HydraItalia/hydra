@@ -16,6 +16,19 @@ type ClientMapViewProps = {
 };
 
 export function ClientMapView({ lat, lng, address }: ClientMapViewProps) {
+  // Validate coordinates
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    console.error("Invalid coordinates:", { lat, lng });
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Location</CardTitle>
+          <CardDescription>Invalid coordinates provided</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   // Using OpenStreetMap static tiles (no API key required)
   // Alternative: Google Maps Static API or Mapbox Static API
   const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${
@@ -42,6 +55,8 @@ export function ClientMapView({ lat, lng, address }: ClientMapViewProps) {
             <iframe
               title="Client Location Map"
               src={mapUrl}
+              sandbox="allow-scripts allow-same-origin"
+              loading="lazy"
               className="w-full h-full"
               style={{ border: 0 }}
             />

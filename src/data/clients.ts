@@ -9,6 +9,53 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 
+/**
+ * Type for Prisma client query result with relations
+ * Used in getClientById to avoid excessive type assertions
+ */
+type PrismaClientWithRelations = {
+  id: string;
+  name: string;
+  region: string | null;
+  fullAddress: string | null;
+  shortAddress: string | null;
+  deliveryAddress: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  notes: string | null;
+  contactPerson: string | null;
+  email: string | null;
+  phone: string | null;
+  taxId: string | null;
+  pinColor: string | null;
+  hidden: boolean;
+  externalId: string | null;
+  freezco: boolean | null;
+  mandanti: string | null;
+  lastVisitAt: Date | null;
+  createdAt: Date;
+  User: { email: string; name: string | null } | null;
+  AgentClient: Array<{
+    User: { id: string; name: string | null; agentCode: string | null } | null;
+  }>;
+  Agreement: Array<{
+    id: string;
+    Vendor: { id: string; name: string };
+    priceMode: string;
+    discountPct: number | null;
+    createdAt: Date;
+  }>;
+  Order: Array<{
+    id: string;
+    orderNumber: string;
+    createdAt: Date;
+    totalCents: number;
+    status: string;
+  }>;
+  ClientStats: { totalVisits: number } | null;
+  _count: { Agreement: number; Order: number };
+};
+
 export type ClientFilters = {
   region?: string;
   hasAgreement?: boolean;
@@ -143,7 +190,7 @@ export async function fetchAllClientsForAdmin(
         },
         _count: {
           select: {
-            Agreement: true,
+            Agreement: { where: { deletedAt: null } },
             Order: true,
           },
         },
@@ -348,7 +395,7 @@ export async function getClientById(clientId: string): Promise<ClientDetail> {
       ClientStats: true,
       _count: {
         select: {
-          Agreement: true,
+          Agreement: { where: { deletedAt: null } },
           Order: true,
         },
       },
@@ -356,10 +403,12 @@ export async function getClientById(clientId: string): Promise<ClientDetail> {
   });
 
   if (!client) {
-    throw new Error("Client not found");
+    throw new Error(`Client not found: ${clientId}`);
   }
 
-  // Map to result type
+  // Map to result type - cast to our defined type for better type safety
+  const typedClient = client as PrismaClientWithRelations;
+
   return {
     id: client.id,
     name: client.name,

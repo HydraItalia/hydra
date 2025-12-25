@@ -14,7 +14,7 @@ import { Circle } from "lucide-react";
 type AuditLog = {
   id: string;
   action: string;
-  createdAt: Date;
+  createdAt: Date | string;
   actorUserId: string | null;
   entityType: string;
   entityId: string;
@@ -120,7 +120,7 @@ export function ClientActivityLog({ logs }: ClientActivityLogProps) {
                     )}
 
                     <time className="text-xs text-muted-foreground mt-2 block">
-                      {formatDateTime(log.createdAt.toISOString())}
+                      {formatDateTime(log.createdAt)}
                     </time>
                   </div>
                 </div>

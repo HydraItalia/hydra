@@ -29,18 +29,23 @@ export default async function ClientDetailPage({ params }: PageProps) {
   const { clientId } = await params;
 
   // Fetch client data
-  let client;
-  try {
-    client = await getClientById(clientId);
-  } catch {
+  const client = await getClientById(clientId);
+
+  if (!client) {
     notFound();
   }
 
   // Fetch audit logs for activity timeline
-  const auditLogs = await getAuditLogs("Client", clientId, {
-    limit: 20,
-    includeUser: true,
-  });
+  let auditLogs: Awaited<ReturnType<typeof getAuditLogs>> = [];
+  try {
+    auditLogs = await getAuditLogs("Client", clientId, {
+      limit: 20,
+      includeUser: true,
+    });
+  } catch (error) {
+    console.error("Failed to fetch audit logs:", error);
+    // Continue with empty logs - page can still render
+  }
 
   return (
     <div className="space-y-6">

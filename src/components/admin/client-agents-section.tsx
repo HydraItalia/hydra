@@ -74,7 +74,7 @@ export function ClientAgentsSection({
     };
 
     fetchAgents();
-  }, []);
+  }, [clientId]);
 
   const handleAssign = async (agentId: string) => {
     setIsAssigning(true);
