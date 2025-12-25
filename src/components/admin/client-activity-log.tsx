@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
 import { Circle } from "lucide-react";
+import type { JsonValue } from "@prisma/client/runtime/library";
 
 type AuditLog = {
   id: string;
@@ -18,7 +19,7 @@ type AuditLog = {
   actorUserId: string | null;
   entityType: string;
   entityId: string;
-  diff: any | null;
+  diff: JsonValue;
   User?: {
     id: string;
     name: string | null;
@@ -54,7 +55,7 @@ function formatActorName(user: AuditLog["User"]): {
   }
 
   const name = user.name || user.email;
-  const badge = user.agentCode || undefined;
+  const badge = user.agentCode ?? undefined;
 
   return { name, badge };
 }
@@ -106,18 +107,22 @@ export function ClientActivityLog({ logs }: ClientActivityLogProps) {
                       </p>
                     )}
 
-                    {log.diff && Object.keys(log.diff).length > 0 && (
-                      <div className="mt-2 text-xs">
-                        <details className="group">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                            View details
-                          </summary>
-                          <pre className="mt-2 p-2 rounded bg-muted text-xs overflow-x-auto">
-                            {JSON.stringify(log.diff, null, 2)}
-                          </pre>
-                        </details>
-                      </div>
-                    )}
+                    {log.diff &&
+                      typeof log.diff === "object" &&
+                      log.diff !== null &&
+                      !Array.isArray(log.diff) &&
+                      Object.keys(log.diff).length > 0 && (
+                        <div className="mt-2 text-xs">
+                          <details className="group">
+                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                              View details
+                            </summary>
+                            <pre className="mt-2 p-2 rounded bg-muted text-xs overflow-x-auto">
+                              {JSON.stringify(log.diff, null, 2)}
+                            </pre>
+                          </details>
+                        </div>
+                      )}
 
                     <time className="text-xs text-muted-foreground mt-2 block">
                       {formatDateTime(log.createdAt)}

@@ -24,6 +24,10 @@ type ClientAgreementsSectionProps = {
   agreements: Agreement[];
 };
 
+function formatPriceMode(mode: string): string {
+  return mode.charAt(0) + mode.slice(1).toLowerCase();
+}
+
 export function ClientAgreementsSection({
   agreements,
 }: ClientAgreementsSectionProps) {
@@ -62,7 +66,7 @@ export function ClientAgreementsSection({
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant="outline" className="text-xs">
-                        {agreement.priceMode}
+                        {formatPriceMode(agreement.priceMode)}
                       </Badge>
                       {agreement.discountPct !== null &&
                         agreement.discountPct > 0 && (

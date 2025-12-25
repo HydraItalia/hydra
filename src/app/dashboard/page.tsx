@@ -9,6 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import {
@@ -40,24 +45,33 @@ import {
 } from "@/actions/driver-shift";
 import { RouteProgressWidget } from "@/components/driver-route";
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams?: Promise<{ error?: string }>;
+};
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const user = await currentUser();
 
   if (!user) {
     redirect("/signin");
   }
 
+  const params = searchParams ? await searchParams : {};
+  const errorMessage = params.error === "unauthorized"
+    ? "You don't have permission to access that page."
+    : null;
+
   // Route to role-specific dashboard
   switch (user.role) {
     case "ADMIN":
     case "AGENT":
-      return <AdminAgentDashboard user={user} />;
+      return <AdminAgentDashboard user={user} errorMessage={errorMessage} />;
     case "VENDOR":
-      return <VendorDashboard user={user} />;
+      return <VendorDashboard user={user} errorMessage={errorMessage} />;
     case "CLIENT":
-      return <ClientDashboard user={user} />;
+      return <ClientDashboard user={user} errorMessage={errorMessage} />;
     case "DRIVER":
-      return <DriverDashboard user={user} />;
+      return <DriverDashboard user={user} errorMessage={errorMessage} />;
     default:
       return <div>Unauthorized</div>;
   }
@@ -66,8 +80,10 @@ export default async function DashboardPage() {
 // Admin/Agent Dashboard - Mission Control (Phase 9.0)
 async function AdminAgentDashboard({
   user,
+  errorMessage,
 }: {
   user: { role: string; name?: string | null; email: string };
+  errorMessage?: string | null;
 }) {
   // Fetch dashboard data in parallel
   let stats, recentOrders, recentDeliveries, activeShifts;
@@ -99,6 +115,15 @@ async function AdminAgentDashboard({
         title={user.role === "ADMIN" ? "Admin Dashboard" : "Agent Dashboard"}
         subtitle="Mission control for daily operations"
       />
+
+      {/* Error Message */}
+      {errorMessage && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Quick Links */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -208,8 +233,10 @@ async function AdminAgentDashboard({
 // Vendor Dashboard
 async function VendorDashboard({
   user,
+  errorMessage,
 }: {
   user: { vendorId?: string | null; name?: string | null; email: string };
+  errorMessage?: string | null;
 }) {
   if (!user.vendorId) {
     return <div>No vendor associated with this account</div>;
@@ -315,8 +342,10 @@ async function VendorDashboard({
 // Client Dashboard
 async function ClientDashboard({
   user,
+  errorMessage,
 }: {
   user: { clientId?: string | null; name?: string | null; email: string };
+  errorMessage?: string | null;
 }) {
   if (!user.clientId) {
     return <div>No client associated with this account</div>;
@@ -436,8 +465,10 @@ async function ClientDashboard({
 // Driver Dashboard
 async function DriverDashboard({
   user,
+  errorMessage,
 }: {
   user: { driverId?: string | null; name?: string | null; email: string };
+  errorMessage?: string | null;
 }) {
   if (!user.driverId) {
     return <div>No driver associated with this account</div>;

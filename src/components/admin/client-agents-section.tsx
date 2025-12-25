@@ -36,24 +36,32 @@ import {
 import { getAgentsForClientFilter } from "@/data/clients";
 
 type Agent = {
-  userId: string;
+  id: string;
   name: string | null;
   agentCode: string | null;
 };
 
 type ClientAgentsSectionProps = {
   clientId: string;
-  assignedAgents: Agent[];
+  assignedAgents: Array<{
+    userId: string;
+    name: string | null;
+    agentCode: string | null;
+  }>;
 };
 
 export function ClientAgentsSection({
   clientId,
-  assignedAgents: initialAgents,
+  assignedAgents,
 }: ClientAgentsSectionProps) {
+  // Map incoming assignedAgents (with userId) to local Agent type (with id)
+  const initialAgents: Agent[] = assignedAgents.map((agent) => ({
+    id: agent.userId,
+    name: agent.name,
+    agentCode: agent.agentCode,
+  }));
   const router = useRouter();
-  const [allAgents, setAllAgents] = useState<
-    Array<{ id: string; name: string | null; agentCode: string | null }>
-  >([]);
+  const [allAgents, setAllAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [agentToRemove, setAgentToRemove] = useState<Agent | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -102,7 +110,7 @@ export function ClientAgentsSection({
     try {
       const result = await unassignAgentFromClient(
         clientId,
-        agentToRemove.userId
+        agentToRemove.id
       );
 
       if (result.success) {
@@ -122,7 +130,7 @@ export function ClientAgentsSection({
 
   // Filter out already assigned agents
   const availableAgents = allAgents.filter(
-    (agent) => !initialAgents.some((assigned) => assigned.userId === agent.id)
+    (agent) => !initialAgents.some((assigned) => assigned.id === agent.id)
   );
 
   return (
@@ -187,7 +195,7 @@ export function ClientAgentsSection({
             <div className="space-y-2">
               {initialAgents.map((agent) => (
                 <div
-                  key={agent.userId}
+                  key={agent.id}
                   className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
                 >
                   <div className="flex items-center gap-3">
@@ -205,6 +213,7 @@ export function ClientAgentsSection({
                     variant="ghost"
                     onClick={() => setAgentToRemove(agent)}
                     className="h-8 w-8 p-0"
+                    disabled={isRemoving}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -230,8 +239,7 @@ export function ClientAgentsSection({
                   agentToRemove?.name ||
                   "this agent"}
               </strong>{" "}
-              from this client? This action can be undone by re-assigning the
-              agent.
+              from this client?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

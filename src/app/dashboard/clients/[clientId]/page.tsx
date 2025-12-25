@@ -15,18 +15,17 @@ type PageProps = {
 };
 
 export default async function ClientDetailPage({ params }: PageProps) {
+  const { clientId } = await params;
   const user = await currentUser();
 
   // Only allow ADMIN and AGENT roles
   if (!user) {
-    redirect("/signin?callbackUrl=/dashboard/clients");
+    redirect(`/signin?callbackUrl=/dashboard/clients/${clientId}`);
   }
 
   if (user.role !== "ADMIN" && user.role !== "AGENT") {
-    redirect("/dashboard");
+    redirect("/dashboard?error=unauthorized");
   }
-
-  const { clientId } = await params;
 
   // Fetch client data
   const client = await getClientById(clientId);
