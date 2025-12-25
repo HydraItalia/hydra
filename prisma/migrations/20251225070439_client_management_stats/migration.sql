@@ -35,19 +35,21 @@ CREATE TABLE "ClientStats" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Client_externalId_key" ON "Client"("externalId");
+CREATE UNIQUE INDEX IF NOT EXISTS "Client_externalId_key" ON "Client"("externalId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ClientStats_clientId_key" ON "ClientStats"("clientId");
+CREATE UNIQUE INDEX IF NOT EXISTS "ClientStats_clientId_key" ON "ClientStats"("clientId");
 
 -- CreateIndex
-CREATE INDEX "Client_region_idx" ON "Client"("region");
+CREATE INDEX IF NOT EXISTS "Client_region_idx" ON "Client"("region");
 
 -- CreateIndex
-CREATE INDEX "Client_email_idx" ON "Client"("email");
+CREATE INDEX IF NOT EXISTS "Client_email_idx" ON "Client"("email");
 
 -- CreateIndex
-CREATE INDEX "Client_hidden_idx" ON "Client"("hidden");
+CREATE INDEX IF NOT EXISTS "Client_hidden_idx" ON "Client"("hidden");
 
 -- AddForeignKey
-ALTER TABLE "ClientStats" ADD CONSTRAINT "ClientStats_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ClientStats" ADD CONSTRAINT "ClientStats_clientId_fkey"
+FOREIGN KEY ("clientId") REFERENCES "Client"("id")
+ON DELETE CASCADE ON UPDATE CASCADE;
