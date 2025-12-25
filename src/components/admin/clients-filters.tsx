@@ -192,9 +192,9 @@ export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
 
         {/* Agreement Filter */}
         <div>
-          <label className="text-sm font-medium mb-2 block">Agreement</label>
+          <label htmlFor="agreement-filter" className="text-sm font-medium mb-2 block">Agreement</label>
           <Select value={agreementFilter} onValueChange={handleAgreementChange}>
-            <SelectTrigger>
+            <SelectTrigger id="agreement-filter">
               <SelectValue placeholder="All clients" />
             </SelectTrigger>
             <SelectContent>
@@ -207,11 +207,11 @@ export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
 
         {/* Agent Filter */}
         <div>
-          <label className="text-sm font-medium mb-2 block">
+          <label htmlFor="agent-filter" className="text-sm font-medium mb-2 block">
             Assigned Agent
           </label>
           <Select value={agentFilter} onValueChange={handleAgentChange}>
-            <SelectTrigger>
+            <SelectTrigger id="agent-filter">
               <SelectValue placeholder="All agents" />
             </SelectTrigger>
             <SelectContent>
