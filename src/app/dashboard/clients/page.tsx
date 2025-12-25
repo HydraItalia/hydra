@@ -58,6 +58,20 @@ export default async function ClientsPage({
   const sortBy = params?.sortBy || "name";
   const sortOrder = params?.sortOrder || "asc";
 
+  // Helper to build URL with clean params (filters out undefined values)
+  const buildPageUrl = (pageNumber: number) => {
+    const cleanParams: Record<string, string> = {};
+    if (region) cleanParams.region = region;
+    if (hasAgreement !== undefined)
+      cleanParams.hasAgreement = String(hasAgreement);
+    if (agentUserId) cleanParams.agent = agentUserId;
+    if (searchQuery) cleanParams.search = searchQuery;
+    if (sortBy !== "name") cleanParams.sortBy = sortBy;
+    if (sortOrder !== "asc") cleanParams.sortOrder = sortOrder;
+    cleanParams.page = String(pageNumber);
+    return `/dashboard/clients?${new URLSearchParams(cleanParams).toString()}`;
+  };
+
   // Fetch data in parallel
   const [clientsResult, regions, agents] = await Promise.all([
     fetchAllClientsForAdmin({
@@ -114,12 +128,7 @@ export default async function ClientsPage({
                   asChild={clientsResult.currentPage > 1}
                 >
                   {clientsResult.currentPage > 1 ? (
-                    <a
-                      href={`/dashboard/clients?${new URLSearchParams({
-                        ...params,
-                        page: String(clientsResult.currentPage - 1),
-                      }).toString()}`}
-                    >
+                    <a href={buildPageUrl(clientsResult.currentPage - 1)}>
                       <ChevronLeft className="h-4 w-4 mr-1" />
                       Previous
                     </a>
@@ -139,12 +148,7 @@ export default async function ClientsPage({
                   asChild={clientsResult.currentPage < clientsResult.totalPages}
                 >
                   {clientsResult.currentPage < clientsResult.totalPages ? (
-                    <a
-                      href={`/dashboard/clients?${new URLSearchParams({
-                        ...params,
-                        page: String(clientsResult.currentPage + 1),
-                      }).toString()}`}
-                    >
+                    <a href={buildPageUrl(clientsResult.currentPage + 1)}>
                       Next
                       <ChevronRight className="h-4 w-4 ml-1" />
                     </a>

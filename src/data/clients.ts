@@ -171,7 +171,9 @@ export async function fetchAllClientsForAdmin(
     hidden: client.hidden,
     lastVisitAt: client.lastVisitAt?.toISOString() || null,
     totalVisits: (client as any).ClientStats?.totalVisits || 0,
-    assignedAgents: (client as any).AgentClient.map((ac: any) => ({
+    assignedAgents: (client as any).AgentClient.filter(
+      (ac: any) => ac.User != null
+    ).map((ac: any) => ({
       userId: ac.User.id,
       name: ac.User.name,
       agentCode: ac.User.agentCode,

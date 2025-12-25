@@ -94,9 +94,11 @@ export function ClientsTable({ clients }: ClientsTableProps) {
                         {client.email}
                       </div>
                     )}
-                    {!client.contactPerson && !client.phone && !client.email && (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    )}
+                    {!client.contactPerson &&
+                      !client.phone &&
+                      !client.email && (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                   </div>
                 </TableCell>
                 <TableCell>
@@ -109,7 +111,7 @@ export function ClientsTable({ clients }: ClientsTableProps) {
                 <TableCell className="text-sm text-muted-foreground">
                   {client.lastVisitAt
                     ? formatDate(client.lastVisitAt)
-                    : "—"}
+                    : "Never"}
                 </TableCell>
                 <TableCell className="text-center font-medium">
                   {client.totalVisits > 0 ? (

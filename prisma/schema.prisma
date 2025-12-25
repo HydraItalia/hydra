@@ -166,7 +166,6 @@ model Client {
 
   @@index([region])
   @@index([email])
-  @@index([externalId])
   @@index([hidden])
 }
 
@@ -193,8 +192,6 @@ model ClientStats {
   updatedAt           DateTime @updatedAt
 
   Client              Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  @@index([clientId])
 }
 
 model Delivery {

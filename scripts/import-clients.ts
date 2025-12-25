@@ -10,6 +10,8 @@ import { PrismaClient } from "@prisma/client";
 import { createId } from "@paralleldrive/cuid2";
 import * as fs from "fs";
 import * as path from "path";
+import { parse as parseDateFns, isValid } from "date-fns";
+import { parse as parseCSVSync } from "csv-parse/sync";
 
 const prisma = new PrismaClient();
 
@@ -44,36 +46,23 @@ type CSVRow = {
 };
 
 /**
- * Parse CSV file
+ * Parse CSV file using proper CSV parser that handles quoted fields
  */
 function parseCSV(filePath: string): CSVRow[] {
   const content = fs.readFileSync(filePath, "utf-8");
-  const lines = content.split("\n");
 
-  if (lines.length === 0) {
+  const records = parseCSVSync(content, {
+    delimiter: ";",
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+  }) as CSVRow[];
+
+  if (records.length === 0) {
     throw new Error("CSV file is empty");
   }
 
-  // Parse header (semicolon-delimited)
-  const headers = lines[0].split(";").map((h) => h.trim());
-
-  // Parse rows
-  const rows: CSVRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue; // Skip empty lines
-
-    const values = line.split(";");
-    const row: any = {};
-
-    headers.forEach((header, index) => {
-      row[header] = values[index] ? values[index].trim() : "";
-    });
-
-    rows.push(row as CSVRow);
-  }
-
-  return rows;
+  return records;
 }
 
 /**
@@ -86,7 +75,7 @@ function parseBoolean(value: string): boolean {
 /**
  * Parse integer from CSV
  */
-function parseInt(value: string): number {
+function parseIntFromCSV(value: string): number {
   const num = Number(value);
   return isNaN(num) ? 0 : Math.floor(num);
 }
@@ -94,26 +83,24 @@ function parseInt(value: string): number {
 /**
  * Parse float from CSV
  */
-function parseFloat(value: string): number | null {
+function parseFloatFromCSV(value: string): number | null {
   const num = Number(value);
   return isNaN(num) ? null : num;
 }
 
 /**
  * Parse date from CSV (format: DD/MM/YY)
+ * Uses date-fns for proper date parsing with sliding window for 2-digit years
  */
 function parseDate(value: string): Date | null {
   if (!value || value.trim() === "") return null;
 
-  const parts = value.split("/");
-  if (parts.length !== 3) return null;
-
-  const day = Number(parts[0]);
-  const month = Number(parts[1]) - 1; // JS months are 0-indexed
-  const year = Number(parts[2]) + 2000; // Assuming 20XX
-
-  const date = new Date(year, month, day);
-  return isNaN(date.getTime()) ? null : date;
+  try {
+    const date = parseDateFns(value, "dd/MM/yy", new Date());
+    return isValid(date) ? date : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -174,61 +161,63 @@ async function importClients(csvPath: string, dryRun: boolean = false) {
         continue;
       }
 
-      // Create client
-      const client = await prisma.client.create({
-        data: {
-          id: createId(),
-          name: row.nome,
+      // Create client and stats in a transaction to ensure data integrity
+      await prisma.$transaction(async (tx) => {
+        const client = await tx.client.create({
+          data: {
+            id: createId(),
+            name: row.nome,
 
-          // Address & Location
-          deliveryAddress: row.Indirizzo || null,
-          deliveryLat: parseFloat(row.Latitudine),
-          deliveryLng: parseFloat(row.Longitudine),
-          fullAddress: row.Indirizzo || null,
+            // Address & Location
+            deliveryAddress: row.Indirizzo || null,
+            deliveryLat: parseFloatFromCSV(row.Latitudine),
+            deliveryLng: parseFloatFromCSV(row.Longitudine),
+            fullAddress: row.Indirizzo || null,
 
-          // Contact Info
-          contactPerson: row.Referente || null,
-          email: row.Email || null,
-          phone: combinePhones(row.Telefono, row.Cellulare),
-          taxId: row["P.IVA/C.F."] || null,
+            // Contact Info
+            contactPerson: row.Referente || null,
+            email: row.Email || null,
+            phone: combinePhones(row.Telefono, row.Cellulare),
+            taxId: row["P.IVA/C.F."] || null,
 
-          // Display/UI
-          pinColor: row["Colore Pin"] || null,
-          hidden: parseBoolean(row.Nascosto),
+            // Display/UI
+            pinColor: row["Colore Pin"] || null,
+            hidden: parseBoolean(row.Nascosto),
 
-          // Integration/Migration
-          externalId: row.GentmoID || null,
-          freezco: parseBoolean(row["Freezco "]), // Note: trailing space
-          mandanti: row.Mandanti || null,
+            // Integration/Migration
+            externalId: row.GentmoID || null,
+            freezco: parseBoolean(row["Freezco "]), // Note: trailing space
+            mandanti: row.Mandanti || null,
 
-          // Tracking
-          lastVisitAt: parseDate(row["Ultima Visita"]),
+            // Tracking
+            lastVisitAt: parseDate(row["Ultima Visita"]),
 
-          notes: row.Note || null,
-        },
-      });
+            notes: row.Note || null,
+          },
+        });
 
-      // Create client stats
-      await prisma.clientStats.create({
-        data: {
-          id: createId(),
-          clientId: client.id,
+        // Create client stats
+        await tx.clientStats.create({
+          data: {
+            id: createId(),
+            clientId: client.id,
 
-          // Visit/Contact Statistics
-          totalVisits: parseInt(row["Visite Totali"]),
-          clientVisits: parseInt(row["visita dal cliente"]),
-          phoneCalls: parseInt(row.telefonata),
-          emails: parseInt(row.email),
-          other: parseInt(row.altro),
+            // Visit/Contact Statistics
+            totalVisits: parseIntFromCSV(row["Visite Totali"]),
+            clientVisits: parseIntFromCSV(row["visita dal cliente"]),
+            phoneCalls: parseIntFromCSV(row.telefonata),
+            emails: parseIntFromCSV(row.email),
+            other: parseIntFromCSV(row.altro),
 
-          // Business Statistics
-          deliveryCount: parseInt(row.consegna),
-          bankTransferCount: parseInt(row.bonifico),
-          invoiceCount: parseInt(row.fattura),
-          collectionCount: parseInt(row.incasso),
-          failedCollectionCount: parseInt(row["incasso mancato"]),
-          extensionCount: parseInt(row.proroga),
-        },
+            // Business Statistics
+            deliveryCount: parseIntFromCSV(row.consegna),
+            bankTransferCount: parseIntFromCSV(row.bonifico),
+            invoiceCount: parseIntFromCSV(row.fattura),
+            collectionCount: parseIntFromCSV(row.incasso),
+            failedCollectionCount: parseIntFromCSV(row["incasso mancato"]),
+            extensionCount: parseIntFromCSV(row.proroga),
+          },
+        });
       });
 
       console.log(`✅ Imported: ${row.nome}`);
@@ -264,7 +253,7 @@ async function main() {
   }
 
   const dryRun = args.includes("--dry-run");
-  const csvPath = path.resolve(args[0]);
+  const csvPath = path.resolve(args.filter((arg) => arg !== "--dry-run")[0]);
 
   if (!fs.existsSync(csvPath)) {
     console.error(`Error: File not found: ${csvPath}`);

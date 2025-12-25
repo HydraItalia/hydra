@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -21,6 +21,7 @@ type ClientsFiltersProps = {
 export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isUserTyping = useRef(false);
 
   // Filter states
   const [regionFilter, setRegionFilter] = useState(
@@ -46,8 +47,12 @@ export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
 
   // Debounced search
   useEffect(() => {
+    if (!isUserTyping.current) {
+      return;
+    }
+
     const timer = setTimeout(() => {
-      const params = new URLSearchParams(searchParams);
+      const params = new URLSearchParams(searchParams.toString());
 
       if (searchQuery && searchQuery.trim()) {
         params.set("search", searchQuery.trim());
@@ -59,6 +64,7 @@ export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
       params.delete("page");
 
       router.push(`/dashboard/clients?${params.toString()}`);
+      isUserTyping.current = false;
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
@@ -143,7 +149,10 @@ export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
         <Input
           placeholder="Search clients by name..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            isUserTyping.current = true;
+            setSearchQuery(e.target.value);
+          }}
           className="pl-9 pr-9"
         />
         {searchQuery && (
@@ -151,7 +160,10 @@ export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
             variant="ghost"
             size="sm"
             className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-            onClick={() => setSearchQuery("")}
+            onClick={() => {
+              isUserTyping.current = true;
+              setSearchQuery("");
+            }}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -162,9 +174,9 @@ export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Region Filter */}
         <div>
-          <label className="text-sm font-medium mb-2 block">Region</label>
+          <label htmlFor="region-filter" className="text-sm font-medium mb-2 block">Region</label>
           <Select value={regionFilter} onValueChange={handleRegionChange}>
-            <SelectTrigger>
+            <SelectTrigger id="region-filter">
               <SelectValue placeholder="All regions" />
             </SelectTrigger>
             <SelectContent>
