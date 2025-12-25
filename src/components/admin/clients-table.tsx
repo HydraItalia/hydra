@@ -40,16 +40,18 @@ export function ClientsTable({ clients }: ClientsTableProps) {
   return (
     <>
       {/* Desktop Table View */}
-      <div className="hidden md:block">
+      <div className="hidden lg:block overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Client Name</TableHead>
+              <TableHead>Contact Info</TableHead>
               <TableHead>Region</TableHead>
+              <TableHead>Last Visit</TableHead>
+              <TableHead className="text-center">Visits</TableHead>
               <TableHead>Assigned Agents</TableHead>
-              <TableHead className="text-center">Active Agreements</TableHead>
-              <TableHead className="text-center">Total Orders</TableHead>
-              <TableHead>Joined</TableHead>
+              <TableHead className="text-center">Agreements</TableHead>
+              <TableHead className="text-center">Orders</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -69,17 +71,51 @@ export function ClientsTable({ clients }: ClientsTableProps) {
                   >
                     {client.name}
                   </Link>
-                  {client.shortAddress && (
-                    <div className="text-sm text-muted-foreground">
-                      {client.shortAddress}
+                  {(client.deliveryAddress || client.shortAddress) && (
+                    <div className="text-sm text-muted-foreground max-w-[200px] truncate">
+                      {client.deliveryAddress || client.shortAddress}
                     </div>
                   )}
+                </TableCell>
+                <TableCell>
+                  <div className="space-y-1 min-w-[150px]">
+                    {client.contactPerson && (
+                      <div className="text-sm font-medium">
+                        {client.contactPerson}
+                      </div>
+                    )}
+                    {client.phone && (
+                      <div className="text-sm text-muted-foreground">
+                        {client.phone}
+                      </div>
+                    )}
+                    {client.email && (
+                      <div className="text-sm text-muted-foreground truncate max-w-[150px]">
+                        {client.email}
+                      </div>
+                    )}
+                    {!client.contactPerson && !client.phone && !client.email && (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {client.region ? (
                     <Badge variant="outline">{client.region}</Badge>
                   ) : (
                     <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {client.lastVisitAt
+                    ? formatDate(client.lastVisitAt)
+                    : "—"}
+                </TableCell>
+                <TableCell className="text-center font-medium">
+                  {client.totalVisits > 0 ? (
+                    client.totalVisits
+                  ) : (
+                    <span className="text-muted-foreground">0</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -105,10 +141,11 @@ export function ClientsTable({ clients }: ClientsTableProps) {
                   )}
                 </TableCell>
                 <TableCell className="text-center font-medium">
-                  {client.orderCount}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(client.createdAt)}
+                  {client.orderCount > 0 ? (
+                    client.orderCount
+                  ) : (
+                    <span className="text-muted-foreground">0</span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -117,7 +154,7 @@ export function ClientsTable({ clients }: ClientsTableProps) {
       </div>
 
       {/* Mobile Card View */}
-      <div className="space-y-4 md:hidden">
+      <div className="space-y-4 lg:hidden">
         {clients.map((client) => (
           <Link key={client.id} href={`/dashboard/clients/${client.id}`}>
             <Card className="hover:bg-muted/50 transition-colors">
@@ -125,12 +162,36 @@ export function ClientsTable({ clients }: ClientsTableProps) {
                 {/* Client Name */}
                 <div>
                   <div className="font-medium">{client.name}</div>
-                  {client.shortAddress && (
+                  {(client.deliveryAddress || client.shortAddress) && (
                     <div className="text-sm text-muted-foreground">
-                      {client.shortAddress}
+                      {client.deliveryAddress || client.shortAddress}
                     </div>
                   )}
                 </div>
+
+                {/* Contact Info */}
+                {(client.contactPerson || client.phone || client.email) && (
+                  <div className="space-y-1 py-2 border-t">
+                    <div className="text-xs text-muted-foreground mb-1">
+                      Contact Information
+                    </div>
+                    {client.contactPerson && (
+                      <div className="text-sm font-medium">
+                        {client.contactPerson}
+                      </div>
+                    )}
+                    {client.phone && (
+                      <div className="text-sm text-muted-foreground">
+                        {client.phone}
+                      </div>
+                    )}
+                    {client.email && (
+                      <div className="text-sm text-muted-foreground break-all">
+                        {client.email}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Region */}
                 {client.region && (
@@ -138,6 +199,28 @@ export function ClientsTable({ clients }: ClientsTableProps) {
                     <Badge variant="outline">{client.region}</Badge>
                   </div>
                 )}
+
+                {/* Last Visit & Total Visits */}
+                <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                  <div>
+                    <div className="text-xs text-muted-foreground">
+                      Last Visit
+                    </div>
+                    <div className="text-sm font-medium">
+                      {client.lastVisitAt
+                        ? formatDate(client.lastVisitAt)
+                        : "Never"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">
+                      Total Visits
+                    </div>
+                    <div className="text-sm font-medium">
+                      {client.totalVisits}
+                    </div>
+                  </div>
+                </div>
 
                 {/* Assigned Agents */}
                 <div>
@@ -182,7 +265,7 @@ export function ClientsTable({ clients }: ClientsTableProps) {
                 </div>
 
                 {/* Joined Date */}
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground pt-2 border-t">
                   Joined {formatDate(client.createdAt)}
                 </div>
               </CardContent>

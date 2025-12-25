@@ -28,6 +28,16 @@ export type ClientListResult = {
   name: string;
   region: string | null;
   shortAddress: string | null;
+  deliveryAddress: string | null;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  email: string | null;
+  phone: string | null;
+  contactPerson: string | null;
+  pinColor: string | null;
+  hidden: boolean;
+  lastVisitAt: string | null;
+  totalVisits: number;
   assignedAgents: Array<{
     userId: string;
     name: string | null;
@@ -126,6 +136,11 @@ export async function fetchAllClientsForAdmin(
             },
           },
         },
+        ClientStats: {
+          select: {
+            totalVisits: true,
+          },
+        },
         _count: {
           select: {
             Agreement: true,
@@ -146,13 +161,23 @@ export async function fetchAllClientsForAdmin(
     name: client.name,
     region: client.region,
     shortAddress: client.shortAddress,
-    assignedAgents: client.AgentClient.map((ac) => ({
+    deliveryAddress: client.deliveryAddress,
+    deliveryLat: client.deliveryLat,
+    deliveryLng: client.deliveryLng,
+    email: client.email,
+    phone: client.phone,
+    contactPerson: client.contactPerson,
+    pinColor: client.pinColor,
+    hidden: client.hidden,
+    lastVisitAt: client.lastVisitAt?.toISOString() || null,
+    totalVisits: (client as any).ClientStats?.totalVisits || 0,
+    assignedAgents: (client as any).AgentClient.map((ac: any) => ({
       userId: ac.User.id,
       name: ac.User.name,
       agentCode: ac.User.agentCode,
     })),
-    agreementCount: client._count.Agreement,
-    orderCount: client._count.Order,
+    agreementCount: (client as any)._count.Agreement,
+    orderCount: (client as any)._count.Order,
     createdAt: client.createdAt.toISOString(),
   }));
 
