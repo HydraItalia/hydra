@@ -80,7 +80,7 @@ export default async function CatalogPage({
   // Parse pagination params
   const page = Math.max(parseInt(params.page || "1"), 1);
   const pageSize = Math.min(
-    Math.max(parseInt(params.pageSize || "24"), 12),
+    Math.max(parseInt(params.pageSize || "12"), 12),
     60
   );
 
