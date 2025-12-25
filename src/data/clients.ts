@@ -16,8 +16,11 @@ export type ClientFilters = {
   searchQuery?: string;
   page?: number;
   pageSize?: number;
-  sortBy?: "name" | "orderCount" | "region";
+  sortBy?: "name" | "region";
   sortOrder?: "asc" | "desc";
+  // NOTE: orderCount sorting removed - would require database-level sorting
+  // to work correctly with pagination. Consider adding a computed column
+  // or aggregation in the future.
 };
 
 export type ClientListResult = {
@@ -25,7 +28,11 @@ export type ClientListResult = {
   name: string;
   region: string | null;
   shortAddress: string | null;
-  assignedAgents: Array<{ userId: string; name: string | null; agentCode: string | null }>;
+  assignedAgents: Array<{
+    userId: string;
+    name: string | null;
+    agentCode: string | null;
+  }>;
   agreementCount: number;
   orderCount: number;
   createdAt: string;
@@ -99,7 +106,7 @@ export async function fetchAllClientsForAdmin(
   } else if (sortBy === "region") {
     orderBy = { region: sortOrder };
   } else {
-    // For orderCount, we'll need to handle this in application code after fetching
+    // Default to name sorting
     orderBy = { name: sortOrder };
   }
 
@@ -119,11 +126,11 @@ export async function fetchAllClientsForAdmin(
             },
           },
         },
-        Agreement: {
-          select: { id: true },
-        },
-        Order: {
-          select: { id: true },
+        _count: {
+          select: {
+            Agreement: true,
+            Order: true,
+          },
         },
       },
       orderBy,
@@ -134,7 +141,7 @@ export async function fetchAllClientsForAdmin(
   ]);
 
   // Map to result type
-  let data: ClientListResult[] = clients.map((client) => ({
+  const data: ClientListResult[] = clients.map((client) => ({
     id: client.id,
     name: client.name,
     region: client.region,
@@ -144,18 +151,10 @@ export async function fetchAllClientsForAdmin(
       name: ac.User.name,
       agentCode: ac.User.agentCode,
     })),
-    agreementCount: client.Agreement.length,
-    orderCount: client.Order.length,
+    agreementCount: client._count.Agreement,
+    orderCount: client._count.Order,
     createdAt: client.createdAt.toISOString(),
   }));
-
-  // Sort by orderCount if requested (application-level sorting)
-  if (sortBy === "orderCount") {
-    data = data.sort((a, b) => {
-      const comparison = a.orderCount - b.orderCount;
-      return sortOrder === "asc" ? comparison : -comparison;
-    });
-  }
 
   const totalPages = Math.ceil(total / validPageSize);
 
@@ -184,9 +183,7 @@ export async function getClientRegions(): Promise<string[]> {
     orderBy: { region: "asc" },
   });
 
-  return regions
-    .map((r) => r.region)
-    .filter((r): r is string => r !== null);
+  return regions.map((r) => r.region).filter((r): r is string => r !== null);
 }
 
 /**

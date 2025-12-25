@@ -36,6 +36,14 @@ export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
     searchParams.get("search") || ""
   );
 
+  // Sync state with URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    setRegionFilter(searchParams.get("region") || "all");
+    setAgreementFilter(searchParams.get("hasAgreement") || "all");
+    setAgentFilter(searchParams.get("agent") || "all");
+    setSearchQuery(searchParams.get("search") || "");
+  }, [searchParams]);
+
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -173,10 +181,7 @@ export function ClientsFilters({ regions, agents }: ClientsFiltersProps) {
         {/* Agreement Filter */}
         <div>
           <label className="text-sm font-medium mb-2 block">Agreement</label>
-          <Select
-            value={agreementFilter}
-            onValueChange={handleAgreementChange}
-          >
+          <Select value={agreementFilter} onValueChange={handleAgreementChange}>
             <SelectTrigger>
               <SelectValue placeholder="All clients" />
             </SelectTrigger>

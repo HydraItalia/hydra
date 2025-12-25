@@ -24,7 +24,7 @@ type SearchParams = {
   agent?: string;
   search?: string;
   page?: string;
-  sortBy?: "name" | "orderCount" | "region";
+  sortBy?: "name" | "region";
   sortOrder?: "asc" | "desc";
 };
 

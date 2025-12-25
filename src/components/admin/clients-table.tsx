@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +20,8 @@ type ClientsTableProps = {
 };
 
 export function ClientsTable({ clients }: ClientsTableProps) {
+  const router = useRouter();
+
   if (clients.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -55,7 +58,7 @@ export function ClientsTable({ clients }: ClientsTableProps) {
                 key={client.id}
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => {
-                  window.location.href = `/dashboard/clients/${client.id}`;
+                  router.push(`/dashboard/clients/${client.id}`);
                 }}
               >
                 <TableCell>
@@ -144,7 +147,11 @@ export function ClientsTable({ clients }: ClientsTableProps) {
                   {client.assignedAgents.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                       {client.assignedAgents.map((agent) => (
-                        <Badge key={agent.userId} variant="secondary" className="text-xs">
+                        <Badge
+                          key={agent.userId}
+                          variant="secondary"
+                          className="text-xs"
+                        >
                           {agent.agentCode || agent.name || "Unknown"}
                         </Badge>
                       ))}
