@@ -227,3 +227,204 @@ export async function getAgentsForVendorFilter(): Promise<
 
   return agents;
 }
+
+export type VendorDetail = {
+  // Basic info
+  id: string;
+  name: string;
+  region: string | null;
+  address: string | null;
+  businessHours: string | null;
+  notes: string | null;
+
+  // Contact
+  contactEmail: string | null;
+  contactPhone: string | null;
+
+  // Tracking
+  createdAt: string;
+
+  // Relationships
+  user: { email: string; name: string | null } | null;
+  assignedAgents: Array<{
+    userId: string;
+    name: string | null;
+    agentCode: string | null;
+  }>;
+  products: Array<{
+    id: string;
+    isActive: boolean;
+    stockQty: number;
+    vendorSku: string;
+    product: {
+      id: string;
+      name: string;
+    };
+  }>;
+  agreements: Array<{
+    id: string;
+    client: { id: string; name: string };
+    priceMode: string;
+    discountPct: number | null;
+    createdAt: string;
+  }>;
+  stats: {
+    totalProducts: number;
+    activeProducts: number;
+    lowStockProducts: number;
+    agreementCount: number;
+  };
+};
+
+/**
+ * Fetch single vendor by ID for detail view
+ */
+export async function getVendorById(vendorId: string): Promise<VendorDetail> {
+  await requireRole("ADMIN", "AGENT");
+
+  // Fetch vendor, total product count, and low stock count in parallel
+  const [vendor, totalProductCount, lowStockCount] = await Promise.all([
+    prisma.vendor.findUnique({
+      where: { id: vendorId, deletedAt: null },
+      include: {
+        User: {
+          select: {
+            email: true,
+            name: true,
+          },
+        },
+        AgentVendor: {
+          include: {
+            User: {
+              select: {
+                id: true,
+                name: true,
+                agentCode: true,
+              },
+            },
+          },
+        },
+        VendorProduct: {
+          where: { deletedAt: null },
+          include: {
+            Product: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: [
+            { isActive: "desc" },
+            { stockQty: "asc" }, // Low stock first within each isActive group
+          ],
+          take: 50, // Limit for performance
+        },
+        Agreement: {
+          where: { deletedAt: null },
+          include: {
+            Client: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+        },
+        _count: {
+          select: {
+            VendorProduct: {
+              where: {
+                isActive: true,
+                deletedAt: null,
+              },
+            },
+            Agreement: { where: { deletedAt: null } },
+          },
+        },
+      },
+    }),
+    // Separate count query for total products (all non-deleted)
+    prisma.vendorProduct.count({
+      where: {
+        vendorId,
+        deletedAt: null,
+      },
+    }),
+    // Separate count query for low stock products (accurate for inventory decisions)
+    prisma.vendorProduct.count({
+      where: {
+        vendorId,
+        deletedAt: null,
+        isActive: true,
+        stockQty: { lte: 10 },
+      },
+    }),
+  ]);
+
+  if (!vendor) {
+    throw new Error(`Vendor not found: ${vendorId}`);
+  }
+
+  // Map to result type - use any casting for flexibility with Prisma includes
+  const typedVendor = vendor as any;
+
+  return {
+    // Basic info
+    id: vendor.id,
+    name: vendor.name,
+    region: vendor.region,
+    address: vendor.address,
+    businessHours: vendor.businessHours,
+    notes: vendor.notes,
+
+    // Contact
+    contactEmail: vendor.contactEmail,
+    contactPhone: vendor.contactPhone,
+
+    // Tracking
+    createdAt: vendor.createdAt.toISOString(),
+
+    // Relationships
+    user: vendor.User
+      ? {
+          email: vendor.User.email,
+          name: vendor.User.name,
+        }
+      : null,
+    assignedAgents: (vendor as any).AgentVendor.filter(
+      (av: any) => av.User != null
+    ).map((av: any) => ({
+      userId: av.User.id,
+      name: av.User.name,
+      agentCode: av.User.agentCode,
+    })),
+    products: (vendor as any).VendorProduct.map((vp: any) => ({
+      id: vp.id,
+      isActive: vp.isActive,
+      stockQty: vp.stockQty,
+      vendorSku: vp.vendorSku,
+      product: {
+        id: vp.Product.id,
+        name: vp.Product.name,
+      },
+    })),
+    agreements: (vendor as any).Agreement.map((agreement: any) => ({
+      id: agreement.id,
+      client: {
+        id: agreement.Client.id,
+        name: agreement.Client.name,
+      },
+      priceMode: agreement.priceMode,
+      discountPct: agreement.discountPct,
+      createdAt: agreement.createdAt.toISOString(),
+    })),
+    stats: {
+      totalProducts: totalProductCount,
+      activeProducts: typedVendor._count.VendorProduct,
+      lowStockProducts: lowStockCount,
+      agreementCount: typedVendor._count.Agreement,
+    },
+  };
+}
