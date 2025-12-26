@@ -64,6 +64,12 @@ export async function fetchAllAgentsForAdmin(
     deletedAt: null,
   };
 
+  // TODO: Performance optimization for large agent counts (>1000):
+  // When sortBy === "name", use database-level orderBy with skip/take
+  // instead of fetching all agents into memory. Current approach is
+  // necessary for computed field sorting (clients, vendors, workload)
+  // but could be optimized for the name sort case.
+
   // Add search filter (case insensitive)
   if (searchQuery && searchQuery.trim()) {
     where.OR = [
