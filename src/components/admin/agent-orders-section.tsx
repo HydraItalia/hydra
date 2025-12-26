@@ -18,8 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatCurrency } from "@/lib/utils";
-
-type OrderStatus = "SUBMITTED" | "CONFIRMED" | "FULFILLING" | "DELIVERED";
+import { OrderStatus } from "@prisma/client";
 
 type Order = {
   id: string;
@@ -35,17 +34,18 @@ type AgentOrdersSectionProps = {
   totalOrderCount: number;
 };
 
-const statusVariants: Record<
-  OrderStatus,
-  "default" | "secondary" | "outline" | "destructive"
+const statusVariants: Partial<
+  Record<OrderStatus, "default" | "secondary" | "outline" | "destructive">
 > = {
+  DRAFT: "outline",
   SUBMITTED: "secondary",
   CONFIRMED: "default",
   FULFILLING: "default",
   DELIVERED: "default",
 };
 
-const statusLabels: Record<OrderStatus, string> = {
+const statusLabels: Partial<Record<OrderStatus, string>> = {
+  DRAFT: "Draft",
   SUBMITTED: "Submitted",
   CONFIRMED: "Confirmed",
   FULFILLING: "In Progress",

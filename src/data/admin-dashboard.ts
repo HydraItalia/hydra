@@ -2,9 +2,13 @@
  * Data loaders for Admin/Agent Dashboard (Phase 9.0)
  *
  * Provides real-time statistics and activity feeds for mission control interface.
+ * - ADMIN: sees global statistics
+ * - AGENT: sees only statistics for their assigned data
  */
 
 import { prisma } from "@/lib/prisma";
+import { currentUser } from "@/lib/auth";
+import { DeliveryStatus, type Prisma } from "@prisma/client";
 
 /**
  * Dashboard statistics for Admin/Agent home page
@@ -20,10 +24,21 @@ export type DashboardStats = {
 
 /**
  * Get real-time statistics for admin/agent dashboard
+ * - ADMIN: global statistics across all data
+ * - AGENT: statistics scoped to their assignments
  *
  * @returns Dashboard statistics
  */
 export async function getDashboardStats(): Promise<DashboardStats> {
+  const user = await currentUser();
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  // Build agent scoping conditions
+  const isAgent = user.role === "AGENT";
+  const agentId = isAgent ? user.id : undefined;
+
   const [
     unassignedOrders,
     pendingDeliveries,
@@ -33,38 +48,70 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     totalOrders,
   ] = await Promise.all([
     // Unassigned orders (SUBMITTED with no assigned agent)
+    // AGENT: only for their assigned clients
     prisma.order.count({
       where: {
         status: "SUBMITTED",
         assignedAgentUserId: null,
+        ...(isAgent && {
+          Client: {
+            AgentClient: {
+              some: { userId: agentId },
+            },
+          },
+        }),
       },
     }),
 
     // Pending deliveries (CONFIRMED orders with no Delivery record)
+    // AGENT: only for their assigned orders
     prisma.order.count({
       where: {
         status: "CONFIRMED",
         Delivery: null,
+        ...(isAgent && { assignedAgentUserId: agentId }),
       },
     }),
 
     // Active shifts (shifts with no end time)
+    // Same for all users (drivers are global resource)
     prisma.driverShift.count({
       where: { endTime: null },
     }),
 
     // Total vendors (not deleted)
+    // AGENT: only their assigned vendors
     prisma.vendor.count({
-      where: { deletedAt: null },
+      where: {
+        deletedAt: null,
+        ...(isAgent && {
+          AgentVendor: {
+            some: { userId: agentId },
+          },
+        }),
+      },
     }),
 
     // Total clients (not deleted)
+    // AGENT: only their assigned clients
     prisma.client.count({
-      where: { deletedAt: null },
+      where: {
+        deletedAt: null,
+        ...(isAgent && {
+          AgentClient: {
+            some: { userId: agentId },
+          },
+        }),
+      },
     }),
 
     // Total orders
-    prisma.order.count(),
+    // AGENT: only their assigned orders
+    prisma.order.count({
+      where: {
+        ...(isAgent && { assignedAgentUserId: agentId }),
+      },
+    }),
   ]);
 
   return {
@@ -95,6 +142,8 @@ export type RecentOrder = {
 
 /**
  * Get recent submitted orders for activity feed
+ * - ADMIN: all recent submitted orders
+ * - AGENT: only submitted orders for their assigned clients
  *
  * @param limit - Number of orders to fetch (default: 5)
  * @returns Array of recent orders
@@ -102,9 +151,23 @@ export type RecentOrder = {
 export async function getRecentSubmittedOrders(
   limit: number = 5
 ): Promise<RecentOrder[]> {
+  const user = await currentUser();
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const isAgent = user.role === "AGENT";
+
   const orders = await prisma.order.findMany({
     where: {
       status: "SUBMITTED",
+      ...(isAgent && {
+        Client: {
+          AgentClient: {
+            some: { userId: user.id },
+          },
+        },
+      }),
     },
     orderBy: {
       createdAt: "desc",
@@ -162,6 +225,8 @@ export type RecentDelivery = {
 
 /**
  * Get recent completed deliveries for activity feed
+ * - ADMIN: all recent deliveries
+ * - AGENT: only deliveries for their assigned orders
  *
  * @param limit - Number of deliveries to fetch (default: 5)
  * @param todayOnly - Only fetch deliveries from today (default: true)
@@ -171,8 +236,20 @@ export async function getRecentDeliveries(
   limit: number = 5,
   todayOnly: boolean = true
 ): Promise<RecentDelivery[]> {
-  const whereClause: any = {
-    status: "DELIVERED",
+  const user = await currentUser();
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const isAgent = user.role === "AGENT";
+
+  const whereClause: Prisma.DeliveryWhereInput = {
+    status: DeliveryStatus.DELIVERED,
+    ...(isAgent && {
+      Order: {
+        assignedAgentUserId: user.id,
+      },
+    }),
   };
 
   if (todayOnly) {

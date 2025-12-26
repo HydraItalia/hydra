@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Type for Prisma client query result with relations
@@ -97,6 +98,8 @@ export type ClientListResult = {
 
 /**
  * Fetch all clients for admin/agent with filtering and pagination
+ * - ADMIN: sees all clients (can filter by agent)
+ * - AGENT: sees only their assigned clients
  */
 export async function fetchAllClientsForAdmin(
   filters: ClientFilters = {}
@@ -108,7 +111,7 @@ export async function fetchAllClientsForAdmin(
   pageSize: number;
 }> {
   // Require ADMIN or AGENT role
-  await requireRole("ADMIN", "AGENT");
+  const user = await requireRole("ADMIN", "AGENT");
 
   const {
     region,
@@ -127,9 +130,16 @@ export async function fetchAllClientsForAdmin(
   const skip = (validPage - 1) * validPageSize;
 
   // Build where clause
-  const where: any = {
+  const where: Prisma.ClientWhereInput = {
     deletedAt: null,
   };
+
+  // AGENT scoping: only see assigned clients
+  if (user.role === "AGENT") {
+    where.AgentClient = {
+      some: { userId: user.id },
+    };
+  }
 
   if (region) {
     where.region = region;
@@ -143,7 +153,8 @@ export async function fetchAllClientsForAdmin(
     }
   }
 
-  if (agentUserId) {
+  // Only ADMIN can filter by agent (agents already scoped)
+  if (user.role === "ADMIN" && agentUserId) {
     where.AgentClient = {
       some: { userId: agentUserId },
     };
@@ -345,12 +356,27 @@ export type ClientDetail = {
 
 /**
  * Fetch single client by ID for detail view
+ * - ADMIN: can see any client
+ * - AGENT: can only see their assigned clients
  */
 export async function getClientById(clientId: string): Promise<ClientDetail> {
-  await requireRole("ADMIN", "AGENT");
+  const user = await requireRole("ADMIN", "AGENT");
 
-  const client = await prisma.client.findUnique({
-    where: { id: clientId, deletedAt: null },
+  // Build where clause with agent scoping
+  const whereClause: Prisma.ClientWhereInput = {
+    id: clientId,
+    deletedAt: null,
+  };
+
+  // AGENT scoping: only see assigned clients
+  if (user.role === "AGENT") {
+    whereClause.AgentClient = {
+      some: { userId: user.id },
+    };
+  }
+
+  const client = await prisma.client.findFirst({
+    where: whereClause,
     include: {
       User: {
         select: {
@@ -403,7 +429,7 @@ export async function getClientById(clientId: string): Promise<ClientDetail> {
   });
 
   if (!client) {
-    throw new Error(`Client not found: ${clientId}`);
+    throw new Error(`Client not found or access denied`);
   }
 
   // Map to result type - cast to our defined type for better type safety
