@@ -18,16 +18,20 @@ import { toast } from "sonner";
 import { Archive } from "lucide-react";
 import { archiveVendor } from "@/actions/admin-vendors";
 
+type Role = "ADMIN" | "AGENT" | "VENDOR" | "CLIENT" | "DRIVER";
+
 type VendorArchiveDialogProps = {
   vendorId: string;
   vendorName: string;
-  userRole: string;
+  userRole: Role;
+  onSuccess?: () => void;
 };
 
 export function VendorArchiveDialog({
   vendorId,
   vendorName,
   userRole,
+  onSuccess,
 }: VendorArchiveDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,7 +47,11 @@ export function VendorArchiveDialog({
       if (result.success) {
         toast.success("Vendor archived successfully");
         setOpen(false);
-        router.push("/dashboard/vendors");
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.push("/dashboard/vendors");
+        }
       } else {
         toast.error(result.error || "Failed to archive vendor");
       }

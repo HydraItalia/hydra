@@ -228,47 +228,6 @@ export async function getAgentsForVendorFilter(): Promise<
   return agents;
 }
 
-/**
- * Type for Prisma vendor query result with relations
- * Used in getVendorById to avoid excessive type assertions
- */
-type PrismaVendorWithRelations = {
-  id: string;
-  name: string;
-  region: string | null;
-  contactEmail: string | null;
-  contactPhone: string | null;
-  address: string | null;
-  businessHours: string | null;
-  notes: string | null;
-  createdAt: Date;
-  User: { email: string; name: string | null } | null;
-  AgentVendor: Array<{
-    User: { id: string; name: string | null; agentCode: string | null } | null;
-  }>;
-  VendorProduct: Array<{
-    id: string;
-    isActive: boolean;
-    stockQty: number;
-    vendorSku: string;
-    Product: {
-      id: string;
-      name: string;
-    };
-  }>;
-  Agreement: Array<{
-    id: string;
-    Client: { id: string; name: string };
-    priceMode: string;
-    discountPct: number | null;
-    createdAt: Date;
-  }>;
-  _count: {
-    VendorProduct: number;
-    Agreement: number;
-  };
-};
-
 export type VendorDetail = {
   // Basic info
   id: string;
@@ -323,8 +282,10 @@ export type VendorDetail = {
 export async function getVendorById(vendorId: string): Promise<VendorDetail> {
   await requireRole("ADMIN", "AGENT");
 
-  const vendor = await prisma.vendor.findUnique({
-    where: { id: vendorId, deletedAt: null },
+  // Fetch vendor and total product count in parallel
+  const [vendor, totalProductCount] = await Promise.all([
+    prisma.vendor.findUnique({
+      where: { id: vendorId, deletedAt: null },
     include: {
       User: {
         select: {
@@ -379,8 +340,15 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
           Agreement: { where: { deletedAt: null } },
         },
       },
-    },
-  });
+    }),
+    // Separate count query for total products (all non-deleted)
+    prisma.vendorProduct.count({
+      where: {
+        vendorId,
+        deletedAt: null,
+      },
+    }),
+  ]);
 
   if (!vendor) {
     throw new Error(`Vendor not found: ${vendorId}`);
@@ -389,10 +357,8 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
   // Map to result type - use any casting for flexibility with Prisma includes
   const typedVendor = vendor as any;
 
-  // Calculate stats
-  const activeProducts = typedVendor.VendorProduct.filter(
-    (vp: any) => vp.isActive
-  ).length;
+  // Calculate low stock from fetched products (limited to first 50)
+  // Note: This is approximate if there are more than 50 products
   const lowStockProducts = typedVendor.VendorProduct.filter(
     (vp: any) => vp.isActive && vp.stockQty <= 10
   ).length;
@@ -448,10 +414,10 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
       createdAt: agreement.createdAt.toISOString(),
     })),
     stats: {
-      totalProducts: typedVendor.VendorProduct.length,
-      activeProducts,
+      totalProducts: totalProductCount,
+      activeProducts: typedVendor._count.VendorProduct,
       lowStockProducts,
-      agreementCount: (vendor as any)._count.Agreement,
+      agreementCount: typedVendor._count.Agreement,
     },
   };
 }

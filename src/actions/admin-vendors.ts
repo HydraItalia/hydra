@@ -11,6 +11,23 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAction, AuditAction } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+// Validation schema for vendor updates
+const updateVendorSchema = z.object({
+  name: z.string().min(1, "Vendor name is required").max(255).optional(),
+  region: z.string().max(100).optional(),
+  contactEmail: z
+    .string()
+    .email("Invalid email format")
+    .max(255)
+    .optional()
+    .or(z.literal("")),
+  contactPhone: z.string().max(50).optional(),
+  address: z.string().max(500).optional(),
+  businessHours: z.string().max(255).optional(),
+  notes: z.string().max(2000).optional(),
+});
 
 /**
  * Update vendor information
@@ -35,6 +52,15 @@ export async function updateVendor(
     // Require ADMIN or AGENT role
     await requireRole("ADMIN", "AGENT");
 
+    // Validate input data
+    const validation = updateVendorSchema.safeParse(data);
+    if (!validation.success) {
+      return {
+        success: false,
+        error: validation.error.errors[0]?.message || "Invalid input data",
+      };
+    }
+
     // Validate vendor exists
     const existing = await prisma.vendor.findUnique({
       where: { id: vendorId, deletedAt: null },
@@ -44,18 +70,25 @@ export async function updateVendor(
       return { success: false, error: "Vendor not found" };
     }
 
+    // Capture previous values for audit trail
+    const changedFields = Object.keys(data) as (keyof typeof data)[];
+    const previousValues = changedFields.reduce((acc, key) => {
+      acc[key] = existing[key];
+      return acc;
+    }, {} as Record<string, unknown>);
+
     // Update vendor
     await prisma.vendor.update({
       where: { id: vendorId },
       data,
     });
 
-    // Log the update
+    // Log the update with previous and new values
     await logAction({
       entityType: "Vendor",
       entityId: vendorId,
       action: AuditAction.VENDOR_UPDATED,
-      diff: data,
+      diff: { previous: previousValues, updated: data },
     });
 
     // Revalidate pages
@@ -86,13 +119,38 @@ export async function archiveVendor(
     // Require ADMIN role only
     await requireRole("ADMIN");
 
-    // Validate vendor exists
+    // Validate vendor exists and check for active assignments
     const existing = await prisma.vendor.findUnique({
       where: { id: vendorId, deletedAt: null },
+      include: {
+        AgentVendor: { select: { userId: true } },
+        _count: {
+          select: {
+            VendorProduct: { where: { isActive: true, deletedAt: null } },
+          },
+        },
+      },
     });
 
     if (!existing) {
       return { success: false, error: "Vendor not found" };
+    }
+
+    // Warn if vendor has active assignments or products
+    if (existing.AgentVendor.length > 0) {
+      return {
+        success: false,
+        error: `Cannot archive vendor with ${existing.AgentVendor.length} active agent assignment(s). Please remove agents first.`,
+      };
+    }
+
+    if ((existing as any)._count.VendorProduct > 0) {
+      return {
+        success: false,
+        error: `Cannot archive vendor with ${
+          (existing as any)._count.VendorProduct
+        } active product(s). Please deactivate products first.`,
+      };
     }
 
     // Soft delete the vendor
@@ -160,27 +218,24 @@ export async function assignAgentToVendor(
       return { success: false, error: "User is not an agent" };
     }
 
-    // Check if already assigned
-    const existing = await prisma.agentVendor.findUnique({
-      where: {
-        userId_vendorId: {
+    // Create the assignment (handle duplicate gracefully)
+    try {
+      await prisma.agentVendor.create({
+        data: {
           userId: agentUserId,
           vendorId,
         },
-      },
-    });
-
-    if (existing) {
-      return { success: false, error: "Agent already assigned to this vendor" };
+      });
+    } catch (error: any) {
+      // Handle unique constraint violation
+      if (error.code === "P2002") {
+        return {
+          success: false,
+          error: "Agent already assigned to this vendor",
+        };
+      }
+      throw error;
     }
-
-    // Create the assignment
-    await prisma.agentVendor.create({
-      data: {
-        userId: agentUserId,
-        vendorId,
-      },
-    });
 
     // Log the assignment
     await logAction({

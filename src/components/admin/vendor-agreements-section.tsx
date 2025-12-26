@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
-import { ExternalLink } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 type Agreement = {
   id: string;
@@ -25,7 +25,7 @@ type VendorAgreementsSectionProps = {
 };
 
 function formatPriceMode(mode: string): string {
-  return mode.charAt(0) + mode.slice(1).toLowerCase();
+  return mode.charAt(0).toUpperCase() + mode.slice(1).toLowerCase();
 }
 
 export function VendorAgreementsSection({
@@ -62,7 +62,7 @@ export function VendorAgreementsSection({
                       >
                         {agreement.client.name}
                       </Link>
-                      <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant="outline" className="text-xs">

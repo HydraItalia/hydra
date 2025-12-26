@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -54,13 +54,18 @@ export function VendorAgentsSection({
   vendorId,
   assignedAgents,
 }: VendorAgentsSectionProps) {
-  // Map incoming assignedAgents (with userId) to local Agent type (with id)
-  const initialAgents: Agent[] = assignedAgents.map((agent) => ({
-    id: agent.userId,
-    name: agent.name,
-    agentCode: agent.agentCode,
-  }));
   const router = useRouter();
+
+  // Map incoming assignedAgents (with userId) to local Agent type (with id)
+  const initialAgents: Agent[] = useMemo(
+    () =>
+      assignedAgents.map((agent) => ({
+        id: agent.userId,
+        name: agent.name,
+        agentCode: agent.agentCode,
+      })),
+    [assignedAgents]
+  );
   const [allAgents, setAllAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [agentToRemove, setAgentToRemove] = useState<Agent | null>(null);
@@ -82,7 +87,7 @@ export function VendorAgentsSection({
     };
 
     fetchAgents();
-  }, [vendorId]);
+  }, []);
 
   const handleAssign = async (agentId: string) => {
     setIsAssigning(true);
@@ -126,8 +131,12 @@ export function VendorAgentsSection({
   };
 
   // Filter out already assigned agents
-  const availableAgents = allAgents.filter(
-    (agent) => !initialAgents.some((assigned) => assigned.id === agent.id)
+  const availableAgents = useMemo(
+    () =>
+      allAgents.filter(
+        (agent) => !initialAgents.some((assigned) => assigned.id === agent.id)
+      ),
+    [allAgents, initialAgents]
   );
 
   return (
@@ -147,6 +156,11 @@ export function VendorAgentsSection({
                   size="sm"
                   disabled={
                     isLoading || isAssigning || availableAgents.length === 0
+                  }
+                  title={
+                    availableAgents.length === 0
+                      ? "All agents assigned"
+                      : undefined
                   }
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
@@ -211,6 +225,9 @@ export function VendorAgentsSection({
                     onClick={() => setAgentToRemove(agent)}
                     className="h-8 w-8 p-0"
                     disabled={isRemoving}
+                    aria-label={`Remove ${
+                      agent.name || agent.agentCode || "agent"
+                    }`}
                   >
                     <X className="h-4 w-4" />
                   </Button>

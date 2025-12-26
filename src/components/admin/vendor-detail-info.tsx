@@ -41,10 +41,9 @@ export function VendorDetailInfo({ vendor }: VendorDetailInfoProps) {
         <div className="space-y-2">
           <DetailField label="Vendor Name">{vendor.name}</DetailField>
           {vendor.region && (
-            <div>
-              <div className="text-sm text-muted-foreground">Region</div>
+            <DetailField label="Region">
               <Badge variant="outline">{vendor.region}</Badge>
-            </div>
+            </DetailField>
           )}
         </div>
 

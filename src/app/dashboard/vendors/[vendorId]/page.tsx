@@ -28,28 +28,28 @@ export default async function VendorDetailPage({ params }: PageProps) {
   }
 
   // Fetch vendor data and audit logs in parallel
-  let vendor;
-  try {
-    vendor = await getVendorById(vendorId);
-  } catch (error) {
-    console.error("Failed to fetch vendor:", error);
+  const [vendorResult, auditLogsResult] = await Promise.allSettled([
+    getVendorById(vendorId),
+    getAuditLogs("Vendor", vendorId, {
+      limit: 20,
+      includeUser: true,
+    }),
+  ]);
+
+  if (vendorResult.status === "rejected") {
+    console.error("Failed to fetch vendor:", vendorResult.reason);
     notFound();
   }
 
+  const vendor = vendorResult.value;
   if (!vendor) {
     notFound();
   }
 
-  // Fetch audit logs for activity timeline
-  let auditLogs: Awaited<ReturnType<typeof getAuditLogs>> = [];
-  try {
-    auditLogs = await getAuditLogs("Vendor", vendorId, {
-      limit: 20,
-      includeUser: true,
-    });
-  } catch (error) {
-    console.error("Failed to fetch audit logs:", error);
-    // Continue with empty logs - page can still render
+  const auditLogs =
+    auditLogsResult.status === "fulfilled" ? auditLogsResult.value : [];
+  if (auditLogsResult.status === "rejected") {
+    console.error("Failed to fetch audit logs:", auditLogsResult.reason);
   }
 
   return (

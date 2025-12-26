@@ -24,6 +24,7 @@ type VendorProductsSectionProps = {
 
 export function VendorProductsSection({ vendor }: VendorProductsSectionProps) {
   const { products, stats } = vendor;
+  const LOW_STOCK_THRESHOLD = 10;
 
   return (
     <Card>
@@ -37,7 +38,7 @@ export function VendorProductsSection({ vendor }: VendorProductsSectionProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Stats Grid */}
-        <div className="grid grid-cols-3 gap-4 p-4 rounded-lg bg-muted/30">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-lg bg-muted/30">
           <div>
             <div className="text-sm text-muted-foreground">Total Products</div>
             <div className="text-2xl font-bold">{stats.totalProducts}</div>
@@ -90,7 +91,7 @@ export function VendorProductsSection({ vendor }: VendorProductsSectionProps) {
                       <TableCell className="text-center">
                         <span
                           className={
-                            vp.isActive && vp.stockQty <= 10
+                            vp.isActive && vp.stockQty <= LOW_STOCK_THRESHOLD
                               ? "font-medium text-orange-600"
                               : ""
                           }
@@ -141,7 +142,7 @@ export function VendorProductsSection({ vendor }: VendorProductsSectionProps) {
                       <span className="text-muted-foreground">Stock:</span>
                       <span
                         className={
-                          vp.isActive && vp.stockQty <= 10
+                          vp.isActive && vp.stockQty <= LOW_STOCK_THRESHOLD
                             ? "font-medium text-orange-600"
                             : ""
                         }

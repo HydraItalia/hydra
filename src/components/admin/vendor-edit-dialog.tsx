@@ -32,7 +32,7 @@ import { Pencil } from "lucide-react";
 const vendorSchema = z.object({
   name: z.string().min(1, "Vendor name is required"),
   region: z.string().optional(),
-  contactEmail: z.string().email("Invalid email").optional().or(z.literal("")),
+  contactEmail: z.string().email("Invalid email").or(z.literal("")).optional(),
   contactPhone: z.string().optional(),
   address: z.string().optional(),
   businessHours: z.string().optional(),
