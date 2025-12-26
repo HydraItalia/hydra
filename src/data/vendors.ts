@@ -287,57 +287,58 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
     prisma.vendor.findUnique({
       where: { id: vendorId, deletedAt: null },
       include: {
-      User: {
-        select: {
-          email: true,
-          name: true,
+        User: {
+          select: {
+            email: true,
+            name: true,
+          },
         },
-      },
-      AgentVendor: {
-        include: {
-          User: {
-            select: {
-              id: true,
-              name: true,
-              agentCode: true,
+        AgentVendor: {
+          include: {
+            User: {
+              select: {
+                id: true,
+                name: true,
+                agentCode: true,
+              },
             },
           },
         },
-      },
-      VendorProduct: {
-        where: { deletedAt: null },
-        include: {
-          Product: {
-            select: {
-              id: true,
-              name: true,
+        VendorProduct: {
+          where: { deletedAt: null },
+          include: {
+            Product: {
+              select: {
+                id: true,
+                name: true,
+              },
             },
           },
+          orderBy: { isActive: "desc" },
+          take: 50, // Limit for performance
         },
-        orderBy: { isActive: "desc" },
-        take: 50, // Limit for performance
-      },
-      Agreement: {
-        where: { deletedAt: null },
-        include: {
-          Client: {
-            select: {
-              id: true,
-              name: true,
+        Agreement: {
+          where: { deletedAt: null },
+          include: {
+            Client: {
+              select: {
+                id: true,
+                name: true,
+              },
             },
           },
+          orderBy: { createdAt: "desc" },
         },
-        orderBy: { createdAt: "desc" },
-      },
-      _count: {
-        select: {
-          VendorProduct: {
-            where: {
-              isActive: true,
-              deletedAt: null,
+        _count: {
+          select: {
+            VendorProduct: {
+              where: {
+                isActive: true,
+                deletedAt: null,
+              },
             },
+            Agreement: { where: { deletedAt: null } },
           },
-          Agreement: { where: { deletedAt: null } },
         },
       },
     }),

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -8,6 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -16,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import type { VendorDetail } from "@/data/vendors";
 
 type VendorProductsSectionProps = {
@@ -25,14 +29,52 @@ type VendorProductsSectionProps = {
 export function VendorProductsSection({ vendor }: VendorProductsSectionProps) {
   const { products, stats } = vendor;
   const LOW_STOCK_THRESHOLD = 10;
+  const ITEMS_PER_PAGE = 10;
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Filter products based on search query
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) return products;
+
+    const query = searchQuery.toLowerCase();
+    return products.filter(
+      (vp) =>
+        vp.product.name.toLowerCase().includes(query) ||
+        vp.vendorSku.toLowerCase().includes(query)
+    );
+  }, [products, searchQuery]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <CardTitle>Vendor Products</CardTitle>
             <CardDescription>Products supplied by this vendor</CardDescription>
+          </div>
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search products..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+            />
           </div>
         </div>
       </CardHeader>
@@ -58,10 +100,12 @@ export function VendorProductsSection({ vendor }: VendorProductsSectionProps) {
         </div>
 
         {/* Products List */}
-        {products.length === 0 ? (
+        {filteredProducts.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-muted-foreground">
-              No products from this vendor yet
+              {searchQuery
+                ? "No products match your search"
+                : "No products from this vendor yet"}
             </p>
           </div>
         ) : (
@@ -78,7 +122,7 @@ export function VendorProductsSection({ vendor }: VendorProductsSectionProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {products.map((vp) => (
+                  {paginatedProducts.map((vp) => (
                     <TableRow key={vp.id}>
                       <TableCell className="font-medium">
                         {vp.product.name}
@@ -116,7 +160,7 @@ export function VendorProductsSection({ vendor }: VendorProductsSectionProps) {
 
             {/* Mobile Card View */}
             <div className="md:hidden space-y-3">
-              {products.map((vp) => (
+              {paginatedProducts.map((vp) => (
                 <div
                   key={vp.id}
                   className="p-3 rounded-lg border bg-card space-y-2"
@@ -155,12 +199,42 @@ export function VendorProductsSection({ vendor }: VendorProductsSectionProps) {
               ))}
             </div>
 
-            {/* Showing limited results note */}
-            {stats.totalProducts > products.length && (
-              <div className="text-center pt-2">
-                <p className="text-xs text-muted-foreground">
-                  Showing {products.length} of {stats.totalProducts} products
-                </p>
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  Showing {startIndex + 1} to{" "}
+                  {Math.min(endIndex, filteredProducts.length)} of{" "}
+                  {filteredProducts.length} products
+                  {searchQuery && ` (filtered from ${stats.totalProducts})`}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <div className="text-sm font-medium">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </>
