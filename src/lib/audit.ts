@@ -36,6 +36,7 @@ export const AuditAction = {
   // Order assignment actions
   AGENT_ASSIGNED_TO_ORDER: "AGENT_ASSIGNED_TO_ORDER",
   AGENT_UNASSIGNED_FROM_ORDER: "AGENT_UNASSIGNED_FROM_ORDER",
+  AGENT_REASSIGNED: "AGENT_REASSIGNED", // When order is reassigned from one agent to another
 
   // Delivery actions
   DELIVERY_CREATED: "DELIVERY_CREATED",
