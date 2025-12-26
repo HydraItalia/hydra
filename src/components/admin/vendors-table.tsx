@@ -117,7 +117,7 @@ export function VendorsTable({ vendors }: VendorsTableProps) {
                     </div>
                   ) : (
                     <span className="text-sm text-muted-foreground">
-                      No agents
+                      No agents assigned
                     </span>
                   )}
                 </TableCell>
