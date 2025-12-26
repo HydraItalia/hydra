@@ -379,6 +379,8 @@ export type AdminDeliveryResult = {
 
 /**
  * Fetch all deliveries for ADMIN/AGENT users with filters
+ * - ADMIN: sees all deliveries
+ * - AGENT: sees only deliveries for their assigned orders
  */
 export async function fetchAllDeliveriesForAdmin(
   filters: AdminDeliveryFilters = {}
@@ -390,7 +392,7 @@ export async function fetchAllDeliveriesForAdmin(
   pageSize: number;
 }> {
   // Authorization check
-  await requireAdminOrAgent();
+  const user = await requireAdminOrAgent();
 
   // Parse and validate params
   const page = Math.max(filters.page || 1, 1);
@@ -399,6 +401,13 @@ export async function fetchAllDeliveriesForAdmin(
 
   // Build where clause
   const where: any = {};
+
+  // AGENT scoping: only see deliveries for their assigned orders
+  if (user.role === "AGENT") {
+    where.Order = {
+      assignedAgentUserId: user.id,
+    };
+  }
 
   if (filters.status) {
     where.status = filters.status;
@@ -466,6 +475,8 @@ export async function fetchAllDeliveriesForAdmin(
 
 /**
  * Get delivery statistics for ADMIN/AGENT users
+ * - ADMIN: stats for all deliveries
+ * - AGENT: stats for deliveries of their assigned orders only
  */
 export async function getDeliveryStatsForAdmin(): Promise<{
   assigned: number;
@@ -475,29 +486,40 @@ export async function getDeliveryStatsForAdmin(): Promise<{
   exception: number;
 }> {
   // Authorization check
-  await requireAdminOrAgent();
+  const user = await requireAdminOrAgent();
 
   const startOfToday = startOfDay(new Date());
+
+  // Build base where clause for agent scoping
+  const agentScope =
+    user.role === "AGENT"
+      ? {
+          Order: {
+            assignedAgentUserId: user.id,
+          },
+        }
+      : {};
 
   const [assigned, pickedUp, inTransit, deliveredToday, exception] =
     await Promise.all([
       prisma.delivery.count({
-        where: { status: "ASSIGNED" },
+        where: { status: "ASSIGNED", ...agentScope },
       }),
       prisma.delivery.count({
-        where: { status: "PICKED_UP" },
+        where: { status: "PICKED_UP", ...agentScope },
       }),
       prisma.delivery.count({
-        where: { status: "IN_TRANSIT" },
+        where: { status: "IN_TRANSIT", ...agentScope },
       }),
       prisma.delivery.count({
         where: {
           status: "DELIVERED",
           deliveredAt: { gte: startOfToday },
+          ...agentScope,
         },
       }),
       prisma.delivery.count({
-        where: { status: "EXCEPTION" },
+        where: { status: "EXCEPTION", ...agentScope },
       }),
     ]);
 

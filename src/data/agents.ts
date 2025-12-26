@@ -9,7 +9,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { subDays } from "date-fns";
-import { Prisma } from "@prisma/client";
+import { Prisma, OrderStatus } from "@prisma/client";
 
 // Constants for agent detail queries
 const RECENT_ORDERS_DAYS = 30;
@@ -190,7 +190,7 @@ export type AgentDetail = {
     orderNumber: string;
     createdAt: string;
     totalCents: number;
-    status: string;
+    status: OrderStatus;
     clientName: string;
   }>;
   stats: {

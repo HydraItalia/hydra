@@ -256,6 +256,8 @@ export type AdminOrderFilters = {
  * Fetch all orders for ADMIN/AGENT users with filters
  *
  * Authorization: Only ADMIN and AGENT users can access this
+ * - ADMIN: sees all orders
+ * - AGENT: sees only orders assigned to them
  *
  * @param filters - Filter and pagination parameters
  * @returns Paginated orders with client and agent info
@@ -265,7 +267,7 @@ export async function fetchAllOrdersForAdmin(
   filters: AdminOrderFilters = {}
 ): Promise<AdminOrdersResult> {
   // 1. Authorization check
-  await requireAdminOrAgent();
+  const user = await requireAdminOrAgent();
 
   // 2. Parse and validate params
   const page = Math.max(filters.page || 1, 1);
@@ -277,6 +279,11 @@ export async function fetchAllOrdersForAdmin(
     deletedAt: null,
   };
 
+  // AGENT scoping: only see orders assigned to them
+  if (user.role === "AGENT") {
+    where.assignedAgentUserId = user.id;
+  }
+
   if (filters.status) {
     where.status = filters.status;
   }
@@ -285,7 +292,8 @@ export async function fetchAllOrdersForAdmin(
     where.clientId = filters.clientId;
   }
 
-  if (filters.agentUserId !== undefined) {
+  // Only ADMIN can filter by agent (agents already scoped to their own)
+  if (user.role === "ADMIN" && filters.agentUserId !== undefined) {
     // Explicitly check for undefined to allow null (unassigned filter)
     where.assignedAgentUserId = filters.agentUserId;
   }
@@ -445,6 +453,8 @@ export type AdminOrderDetail = {
  * Fetch full order details for ADMIN/AGENT users
  *
  * Authorization: Only ADMIN and AGENT users can access this
+ * - ADMIN: can see any order
+ * - AGENT: can only see orders assigned to them
  *
  * @param orderId - The order ID to fetch
  * @returns Full order details with audit logs
@@ -454,12 +464,23 @@ export async function fetchAdminOrderDetail(
   orderId: string
 ): Promise<AdminOrderDetail> {
   // 1. Authorization check
-  await requireAdminOrAgent();
+  const user = await requireAdminOrAgent();
 
-  // 2. Fetch order with full details and audit logs
+  // 2. Build where clause with agent scoping
+  const whereClause: any = {
+    id: orderId,
+    deletedAt: null,
+  };
+
+  // AGENT scoping: only see orders assigned to them
+  if (user.role === "AGENT") {
+    whereClause.assignedAgentUserId = user.id;
+  }
+
+  // 3. Fetch order with full details and audit logs
   const [order, auditLogs] = await Promise.all([
-    prisma.order.findUnique({
-      where: { id: orderId, deletedAt: null },
+    prisma.order.findFirst({
+      where: whereClause,
       include: {
         Client: {
           select: {
@@ -529,12 +550,12 @@ export async function fetchAdminOrderDetail(
     }),
   ]);
 
-  // 3. Validate order exists
+  // 4. Validate order exists
   if (!order) {
-    throw new Error("Order not found");
+    throw new Error("Order not found or access denied");
   }
 
-  // 4. Format and return
+  // 5. Format and return
   return {
     id: order.id,
     orderNumber: order.orderNumber,
@@ -621,21 +642,37 @@ export type UnassignedOrder = {
  * Includes suggested agents based on AgentClient relationships.
  *
  * Authorization: Only ADMIN and AGENT users can access this
+ * - ADMIN: sees all unassigned orders
+ * - AGENT: sees only unassigned orders for their assigned clients
  *
  * @returns Unassigned orders with suggested agents
  * @throws Error if user is not authenticated or not ADMIN/AGENT
  */
 export async function fetchUnassignedOrders(): Promise<UnassignedOrder[]> {
   // 1. Authorization check
-  await requireAdminOrAgent();
+  const user = await requireAdminOrAgent();
 
-  // 2. Fetch orders with no assigned agent and SUBMITTED status
+  // 2. Build where clause
+  const where: any = {
+    status: "SUBMITTED",
+    assignedAgentUserId: null,
+    deletedAt: null,
+  };
+
+  // AGENT scoping: only see unassigned orders for their assigned clients
+  if (user.role === "AGENT") {
+    where.Client = {
+      AgentClient: {
+        some: {
+          userId: user.id,
+        },
+      },
+    };
+  }
+
+  // 3. Fetch orders with no assigned agent and SUBMITTED status
   const orders = await prisma.order.findMany({
-    where: {
-      status: "SUBMITTED",
-      assignedAgentUserId: null,
-      deletedAt: null,
-    },
+    where,
     select: {
       id: true,
       orderNumber: true,
@@ -672,7 +709,7 @@ export async function fetchUnassignedOrders(): Promise<UnassignedOrder[]> {
     },
   });
 
-  // 3. Map to result format
+  // 4. Map to result format
   return orders.map((order) => ({
     id: order.id,
     orderNumber: order.orderNumber,
@@ -761,6 +798,8 @@ export type OrderReadyForDelivery = {
  * Fetch orders ready for delivery (CONFIRMED with no Delivery record)
  *
  * Authorization: Only ADMIN and AGENT users can access this
+ * - ADMIN: sees all confirmed orders ready for delivery
+ * - AGENT: sees only their assigned orders ready for delivery
  *
  * @returns Orders ready for driver assignment
  * @throws Error if user is not authenticated or not ADMIN/AGENT
@@ -769,15 +808,23 @@ export async function fetchOrdersReadyForDelivery(): Promise<
   OrderReadyForDelivery[]
 > {
   // 1. Authorization check
-  await requireAdminOrAgent();
+  const user = await requireAdminOrAgent();
 
-  // 2. Fetch confirmed orders without delivery
+  // 2. Build where clause
+  const where: any = {
+    status: "CONFIRMED",
+    Delivery: null, // No delivery exists
+    deletedAt: null,
+  };
+
+  // AGENT scoping: only see their assigned orders
+  if (user.role === "AGENT") {
+    where.assignedAgentUserId = user.id;
+  }
+
+  // 3. Fetch confirmed orders without delivery
   const orders = await prisma.order.findMany({
-    where: {
-      status: "CONFIRMED",
-      Delivery: null, // No delivery exists
-      deletedAt: null,
-    },
+    where,
     select: {
       id: true,
       orderNumber: true,
@@ -805,7 +852,7 @@ export async function fetchOrdersReadyForDelivery(): Promise<
     },
   });
 
-  // 3. Map to result format
+  // 4. Map to result format
   return orders.map((order) => ({
     id: order.id,
     orderNumber: order.orderNumber,

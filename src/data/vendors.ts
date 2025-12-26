@@ -43,6 +43,8 @@ export type VendorListResult = {
 
 /**
  * Fetch all vendors for admin/agent with filtering and pagination
+ * - ADMIN: sees all vendors (can filter by agent)
+ * - AGENT: sees only their assigned vendors
  */
 export async function fetchAllVendorsForAdmin(
   filters: VendorFilters = {}
@@ -54,7 +56,7 @@ export async function fetchAllVendorsForAdmin(
   pageSize: number;
 }> {
   // Require ADMIN or AGENT role
-  await requireRole("ADMIN", "AGENT");
+  const user = await requireRole("ADMIN", "AGENT");
 
   const {
     region,
@@ -77,6 +79,13 @@ export async function fetchAllVendorsForAdmin(
     deletedAt: null,
   };
 
+  // AGENT scoping: only see assigned vendors
+  if (user.role === "AGENT") {
+    where.AgentVendor = {
+      some: { userId: user.id },
+    };
+  }
+
   if (region) {
     where.region = region;
   }
@@ -94,7 +103,8 @@ export async function fetchAllVendorsForAdmin(
     }
   }
 
-  if (agentUserId) {
+  // Only ADMIN can filter by agent (agents already scoped)
+  if (user.role === "ADMIN" && agentUserId) {
     where.AgentVendor = {
       some: { userId: agentUserId },
     };
@@ -278,14 +288,29 @@ export type VendorDetail = {
 
 /**
  * Fetch single vendor by ID for detail view
+ * - ADMIN: can see any vendor
+ * - AGENT: can only see their assigned vendors
  */
 export async function getVendorById(vendorId: string): Promise<VendorDetail> {
-  await requireRole("ADMIN", "AGENT");
+  const user = await requireRole("ADMIN", "AGENT");
+
+  // Build where clause with agent scoping
+  const whereClause: any = {
+    id: vendorId,
+    deletedAt: null,
+  };
+
+  // AGENT scoping: only see assigned vendors
+  if (user.role === "AGENT") {
+    whereClause.AgentVendor = {
+      some: { userId: user.id },
+    };
+  }
 
   // Fetch vendor, total product count, and low stock count in parallel
   const [vendor, totalProductCount, lowStockCount] = await Promise.all([
-    prisma.vendor.findUnique({
-      where: { id: vendorId, deletedAt: null },
+    prisma.vendor.findFirst({
+      where: whereClause,
       include: {
         User: {
           select: {
@@ -364,7 +389,7 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
   ]);
 
   if (!vendor) {
-    throw new Error(`Vendor not found: ${vendorId}`);
+    throw new Error(`Vendor not found or access denied`);
   }
 
   // Map to result type - use any casting for flexibility with Prisma includes

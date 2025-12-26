@@ -113,7 +113,7 @@ export async function canManageClient(
 /**
  * Check if user can manage a specific delivery
  * Admin: all deliveries
- * Agent: all deliveries
+ * Agent: deliveries for their assigned orders only
  * Driver: their own deliveries only
  */
 export async function canManageDelivery(
@@ -122,8 +122,29 @@ export async function canManageDelivery(
 ): Promise<boolean> {
   if (!user) return false;
 
-  // Admin and Agent can manage all deliveries
-  if (user.role === "ADMIN" || user.role === "AGENT") return true;
+  // Admin can manage all deliveries
+  if (user.role === "ADMIN") return true;
+
+  // Agent: check if delivery is for one of their assigned orders
+  if (user.role === "AGENT") {
+    try {
+      const { prisma } = await import("./prisma");
+      const delivery = await prisma.delivery.findUnique({
+        where: { id: deliveryId },
+        select: {
+          Order: {
+            select: {
+              assignedAgentUserId: true,
+            },
+          },
+        },
+      });
+      return delivery?.Order?.assignedAgentUserId === user.id;
+    } catch (error) {
+      console.error("Error checking delivery permissions:", error);
+      return false;
+    }
+  }
 
   // Driver can only manage their own deliveries
   if (user.role === "DRIVER" && user.driverId) {
