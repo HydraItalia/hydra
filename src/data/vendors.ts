@@ -227,3 +227,231 @@ export async function getAgentsForVendorFilter(): Promise<
 
   return agents;
 }
+
+/**
+ * Type for Prisma vendor query result with relations
+ * Used in getVendorById to avoid excessive type assertions
+ */
+type PrismaVendorWithRelations = {
+  id: string;
+  name: string;
+  region: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  address: string | null;
+  businessHours: string | null;
+  notes: string | null;
+  createdAt: Date;
+  User: { email: string; name: string | null } | null;
+  AgentVendor: Array<{
+    User: { id: string; name: string | null; agentCode: string | null } | null;
+  }>;
+  VendorProduct: Array<{
+    id: string;
+    isActive: boolean;
+    stockQty: number;
+    vendorSku: string;
+    Product: {
+      id: string;
+      name: string;
+    };
+  }>;
+  Agreement: Array<{
+    id: string;
+    Client: { id: string; name: string };
+    priceMode: string;
+    discountPct: number | null;
+    createdAt: Date;
+  }>;
+  _count: {
+    VendorProduct: number;
+    Agreement: number;
+  };
+};
+
+export type VendorDetail = {
+  // Basic info
+  id: string;
+  name: string;
+  region: string | null;
+  address: string | null;
+  businessHours: string | null;
+  notes: string | null;
+
+  // Contact
+  contactEmail: string | null;
+  contactPhone: string | null;
+
+  // Tracking
+  createdAt: string;
+
+  // Relationships
+  user: { email: string; name: string | null } | null;
+  assignedAgents: Array<{
+    userId: string;
+    name: string | null;
+    agentCode: string | null;
+  }>;
+  products: Array<{
+    id: string;
+    isActive: boolean;
+    stockQty: number;
+    vendorSku: string;
+    product: {
+      id: string;
+      name: string;
+    };
+  }>;
+  agreements: Array<{
+    id: string;
+    client: { id: string; name: string };
+    priceMode: string;
+    discountPct: number | null;
+    createdAt: string;
+  }>;
+  stats: {
+    totalProducts: number;
+    activeProducts: number;
+    lowStockProducts: number;
+    agreementCount: number;
+  };
+};
+
+/**
+ * Fetch single vendor by ID for detail view
+ */
+export async function getVendorById(vendorId: string): Promise<VendorDetail> {
+  await requireRole("ADMIN", "AGENT");
+
+  const vendor = await prisma.vendor.findUnique({
+    where: { id: vendorId, deletedAt: null },
+    include: {
+      User: {
+        select: {
+          email: true,
+          name: true,
+        },
+      },
+      AgentVendor: {
+        include: {
+          User: {
+            select: {
+              id: true,
+              name: true,
+              agentCode: true,
+            },
+          },
+        },
+      },
+      VendorProduct: {
+        where: { deletedAt: null },
+        include: {
+          Product: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { isActive: "desc" },
+        take: 50, // Limit for performance
+      },
+      Agreement: {
+        where: { deletedAt: null },
+        include: {
+          Client: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+      _count: {
+        select: {
+          VendorProduct: {
+            where: {
+              isActive: true,
+              deletedAt: null,
+            },
+          },
+          Agreement: { where: { deletedAt: null } },
+        },
+      },
+    },
+  });
+
+  if (!vendor) {
+    throw new Error(`Vendor not found: ${vendorId}`);
+  }
+
+  // Map to result type - use any casting for flexibility with Prisma includes
+  const typedVendor = vendor as any;
+
+  // Calculate stats
+  const activeProducts = typedVendor.VendorProduct.filter(
+    (vp: any) => vp.isActive
+  ).length;
+  const lowStockProducts = typedVendor.VendorProduct.filter(
+    (vp: any) => vp.isActive && vp.stockQty <= 10
+  ).length;
+
+  return {
+    // Basic info
+    id: vendor.id,
+    name: vendor.name,
+    region: vendor.region,
+    address: vendor.address,
+    businessHours: vendor.businessHours,
+    notes: vendor.notes,
+
+    // Contact
+    contactEmail: vendor.contactEmail,
+    contactPhone: vendor.contactPhone,
+
+    // Tracking
+    createdAt: vendor.createdAt.toISOString(),
+
+    // Relationships
+    user: vendor.User
+      ? {
+          email: vendor.User.email,
+          name: vendor.User.name,
+        }
+      : null,
+    assignedAgents: (vendor as any).AgentVendor.filter(
+      (av: any) => av.User != null
+    ).map((av: any) => ({
+      userId: av.User.id,
+      name: av.User.name,
+      agentCode: av.User.agentCode,
+    })),
+    products: (vendor as any).VendorProduct.map((vp: any) => ({
+      id: vp.id,
+      isActive: vp.isActive,
+      stockQty: vp.stockQty,
+      vendorSku: vp.vendorSku,
+      product: {
+        id: vp.Product.id,
+        name: vp.Product.name,
+      },
+    })),
+    agreements: (vendor as any).Agreement.map((agreement: any) => ({
+      id: agreement.id,
+      client: {
+        id: agreement.Client.id,
+        name: agreement.Client.name,
+      },
+      priceMode: agreement.priceMode,
+      discountPct: agreement.discountPct,
+      createdAt: agreement.createdAt.toISOString(),
+    })),
+    stats: {
+      totalProducts: typedVendor.VendorProduct.length,
+      activeProducts,
+      lowStockProducts,
+      agreementCount: (vendor as any)._count.Agreement,
+    },
+  };
+}
