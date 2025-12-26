@@ -314,7 +314,10 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
               },
             },
           },
-          orderBy: { isActive: "desc" },
+          orderBy: [
+            { isActive: "desc" },
+            { stockQty: "asc" }, // Low stock first within each isActive group
+          ],
           take: 50, // Limit for performance
         },
         Agreement: {
