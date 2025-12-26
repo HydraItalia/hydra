@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import { subDays } from "date-fns";
 
 export type AgentFilters = {
   searchQuery?: string;
@@ -154,5 +155,166 @@ export async function fetchAllAgentsForAdmin(
     currentPage: validPage,
     totalPages,
     pageSize: validPageSize,
+  };
+}
+
+/**
+ * Phase 9.6.2 - Agent Detail Data Loader
+ */
+
+export type AgentDetail = {
+  id: string;
+  name: string | null;
+  email: string;
+  agentCode: string | null;
+  createdAt: string;
+  assignedClients: Array<{
+    clientId: string;
+    clientName: string;
+    region: string | null;
+    recentOrderCount: number;
+  }>;
+  assignedVendors: Array<{
+    vendorId: string;
+    vendorName: string;
+    region: string | null;
+    activeProductCount: number;
+  }>;
+  activeOrders: Array<{
+    id: string;
+    orderNumber: string;
+    createdAt: string;
+    totalCents: number;
+    status: string;
+    clientName: string;
+  }>;
+  stats: {
+    totalClients: number;
+    totalVendors: number;
+    activeOrderCount: number;
+    submittedOrderCount: number;
+    confirmedOrderCount: number;
+  };
+};
+
+/**
+ * Fetch single agent by user ID for detail view
+ * ADMIN-ONLY access
+ */
+export async function getAgentById(userId: string): Promise<AgentDetail> {
+  // CRITICAL: Admin only - NOT agent!
+  await requireRole("ADMIN");
+
+  const agent = await prisma.user.findUnique({
+    where: { id: userId, role: "AGENT", deletedAt: null },
+    include: {
+      AgentClient: {
+        include: {
+          Client: {
+            select: {
+              id: true,
+              name: true,
+              region: true,
+              Order: {
+                where: {
+                  createdAt: { gte: subDays(new Date(), 30) },
+                  deletedAt: null,
+                },
+                select: { id: true },
+              },
+            },
+          },
+        },
+      },
+      AgentVendor: {
+        include: {
+          Vendor: {
+            select: {
+              id: true,
+              name: true,
+              region: true,
+              VendorProduct: {
+                where: { isActive: true, deletedAt: null },
+                select: { id: true },
+              },
+            },
+          },
+        },
+      },
+      Order_Order_assignedAgentUserIdToUser: {
+        where: {
+          status: { in: ["SUBMITTED", "CONFIRMED", "FULFILLING"] },
+          deletedAt: null,
+        },
+        include: {
+          Client: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      },
+    },
+  });
+
+  if (!agent) {
+    throw new Error(`Agent not found: ${userId}`);
+  }
+
+  // Type-safe mapping
+  const typedAgent = agent as any;
+
+  // Calculate stats
+  const totalClients = typedAgent.AgentClient.length;
+  const totalVendors = typedAgent.AgentVendor.length;
+  const activeOrders = typedAgent.Order_Order_assignedAgentUserIdToUser;
+  const activeOrderCount = activeOrders.length;
+  const submittedOrderCount = activeOrders.filter(
+    (o: any) => o.status === "SUBMITTED"
+  ).length;
+  const confirmedOrderCount = activeOrders.filter(
+    (o: any) => o.status === "CONFIRMED"
+  ).length;
+
+  return {
+    // Basic info
+    id: agent.id,
+    name: agent.name,
+    email: agent.email,
+    agentCode: agent.agentCode,
+    createdAt: agent.createdAt.toISOString(),
+
+    // Assigned Clients
+    assignedClients: typedAgent.AgentClient.map((ac: any) => ({
+      clientId: ac.Client.id,
+      clientName: ac.Client.name,
+      region: ac.Client.region,
+      recentOrderCount: ac.Client.Order.length,
+    })),
+
+    // Assigned Vendors
+    assignedVendors: typedAgent.AgentVendor.map((av: any) => ({
+      vendorId: av.Vendor.id,
+      vendorName: av.Vendor.name,
+      region: av.Vendor.region,
+      activeProductCount: av.Vendor.VendorProduct.length,
+    })),
+
+    // Active Orders
+    activeOrders: activeOrders.map((order: any) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      createdAt: order.createdAt.toISOString(),
+      totalCents: order.totalCents,
+      status: order.status,
+      clientName: order.Client.name,
+    })),
+
+    // Stats
+    stats: {
+      totalClients,
+      totalVendors,
+      activeOrderCount,
+      submittedOrderCount,
+      confirmedOrderCount,
+    },
   };
 }
