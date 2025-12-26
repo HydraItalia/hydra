@@ -282,8 +282,8 @@ export type VendorDetail = {
 export async function getVendorById(vendorId: string): Promise<VendorDetail> {
   await requireRole("ADMIN", "AGENT");
 
-  // Fetch vendor and total product count in parallel
-  const [vendor, totalProductCount] = await Promise.all([
+  // Fetch vendor, total product count, and low stock count in parallel
+  const [vendor, totalProductCount, lowStockCount] = await Promise.all([
     prisma.vendor.findUnique({
       where: { id: vendorId, deletedAt: null },
     include: {
@@ -348,6 +348,15 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
         deletedAt: null,
       },
     }),
+    // Separate count query for low stock products (accurate for inventory decisions)
+    prisma.vendorProduct.count({
+      where: {
+        vendorId,
+        deletedAt: null,
+        isActive: true,
+        stockQty: { lte: 10 },
+      },
+    }),
   ]);
 
   if (!vendor) {
@@ -356,12 +365,6 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
 
   // Map to result type - use any casting for flexibility with Prisma includes
   const typedVendor = vendor as any;
-
-  // Calculate low stock from fetched products (limited to first 50)
-  // Note: This is approximate if there are more than 50 products
-  const lowStockProducts = typedVendor.VendorProduct.filter(
-    (vp: any) => vp.isActive && vp.stockQty <= 10
-  ).length;
 
   return {
     // Basic info
@@ -416,7 +419,7 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
     stats: {
       totalProducts: totalProductCount,
       activeProducts: typedVendor._count.VendorProduct,
-      lowStockProducts,
+      lowStockProducts: lowStockCount,
       agreementCount: typedVendor._count.Agreement,
     },
   };
