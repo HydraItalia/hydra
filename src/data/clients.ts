@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Type for Prisma client query result with relations
@@ -129,7 +130,7 @@ export async function fetchAllClientsForAdmin(
   const skip = (validPage - 1) * validPageSize;
 
   // Build where clause
-  const where: any = {
+  const where: Prisma.ClientWhereInput = {
     deletedAt: null,
   };
 
@@ -362,7 +363,7 @@ export async function getClientById(clientId: string): Promise<ClientDetail> {
   const user = await requireRole("ADMIN", "AGENT");
 
   // Build where clause with agent scoping
-  const whereClause: any = {
+  const whereClause: Prisma.ClientWhereInput = {
     id: clientId,
     deletedAt: null,
   };

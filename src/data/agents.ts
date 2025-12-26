@@ -97,7 +97,7 @@ export async function fetchAllAgentsForAdmin(
       },
       Order_Order_assignedAgentUserIdToUser: {
         where: {
-          status: { in: ["SUBMITTED", "CONFIRMED"] },
+          status: { in: [OrderStatus.SUBMITTED, OrderStatus.CONFIRMED] },
           deletedAt: null,
         },
         select: { id: true, status: true },
@@ -116,10 +116,10 @@ export async function fetchAllAgentsForAdmin(
     vendorCount: agent.AgentVendor.length,
     activeOrderCount: agent.Order_Order_assignedAgentUserIdToUser.length,
     submittedOrderCount: agent.Order_Order_assignedAgentUserIdToUser.filter(
-      (o) => o.status === "SUBMITTED"
+      (o) => o.status === OrderStatus.SUBMITTED
     ).length,
     confirmedOrderCount: agent.Order_Order_assignedAgentUserIdToUser.filter(
-      (o) => o.status === "CONFIRMED"
+      (o) => o.status === OrderStatus.CONFIRMED
     ).length,
     createdAt: agent.createdAt.toISOString(),
   }));
@@ -248,7 +248,13 @@ export async function getAgentById(userId: string): Promise<AgentDetail> {
       },
       Order_Order_assignedAgentUserIdToUser: {
         where: {
-          status: { in: ["SUBMITTED", "CONFIRMED", "FULFILLING"] },
+          status: {
+            in: [
+              OrderStatus.SUBMITTED,
+              OrderStatus.CONFIRMED,
+              OrderStatus.FULFILLING,
+            ],
+          },
           deletedAt: null,
         },
         include: {
@@ -311,10 +317,10 @@ export async function getAgentById(userId: string): Promise<AgentDetail> {
   const activeOrders = typedAgent.Order_Order_assignedAgentUserIdToUser;
   const activeOrderCount = activeOrders.length;
   const submittedOrderCount = activeOrders.filter(
-    (o) => o.status === "SUBMITTED"
+    (o) => o.status === OrderStatus.SUBMITTED
   ).length;
   const confirmedOrderCount = activeOrders.filter(
-    (o) => o.status === "CONFIRMED"
+    (o) => o.status === OrderStatus.CONFIRMED
   ).length;
 
   return {

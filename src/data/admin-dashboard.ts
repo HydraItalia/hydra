@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
+import { DeliveryStatus, type Prisma } from "@prisma/client";
 
 /**
  * Dashboard statistics for Admin/Agent home page
@@ -242,8 +243,8 @@ export async function getRecentDeliveries(
 
   const isAgent = user.role === "AGENT";
 
-  const whereClause: any = {
-    status: "DELIVERED",
+  const whereClause: Prisma.DeliveryWhereInput = {
+    status: DeliveryStatus.DELIVERED,
     ...(isAgent && {
       Order: {
         assignedAgentUserId: user.id,

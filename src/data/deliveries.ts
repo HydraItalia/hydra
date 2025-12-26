@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
-import { DeliveryStatus } from "@prisma/client";
+import { DeliveryStatus, type Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { startOfDay } from "date-fns";
 
@@ -400,7 +400,7 @@ export async function fetchAllDeliveriesForAdmin(
   const offset = (page - 1) * pageSize;
 
   // Build where clause
-  const where: any = {};
+  const where: Prisma.DeliveryWhereInput = {};
 
   // AGENT scoping: only see deliveries for their assigned orders
   if (user.role === "AGENT") {

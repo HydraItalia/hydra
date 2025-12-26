@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
-import type { OrderStatus } from "@prisma/client";
+import { OrderStatus, type Prisma } from "@prisma/client";
 
 /**
  * Shared authorization helper for CLIENT users
@@ -275,7 +275,7 @@ export async function fetchAllOrdersForAdmin(
   const offset = (page - 1) * pageSize;
 
   // 3. Build where clause
-  const where: any = {
+  const where: Prisma.OrderWhereInput = {
     deletedAt: null,
   };
 
@@ -285,7 +285,7 @@ export async function fetchAllOrdersForAdmin(
   }
 
   if (filters.status) {
-    where.status = filters.status;
+    where.status = filters.status as OrderStatus;
   }
 
   if (filters.clientId) {
@@ -467,7 +467,7 @@ export async function fetchAdminOrderDetail(
   const user = await requireAdminOrAgent();
 
   // 2. Build where clause with agent scoping
-  const whereClause: any = {
+  const whereClause: Prisma.OrderWhereInput = {
     id: orderId,
     deletedAt: null,
   };
@@ -477,85 +477,85 @@ export async function fetchAdminOrderDetail(
     whereClause.assignedAgentUserId = user.id;
   }
 
-  // 3. Fetch order with full details and audit logs
-  const [order, auditLogs] = await Promise.all([
-    prisma.order.findFirst({
-      where: whereClause,
-      include: {
-        Client: {
-          select: {
-            id: true,
-            name: true,
-            region: true,
-            fullAddress: true,
-            shortAddress: true,
-          },
+  // 3. Fetch order with full details
+  const order = await prisma.order.findFirst({
+    where: whereClause,
+    include: {
+      Client: {
+        select: {
+          id: true,
+          name: true,
+          region: true,
+          fullAddress: true,
+          shortAddress: true,
         },
-        User_Order_submitterUserIdToUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+      },
+      User_Order_submitterUserIdToUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
         },
-        User_Order_assignedAgentUserIdToUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+      },
+      User_Order_assignedAgentUserIdToUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
         },
-        OrderItem: {
-          select: {
-            id: true,
-            productName: true,
-            vendorName: true,
-            qty: true,
-            unitPriceCents: true,
-            lineTotalCents: true,
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
+      },
+      OrderItem: {
+        select: {
+          id: true,
+          productName: true,
+          vendorName: true,
+          qty: true,
+          unitPriceCents: true,
+          lineTotalCents: true,
         },
-        Delivery: {
-          select: {
-            id: true,
-            status: true,
-            Driver: {
-              select: {
-                name: true,
-              },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      Delivery: {
+        select: {
+          id: true,
+          status: true,
+          Driver: {
+            select: {
+              name: true,
             },
           },
         },
       },
-    }),
-    prisma.auditLog.findMany({
-      where: {
-        entityType: "Order",
-        entityId: orderId,
-      },
-      include: {
-        User: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    }),
-  ]);
+    },
+  });
 
-  // 4. Validate order exists
+  // 4. Validate order exists and access is allowed
   if (!order) {
     throw new Error("Order not found or access denied");
   }
 
-  // 5. Format and return
+  // 5. Fetch audit logs only after confirming access
+  const auditLogs = await prisma.auditLog.findMany({
+    where: {
+      entityType: "Order",
+      entityId: orderId,
+    },
+    include: {
+      User: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  // 6. Format and return
   return {
     id: order.id,
     orderNumber: order.orderNumber,
@@ -653,8 +653,8 @@ export async function fetchUnassignedOrders(): Promise<UnassignedOrder[]> {
   const user = await requireAdminOrAgent();
 
   // 2. Build where clause
-  const where: any = {
-    status: "SUBMITTED",
+  const where: Prisma.OrderWhereInput = {
+    status: OrderStatus.SUBMITTED,
     assignedAgentUserId: null,
     deletedAt: null,
   };
@@ -811,8 +811,8 @@ export async function fetchOrdersReadyForDelivery(): Promise<
   const user = await requireAdminOrAgent();
 
   // 2. Build where clause
-  const where: any = {
-    status: "CONFIRMED",
+  const where: Prisma.OrderWhereInput = {
+    status: OrderStatus.CONFIRMED,
     Delivery: null, // No delivery exists
     deletedAt: null,
   };

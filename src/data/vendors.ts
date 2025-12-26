@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 
 export type VendorFilters = {
   region?: string;
@@ -75,7 +76,7 @@ export async function fetchAllVendorsForAdmin(
   const skip = (validPage - 1) * validPageSize;
 
   // Build where clause
-  const where: any = {
+  const where: Prisma.VendorWhereInput = {
     deletedAt: null,
   };
 
@@ -295,7 +296,7 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
   const user = await requireRole("ADMIN", "AGENT");
 
   // Build where clause with agent scoping
-  const whereClause: any = {
+  const whereClause: Prisma.VendorWhereInput = {
     id: vendorId,
     deletedAt: null,
   };
