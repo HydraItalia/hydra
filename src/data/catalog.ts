@@ -101,7 +101,10 @@ export async function fetchCatalogPage(
   if (group) {
     where.ProductCategory = {
       ...where.ProductCategory,
-      CategoryGroup: { name: group },
+      is: {
+        ...where.ProductCategory?.is,
+        CategoryGroup: { is: { name: group } },
+      },
     };
   }
 
@@ -109,7 +112,10 @@ export async function fetchCatalogPage(
   if (categorySlug) {
     where.ProductCategory = {
       ...where.ProductCategory,
-      slug: categorySlug,
+      is: {
+        ...where.ProductCategory?.is,
+        slug: categorySlug,
+      },
     };
   }
 

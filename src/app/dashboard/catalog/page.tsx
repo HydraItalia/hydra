@@ -97,10 +97,13 @@ export default async function CatalogPage({
   // Fetch category groups and categories (cached)
   const categoryGroups = await getCategoryGroups();
 
-  const currentGroup = selectedGroup
-    ? categoryGroups.find((g) => g.name === selectedGroup)
-    : null;
-  const categories = currentGroup?.ProductCategory || [];
+  // Get all categories from all groups with their group info
+  const allCategories = categoryGroups.flatMap((g) =>
+    (g.ProductCategory || []).map((cat) => ({
+      ...cat,
+      CategoryGroup: { name: g.name },
+    }))
+  );
 
   // Fetch paginated products using data layer
   const catalogResult = await fetchCatalogPage({
@@ -203,7 +206,7 @@ export default async function CatalogPage({
             categoryGroups={categoryGroups}
             selectedGroup={selectedGroup}
             selectedCategory={categorySlug}
-            categories={categories}
+            allCategories={allCategories}
           />
         </aside>
 
