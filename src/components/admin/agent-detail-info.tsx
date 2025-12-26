@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CircleDot, Send } from "lucide-react";
 import type { AgentDetail } from "@/data/agents";
 import { formatDate } from "@/lib/utils";
 
@@ -72,13 +73,15 @@ export function AgentDetailInfo({ agent }: AgentDetailInfoProps) {
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Active Orders</div>
-              <div className="text-lg font-medium text-blue-600">
+              <div className="text-lg font-medium text-blue-600 flex items-center gap-1">
+                <CircleDot className="h-4 w-4" />
                 {agent.stats.activeOrderCount}
               </div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Submitted</div>
-              <div className="text-lg font-medium text-orange-600">
+              <div className="text-lg font-medium text-orange-600 flex items-center gap-1">
+                <Send className="h-4 w-4" />
                 {agent.stats.submittedOrderCount}
               </div>
             </div>

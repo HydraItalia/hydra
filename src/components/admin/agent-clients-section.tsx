@@ -31,7 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { X, ExternalLink } from "lucide-react";
+import { X } from "lucide-react";
 import { unassignAgentFromClient } from "@/actions/admin-clients";
 
 type AssignedClient = {
@@ -116,10 +116,9 @@ export function AgentClientsSection({
                         <TableCell>
                           <Link
                             href={`/dashboard/clients/${client.clientId}`}
-                            className="font-medium hover:underline flex items-center gap-1"
+                            className="font-medium hover:underline"
                           >
                             {client.clientName}
-                            <ExternalLink className="h-3 w-3" />
                           </Link>
                         </TableCell>
                         <TableCell>
@@ -183,6 +182,7 @@ export function AgentClientsSection({
                         onClick={() => setClientToRemove(client)}
                         disabled={isRemoving}
                         className="h-8 w-8 p-0"
+                        aria-label={`Unassign ${client.clientName}`}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -198,7 +198,7 @@ export function AgentClientsSection({
       {/* Confirmation Dialog */}
       <AlertDialog
         open={!!clientToRemove}
-        onOpenChange={(open) => !open && setClientToRemove(null)}
+        onOpenChange={(open) => !open && !isRemoving && setClientToRemove(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -212,7 +212,10 @@ export function AgentClientsSection({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isRemoving}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleUnassignConfirm}
+              onClick={(e) => {
+                e.preventDefault();
+                handleUnassignConfirm();
+              }}
               disabled={isRemoving}
             >
               {isRemoving ? "Unassigning..." : "Unassign"}

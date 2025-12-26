@@ -1,9 +1,14 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
-export default function Loading() {
+export default function Loading(): JSX.Element {
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading agent details"
+    >
       {/* Page Header Skeleton */}
       <div className="space-y-2">
         <Skeleton className="h-8 w-64" />

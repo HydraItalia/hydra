@@ -9,6 +9,11 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { subDays } from "date-fns";
+import { Prisma } from "@prisma/client";
+
+// Constants for agent detail queries
+const RECENT_ORDERS_DAYS = 30;
+const ACTIVE_ORDERS_LIMIT = 20;
 
 export type AgentFilters = {
   searchQuery?: string;
@@ -217,7 +222,7 @@ export async function getAgentById(userId: string): Promise<AgentDetail> {
               region: true,
               Order: {
                 where: {
-                  createdAt: { gte: subDays(new Date(), 30) },
+                  createdAt: { gte: subDays(new Date(), RECENT_ORDERS_DAYS) },
                   deletedAt: null,
                 },
                 select: { id: true },
@@ -250,7 +255,7 @@ export async function getAgentById(userId: string): Promise<AgentDetail> {
           Client: { select: { name: true } },
         },
         orderBy: { createdAt: "desc" },
-        take: 20,
+        take: ACTIVE_ORDERS_LIMIT,
       },
     },
   });
@@ -259,8 +264,46 @@ export async function getAgentById(userId: string): Promise<AgentDetail> {
     throw new Error(`Agent not found: ${userId}`);
   }
 
-  // Type-safe mapping
-  const typedAgent = agent as any;
+  // Type-safe mapping using Prisma generated types
+  type AgentWithRelations = Prisma.UserGetPayload<{
+    include: {
+      AgentClient: {
+        include: {
+          Client: {
+            select: {
+              id: true;
+              name: true;
+              region: true;
+              Order: {
+                select: { id: true };
+              };
+            };
+          };
+        };
+      };
+      AgentVendor: {
+        include: {
+          Vendor: {
+            select: {
+              id: true;
+              name: true;
+              region: true;
+              VendorProduct: {
+                select: { id: true };
+              };
+            };
+          };
+        };
+      };
+      Order_Order_assignedAgentUserIdToUser: {
+        include: {
+          Client: { select: { name: true } };
+        };
+      };
+    };
+  }>;
+
+  const typedAgent = agent as AgentWithRelations;
 
   // Calculate stats
   const totalClients = typedAgent.AgentClient.length;
@@ -268,10 +311,10 @@ export async function getAgentById(userId: string): Promise<AgentDetail> {
   const activeOrders = typedAgent.Order_Order_assignedAgentUserIdToUser;
   const activeOrderCount = activeOrders.length;
   const submittedOrderCount = activeOrders.filter(
-    (o: any) => o.status === "SUBMITTED"
+    (o) => o.status === "SUBMITTED"
   ).length;
   const confirmedOrderCount = activeOrders.filter(
-    (o: any) => o.status === "CONFIRMED"
+    (o) => o.status === "CONFIRMED"
   ).length;
 
   return {
@@ -283,7 +326,7 @@ export async function getAgentById(userId: string): Promise<AgentDetail> {
     createdAt: agent.createdAt.toISOString(),
 
     // Assigned Clients
-    assignedClients: typedAgent.AgentClient.map((ac: any) => ({
+    assignedClients: typedAgent.AgentClient.map((ac) => ({
       clientId: ac.Client.id,
       clientName: ac.Client.name,
       region: ac.Client.region,
@@ -291,7 +334,7 @@ export async function getAgentById(userId: string): Promise<AgentDetail> {
     })),
 
     // Assigned Vendors
-    assignedVendors: typedAgent.AgentVendor.map((av: any) => ({
+    assignedVendors: typedAgent.AgentVendor.map((av) => ({
       vendorId: av.Vendor.id,
       vendorName: av.Vendor.name,
       region: av.Vendor.region,
@@ -299,7 +342,7 @@ export async function getAgentById(userId: string): Promise<AgentDetail> {
     })),
 
     // Active Orders
-    activeOrders: activeOrders.map((order: any) => ({
+    activeOrders: activeOrders.map((order) => ({
       id: order.id,
       orderNumber: order.orderNumber,
       createdAt: order.createdAt.toISOString(),

@@ -19,12 +19,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatCurrency } from "@/lib/utils";
 
+type OrderStatus = "SUBMITTED" | "CONFIRMED" | "FULFILLING" | "DELIVERED";
+
 type Order = {
   id: string;
   orderNumber: string;
   createdAt: string;
   totalCents: number;
-  status: string;
+  status: OrderStatus;
   clientName: string;
 };
 
@@ -34,13 +36,20 @@ type AgentOrdersSectionProps = {
 };
 
 const statusVariants: Record<
-  string,
+  OrderStatus,
   "default" | "secondary" | "outline" | "destructive"
 > = {
   SUBMITTED: "secondary",
   CONFIRMED: "default",
   FULFILLING: "default",
   DELIVERED: "default",
+};
+
+const statusLabels: Record<OrderStatus, string> = {
+  SUBMITTED: "Submitted",
+  CONFIRMED: "Confirmed",
+  FULFILLING: "In Progress",
+  DELIVERED: "Delivered",
 };
 
 export function AgentOrdersSection({
@@ -52,8 +61,12 @@ export function AgentOrdersSection({
       <CardHeader>
         <CardTitle>Active Orders</CardTitle>
         <CardDescription>
-          Orders currently assigned to this agent ({orders.length}{" "}
-          {orders.length < totalOrderCount && `of ${totalOrderCount}`} shown)
+          <CardDescription>
+            Orders currently assigned to this agent
+            {orders.length < totalOrderCount
+              ? ` (${orders.length} of ${totalOrderCount} shown)`
+              : ` (${totalOrderCount})`}
+          </CardDescription>
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -101,7 +114,7 @@ export function AgentOrdersSection({
                         <Badge
                           variant={statusVariants[order.status] || "secondary"}
                         >
-                          {order.status}
+                          {statusLabels[order.status]}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -136,7 +149,7 @@ export function AgentOrdersSection({
                         variant={statusVariants[order.status] || "secondary"}
                         className="mt-1"
                       >
-                        {order.status}
+                        {statusLabels[order.status]}
                       </Badge>
                     </div>
                   </div>
