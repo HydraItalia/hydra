@@ -12,6 +12,7 @@ import {
   MapPin,
   ClipboardList,
   Settings,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +30,59 @@ type Role = "ADMIN" | "AGENT" | "VENDOR" | "CLIENT" | "DRIVER";
 export function getNavItems(role: Role): NavItem[] {
   switch (role) {
     case "ADMIN":
+      return [
+        {
+          label: "Dashboard",
+          href: "/dashboard",
+          icon: LayoutDashboard,
+        },
+        {
+          label: "Vendors",
+          href: "/dashboard/vendors",
+          icon: Store,
+        },
+        {
+          label: "Clients",
+          href: "/dashboard/clients",
+          icon: Users,
+        },
+        {
+          label: "Agents",
+          href: "/dashboard/agents",
+          icon: UserCog,
+        },
+        {
+          label: "Catalog",
+          href: "/dashboard/catalog",
+          icon: Package,
+        },
+        {
+          label: "Orders",
+          href: "/dashboard/orders",
+          icon: ShoppingCart,
+        },
+        {
+          label: "Deliveries",
+          href: "/dashboard/deliveries",
+          icon: Truck,
+        },
+        {
+          label: "Shifts",
+          href: "/dashboard/shifts",
+          icon: ClipboardList,
+        },
+        {
+          label: "Smistamento Ordini",
+          href: "/dashboard/routing",
+          icon: GitBranch,
+        },
+        {
+          label: "Reports",
+          href: "/dashboard/reports",
+          icon: BarChart3,
+        },
+      ];
+
     case "AGENT":
       return [
         {

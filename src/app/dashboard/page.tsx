@@ -163,15 +163,17 @@ async function AdminAgentDashboard({
             <span className="text-xs font-medium">Deliveries</span>
           </Link>
         </Button>
-        <Button variant="outline" asChild className="h-auto py-3">
-          <Link
-            href="/dashboard/agents"
-            className="flex flex-col items-center gap-1"
-          >
-            <UserCog className="h-5 w-5" />
-            <span className="text-xs font-medium">Agents</span>
-          </Link>
-        </Button>
+        {user.role === "ADMIN" && (
+          <Button variant="outline" asChild className="h-auto py-3">
+            <Link
+              href="/dashboard/agents"
+              className="flex flex-col items-center gap-1"
+            >
+              <UserCog className="h-5 w-5" />
+              <span className="text-xs font-medium">Agents</span>
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Real-time Stats - Action Required */}
