@@ -286,7 +286,7 @@ export async function getVendorById(vendorId: string): Promise<VendorDetail> {
   const [vendor, totalProductCount, lowStockCount] = await Promise.all([
     prisma.vendor.findUnique({
       where: { id: vendorId, deletedAt: null },
-    include: {
+      include: {
       User: {
         select: {
           email: true,
