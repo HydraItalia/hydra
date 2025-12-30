@@ -3,8 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { currentUser, canManageClient } from "@/lib/auth";
 import Stripe from "stripe";
 
+let stripeInstance: Stripe | null = null;
+
 // Initialize Stripe lazily to avoid build-time errors
+// Caches the instance to avoid repeated initialization
 function getStripe() {
+  if (stripeInstance) {
+    return stripeInstance;
+  }
+
   const secretKey = process.env.STRIPE_SECRET_KEY;
 
   if (!secretKey) {
@@ -13,9 +20,11 @@ function getStripe() {
     );
   }
 
-  return new Stripe(secretKey, {
+  stripeInstance = new Stripe(secretKey, {
     apiVersion: "2025-12-15.clover",
   });
+
+  return stripeInstance;
 }
 
 /**
@@ -27,7 +36,15 @@ function getStripe() {
  * Request body:
  * {
  *   clientId: string
+ *   paymentMethodTypes?: string[] // Optional, defaults to ["card"]
  * }
+ *
+ * Supported payment method types:
+ * - "card" (default)
+ * - "sepa_debit"
+ * - "us_bank_account"
+ * - "bacs_debit"
+ * - And more: https://docs.stripe.com/api/setup_intents/create#create_setup_intent-payment_method_types
  *
  * Response:
  * {
@@ -47,12 +64,20 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { clientId } = body;
+    const { clientId, paymentMethodTypes = ["card"] } = body;
 
     // Validate request
     if (!clientId) {
       return NextResponse.json(
         { error: "clientId is required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate payment method types
+    if (!Array.isArray(paymentMethodTypes) || paymentMethodTypes.length === 0) {
+      return NextResponse.json(
+        { error: "paymentMethodTypes must be a non-empty array" },
         { status: 400 }
       );
     }
@@ -102,13 +127,17 @@ export async function POST(req: NextRequest) {
     const stripe = getStripe();
     const setupIntent = await stripe.setupIntents.create({
       customer: client.stripeCustomerId,
-      payment_method_types: ["card"], // Can add more types like 'sepa_debit', 'us_bank_account'
+      payment_method_types: paymentMethodTypes,
       metadata: {
         clientId: client.id,
         clientName: client.name,
         source: "hydra",
       },
     });
+
+    if (!setupIntent.client_secret) {
+      throw new Error("SetupIntent created without client_secret");
+    }
 
     return NextResponse.json({
       clientSecret: setupIntent.client_secret,

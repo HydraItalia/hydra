@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import Stripe from "stripe";
 
+let stripeInstance: Stripe | null = null;
+
 // Initialize Stripe lazily to avoid build-time errors
+// Caches the instance to avoid repeated initialization
 function getStripe() {
+  if (stripeInstance) {
+    return stripeInstance;
+  }
+
   const secretKey = process.env.STRIPE_SECRET_KEY;
 
   if (!secretKey) {
@@ -12,9 +19,11 @@ function getStripe() {
     );
   }
 
-  return new Stripe(secretKey, {
+  stripeInstance = new Stripe(secretKey, {
     apiVersion: "2025-12-15.clover",
   });
+
+  return stripeInstance;
 }
 
 /**
