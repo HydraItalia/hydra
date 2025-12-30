@@ -57,6 +57,9 @@ If successful, you'll see migration files created and applied.
 | `NEXTAUTH_URL` | Application base URL | `http://localhost:3000` |
 | `EMAIL_SERVER` | SMTP server for magic links | `smtp://user:pass@smtp.example.com:587` |
 | `EMAIL_FROM` | Sender email address | `noreply@hydra.app` |
+| `STRIPE_SECRET_KEY` | Stripe server-side API key | `sk_test_...` or `sk_live_...` |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe client-side API key | `pk_test_...` or `pk_live_...` |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret | `whsec_...` |
 
 ### Optional Variables
 
@@ -214,6 +217,134 @@ Visit [generate-secret.vercel.app/32](https://generate-secret.vercel.app/32)
 - **Never commit** `AUTH_SECRET` to Git
 - **Regenerate secrets** if compromised
 - **Minimum length**: 32 bytes (base64 encoded = ~44 characters)
+
+---
+
+## Stripe Payment Integration
+
+### What is Stripe?
+
+Stripe is a payment processing platform that Hydra uses for:
+- **Saving client payment methods** (Phase 10)
+- **Pre-authorizing and capturing payments** (Phase 11)
+- **Vendor direct charges** via Stripe Connect
+
+### Getting Your Stripe API Keys
+
+#### 1. Create Stripe Account
+
+- Go to [stripe.com](https://stripe.com)
+- Sign up for a free account
+- Complete account verification
+
+#### 2. Get Test API Keys (Development)
+
+1. Navigate to the [Stripe Dashboard](https://dashboard.stripe.com)
+2. Toggle to **Test Mode** (upper right corner)
+3. Go to **Developers** → **API keys**
+4. Copy your keys:
+   - **Publishable key** (starts with `pk_test_`)
+   - **Secret key** (starts with `sk_test_`)
+
+#### 3. Add to .env.local
+
+```env
+# Server-side secret key (test mode)
+STRIPE_SECRET_KEY="sk_test_YOUR_KEY_HERE"
+
+# Client-side publishable key (test mode)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_YOUR_KEY_HERE"
+```
+
+### Webhook Configuration
+
+Stripe webhooks allow your application to receive real-time notifications about payment events.
+
+#### Local Development with Stripe CLI
+
+1. **Install Stripe CLI**
+   ```bash
+   brew install stripe/stripe-cli/stripe
+   ```
+
+2. **Login to Stripe**
+   ```bash
+   stripe login
+   ```
+
+3. **Forward webhooks to localhost**
+   ```bash
+   stripe listen --forward-to localhost:3000/api/webhooks/stripe
+   ```
+
+4. **Copy the webhook signing secret**
+
+   The CLI will output a webhook secret (starts with `whsec_`). Add it to `.env.local`:
+
+   ```env
+   STRIPE_WEBHOOK_SECRET="whsec_YOUR_WEBHOOK_SECRET"
+   ```
+
+5. **Keep the CLI running** while developing to receive webhook events
+
+#### Production Webhook Setup
+
+1. Go to **Stripe Dashboard** → **Developers** → **Webhooks**
+2. Click **Add endpoint**
+3. Enter your production URL: `https://yourdomain.com/api/webhooks/stripe`
+4. Select events to listen for:
+   - `setup_intent.succeeded`
+   - `payment_method.attached`
+   - `payment_intent.succeeded`
+   - `payment_intent.payment_failed`
+5. Copy the **Signing secret** and add to Vercel environment variables
+
+### Production Configuration
+
+**IMPORTANT:** Never use test keys in production!
+
+1. Toggle Stripe Dashboard to **Live Mode**
+2. Go to **Developers** → **API keys**
+3. Copy your **live keys** (start with `pk_live_` and `sk_live_`)
+4. Add to Vercel environment variables:
+
+| Variable | Value | Note |
+|----------|-------|------|
+| `STRIPE_SECRET_KEY` | `sk_live_...` | Live secret key |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_live_...` | Live publishable key |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...` | From webhook endpoint |
+
+### Testing Stripe Integration
+
+#### Test Cards
+
+Use these test card numbers in development:
+
+| Card Number | Scenario |
+|-------------|----------|
+| `4242 4242 4242 4242` | Successful payment |
+| `4000 0025 0000 3155` | Requires authentication (3D Secure) |
+| `4000 0000 0000 9995` | Declined card |
+
+- Use any future expiry date (e.g., `12/34`)
+- Use any 3-digit CVC (e.g., `123`)
+- Use any ZIP code (e.g., `12345`)
+
+#### Verify Setup
+
+```bash
+# Check environment variables are set
+node -e "require('dotenv').config({path:'.env.local'}); console.log('STRIPE_SECRET_KEY:', process.env.STRIPE_SECRET_KEY ? '✓ Set' : '✗ Missing')"
+```
+
+### Important Notes
+
+- ✅ **DO** use test keys for all development
+- ✅ **DO** test webhook events with Stripe CLI
+- ✅ **DO** use different keys for staging and production
+- ❌ **DON'T** commit API keys to Git
+- ❌ **DON'T** expose secret keys in client-side code
+- ❌ **DON'T** use live keys until ready for production
 
 ---
 
@@ -519,6 +650,9 @@ Use this checklist to verify your setup:
 - [ ] `EMAIL_SERVER` configured (Mailtrap or other)
 - [ ] `EMAIL_FROM` set to valid email
 - [ ] `NEXT_PUBLIC_ENABLE_DEMO_LOGIN="1"` set
+- [ ] `STRIPE_SECRET_KEY` set with test key (`sk_test_...`)
+- [ ] `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` set with test key (`pk_test_...`)
+- [ ] `STRIPE_WEBHOOK_SECRET` set (from Stripe CLI or dashboard)
 - [ ] File is in `.gitignore`
 - [ ] Database connection tested (`npm run db:migrate`)
 - [ ] Seed data loaded (`npm run db:reset`)
@@ -530,10 +664,14 @@ Use this checklist to verify your setup:
 - [ ] `NEXTAUTH_URL` set to production URL
 - [ ] `EMAIL_SERVER` uses production SMTP (Resend/SendGrid)
 - [ ] `EMAIL_FROM` uses verified domain
+- [ ] `STRIPE_SECRET_KEY` set with **live** key (`sk_live_...`)
+- [ ] `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` set with **live** key (`pk_live_...`)
+- [ ] `STRIPE_WEBHOOK_SECRET` set (from production webhook endpoint)
 - [ ] `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` **NOT SET** or set to "0"
 - [ ] Migrations deployed successfully
 - [ ] Test authentication with real email
 - [ ] Demo login buttons **NOT VISIBLE**
+- [ ] Stripe webhooks configured and tested
 
 ---
 
