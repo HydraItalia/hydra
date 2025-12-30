@@ -149,6 +149,11 @@ model Client {
   freezco         Boolean?      // Freezco flag
   mandanti        String?       // Principals/Agents
 
+  // Payment Integration (Phase 10)
+  stripeCustomerId       String?  // Stripe Customer ID for payment processing
+  defaultPaymentMethodId String?  // Default payment method ID from Stripe
+  hasPaymentMethod       Boolean  @default(false) // Quick flag: does client have a payment method on file?
+
   // Tracking
   lastVisitAt     DateTime?
 
