@@ -2,10 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import Stripe from "stripe";
 
-// Initialize Stripe with secret key
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+// Initialize Stripe lazily to avoid build-time errors
+function getStripe() {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+
+  if (!secretKey) {
+    throw new Error(
+      "STRIPE_SECRET_KEY is not configured. Please add it to your environment variables."
+    );
+  }
+
+  return new Stripe(secretKey, {
+    apiVersion: "2025-12-15.clover",
+  });
+}
 
 /**
  * POST /api/stripe/customers
@@ -55,6 +65,7 @@ export async function POST(req: NextRequest) {
     if (client.stripeCustomerId) {
       // Verify customer still exists in Stripe
       try {
+        const stripe = getStripe();
         const existingCustomer = await stripe.customers.retrieve(
           client.stripeCustomerId
         );
@@ -77,6 +88,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create new Stripe Customer
+    const stripe = getStripe();
     const customer = await stripe.customers.create({
       name: client.name,
       email: client.email || undefined,
