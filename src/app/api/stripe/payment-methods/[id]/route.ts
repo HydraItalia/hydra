@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import Stripe from "stripe";
 
 // Stripe singleton
@@ -57,9 +58,57 @@ export async function GET(
       );
     }
 
+    // Get user's Stripe customer ID for authorization
+    let userStripeCustomerId: string | null = null;
+
+    if (user.role === "CLIENT") {
+      // For CLIENT users, get their client record
+      if (!user.clientId) {
+        return NextResponse.json(
+          { error: "Client not found" },
+          { status: 404 }
+        );
+      }
+
+      const client = await prisma.client.findUnique({
+        where: { id: user.clientId },
+        select: { stripeCustomerId: true },
+      });
+
+      if (!client || !client.stripeCustomerId) {
+        return NextResponse.json(
+          { error: "Payment method not found" },
+          { status: 404 }
+        );
+      }
+
+      userStripeCustomerId = client.stripeCustomerId;
+    } else if (user.role === "ADMIN") {
+      // ADMIN can view any payment method (for support purposes)
+      // Note: In production, you may want to log admin access for audit purposes
+      userStripeCustomerId = null; // Skip ownership check for admins
+    } else {
+      // Other roles should not have access
+      return NextResponse.json(
+        { error: "Payment method not found" },
+        { status: 404 }
+      );
+    }
+
     // Retrieve payment method from Stripe
     const stripe = getStripe();
     const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+
+    // CRITICAL: Verify ownership (unless admin)
+    if (
+      userStripeCustomerId &&
+      paymentMethod.customer !== userStripeCustomerId
+    ) {
+      return NextResponse.json(
+        { error: "Payment method not found" },
+        { status: 404 }
+      );
+    }
 
     // Only return card details (most common payment method type)
     if (paymentMethod.type !== "card" || !paymentMethod.card) {
@@ -79,10 +128,22 @@ export async function GET(
   } catch (error) {
     console.error("Payment Method API error:", error);
 
-    // Return specific error messages
+    // Return sanitized error messages
     if (error instanceof Stripe.errors.StripeError) {
+      // Map Stripe error codes to safe, user-friendly messages
+      const safeMessages: Record<string, string> = {
+        resource_missing: "Payment method not found",
+        invalid_request_error: "Invalid request",
+        api_connection_error: "Payment service temporarily unavailable",
+        api_error: "Payment service error",
+        authentication_error: "Authentication failed",
+        rate_limit_error: "Too many requests, please try again later",
+      };
+
+      const message = safeMessages[error.code ?? ""] ?? "Payment method error";
+
       return NextResponse.json(
-        { error: `Stripe error: ${error.message}` },
+        { error: message },
         { status: error.statusCode || 500 }
       );
     }

@@ -41,20 +41,25 @@ export default async function BillingPage() {
       redirect("/dashboard");
     }
 
-    client = await prisma.client.findUnique({
-      where: { id: user.clientId },
-      select: {
-        id: true,
-        name: true,
-        stripeCustomerId: true,
-        defaultPaymentMethodId: true,
-        hasPaymentMethod: true,
-      },
-    });
+    try {
+      client = await prisma.client.findUnique({
+        where: { id: user.clientId },
+        select: {
+          id: true,
+          name: true,
+          stripeCustomerId: true,
+          defaultPaymentMethodId: true,
+          hasPaymentMethod: true,
+        },
+      });
 
-    if (!client) {
-      // CLIENT user without a client record - shouldn't happen
-      redirect("/dashboard");
+      if (!client) {
+        // CLIENT user without a client record - shouldn't happen
+        redirect("/dashboard");
+      }
+    } catch (error) {
+      console.error("Failed to fetch client record for billing:", error);
+      redirect("/dashboard?error=billing_unavailable");
     }
   }
 

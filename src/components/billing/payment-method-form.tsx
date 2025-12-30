@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
 import {
   useStripe,
   useElements,
@@ -11,15 +11,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface PaymentMethodFormProps {
-  clientId: string;
-  clientSecret: string;
   onSuccess: (paymentMethodId: string) => void;
   onCancel: () => void;
 }
 
 export function PaymentMethodForm({
-  clientId,
-  clientSecret,
   onSuccess,
   onCancel,
 }: PaymentMethodFormProps) {
@@ -28,6 +24,14 @@ export function PaymentMethodForm({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const isMountedRef = useRef(true);
+
+  // Track mounted state to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -55,18 +59,36 @@ export function PaymentMethodForm({
         return;
       }
 
-      if (setupIntent?.status === "succeeded") {
+      // Validate setupIntent and payment_method exist
+      if (!setupIntent) {
+        setError("Setup failed to complete");
+        setIsProcessing(false);
+        return;
+      }
+
+      if (setupIntent.status === "succeeded" && setupIntent.payment_method) {
         const paymentMethodId = setupIntent.payment_method as string;
 
-        // Update client record with payment method
-        await updateClientPaymentMethod(paymentMethodId);
+        // NOTE: Client record update will be handled by Stripe webhooks (Issue #96)
+        // The webhook endpoint will listen for setup_intent.succeeded events
+        // and update the Client model's defaultPaymentMethodId and hasPaymentMethod fields.
+        // This ensures consistency even if the user closes their browser.
 
         setSuccess(true);
+
+        // Show success message briefly before closing
+        // Use isMountedRef to prevent calling callback after unmount
         setTimeout(() => {
-          onSuccess(paymentMethodId);
-        }, 1500); // Show success message briefly before closing
+          if (isMountedRef.current) {
+            onSuccess(paymentMethodId);
+          }
+        }, 1500);
       } else {
-        setError("Payment method setup did not complete successfully");
+        setError(
+          setupIntent.payment_method
+            ? "Payment method setup did not complete successfully"
+            : "No payment method was attached"
+        );
         setIsProcessing(false);
       }
     } catch (err) {
@@ -75,12 +97,6 @@ export function PaymentMethodForm({
       );
       setIsProcessing(false);
     }
-  };
-
-  const updateClientPaymentMethod = async (paymentMethodId: string) => {
-    // This will be handled by webhook in the future
-    // For now, we could add a manual update endpoint if needed
-    console.log("Payment method saved:", paymentMethodId);
   };
 
   if (success) {

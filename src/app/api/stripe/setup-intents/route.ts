@@ -68,10 +68,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!client) {
-      return NextResponse.json(
-        { error: "Client not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
     // Ensure client has a Stripe Customer ID
@@ -116,10 +113,23 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("SetupIntent API error:", error);
 
-    // Return specific error messages
+    // Return sanitized error messages
     if (error instanceof Stripe.errors.StripeError) {
+      // Map Stripe error codes to safe, user-friendly messages
+      const safeMessages: Record<string, string> = {
+        invalid_request_error: "Invalid payment setup request",
+        resource_missing: "Customer not found",
+        api_connection_error: "Payment service temporarily unavailable",
+        api_error: "Payment service error",
+        authentication_error: "Authentication failed",
+        rate_limit_error: "Too many requests, please try again later",
+      };
+
+      const message =
+        safeMessages[error.code ?? ""] ?? "Failed to initialize payment setup";
+
       return NextResponse.json(
-        { error: `Stripe error: ${error.message}` },
+        { error: message },
         { status: error.statusCode || 500 }
       );
     }
