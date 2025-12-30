@@ -154,3 +154,140 @@ export async function GET(
     );
   }
 }
+
+/**
+ * DELETE /api/stripe/payment-methods/[id]
+ *
+ * Detaches a payment method from a customer and updates the client record.
+ * Requires authentication and ownership verification.
+ */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Check authentication
+    const user = await currentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized - authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const { id: paymentMethodId } = await params;
+
+    if (!paymentMethodId) {
+      return NextResponse.json(
+        { error: "Payment method ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Get user's client record and Stripe customer ID for authorization
+    let clientRecord = null;
+    let userStripeCustomerId: string | null = null;
+
+    if (user.role === "CLIENT") {
+      if (!user.clientId) {
+        return NextResponse.json(
+          { error: "Client not found" },
+          { status: 404 }
+        );
+      }
+
+      clientRecord = await prisma.client.findUnique({
+        where: { id: user.clientId },
+        select: {
+          id: true,
+          stripeCustomerId: true,
+          defaultPaymentMethodId: true,
+        },
+      });
+
+      if (!clientRecord || !clientRecord.stripeCustomerId) {
+        return NextResponse.json(
+          { error: "Payment method not found" },
+          { status: 404 }
+        );
+      }
+
+      userStripeCustomerId = clientRecord.stripeCustomerId;
+    } else if (user.role === "ADMIN") {
+      // ADMIN can delete any payment method (for support)
+      // Note: Consider audit logging for admin actions
+      userStripeCustomerId = null; // Skip ownership check
+    } else {
+      // Other roles should not have access
+      return NextResponse.json(
+        { error: "Payment method not found" },
+        { status: 404 }
+      );
+    }
+
+    // Retrieve payment method from Stripe to verify ownership
+    const stripe = getStripe();
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+
+    // CRITICAL: Verify ownership (unless admin)
+    if (
+      userStripeCustomerId &&
+      paymentMethod.customer !== userStripeCustomerId
+    ) {
+      return NextResponse.json(
+        { error: "Payment method not found" },
+        { status: 404 }
+      );
+    }
+
+    // Detach payment method from customer
+    await stripe.paymentMethods.detach(paymentMethodId);
+
+    // Update client record if this was their default payment method
+    if (
+      clientRecord &&
+      clientRecord.defaultPaymentMethodId === paymentMethodId
+    ) {
+      await prisma.client.update({
+        where: { id: clientRecord.id },
+        data: {
+          defaultPaymentMethodId: null,
+          hasPaymentMethod: false,
+        },
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Payment method removed successfully",
+    });
+  } catch (error) {
+    console.error("Delete Payment Method API error:", error);
+
+    // Return sanitized error messages
+    if (error instanceof Stripe.errors.StripeError) {
+      const safeMessages: Record<string, string> = {
+        resource_missing: "Payment method not found",
+        invalid_request_error: "Invalid request",
+        api_connection_error: "Payment service temporarily unavailable",
+        api_error: "Payment service error",
+        authentication_error: "Authentication failed",
+        rate_limit_error: "Too many requests, please try again later",
+      };
+
+      const message =
+        safeMessages[error.code ?? ""] ?? "Failed to remove payment method";
+
+      return NextResponse.json(
+        { error: message },
+        { status: error.statusCode || 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Failed to remove payment method" },
+      { status: 500 }
+    );
+  }
+}

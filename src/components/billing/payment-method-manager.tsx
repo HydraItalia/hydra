@@ -141,6 +141,11 @@ export function PaymentMethodManager({
     setClientSecret(null);
   };
 
+  const handleRemove = () => {
+    setHasPaymentMethod(false);
+    setDefaultPaymentMethodId(null);
+  };
+
   return (
     <div className="space-y-6">
       {error && (
@@ -156,6 +161,7 @@ export function PaymentMethodManager({
             <PaymentMethodDisplay
               paymentMethodId={defaultPaymentMethodId}
               onUpdate={handleAddCard}
+              onRemove={handleRemove}
               isDefault={true}
             />
           ) : (

@@ -2,12 +2,24 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { CreditCard, Loader2 } from "lucide-react";
+import { CreditCard, Loader2, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface PaymentMethodDisplayProps {
   paymentMethodId: string;
   onUpdate: () => void;
+  onRemove: () => void;
   isDefault?: boolean;
 }
 
@@ -21,10 +33,12 @@ interface PaymentMethodDetails {
 export function PaymentMethodDisplay({
   paymentMethodId,
   onUpdate,
+  onRemove,
   isDefault = false,
 }: PaymentMethodDisplayProps) {
   const [details, setDetails] = useState<PaymentMethodDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRemoving, setIsRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPaymentMethodDetails = useCallback(async () => {
@@ -62,6 +76,47 @@ export function PaymentMethodDisplay({
     }
   }, [paymentMethodId]);
 
+  const handleRemove = async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      setIsRemoving(true);
+      setError(null);
+
+      const response = await fetch(
+        `/api/stripe/payment-methods/${paymentMethodId}`,
+        {
+          method: "DELETE",
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to remove payment method");
+      }
+
+      // Success - call parent callback
+      onRemove();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.error("Error removing payment method:", err);
+
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("Request timed out. Please try again.");
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Failed to remove payment method"
+        );
+      }
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
   useEffect(() => {
     fetchPaymentMethodDetails();
   }, [fetchPaymentMethodDetails]);
@@ -86,6 +141,12 @@ export function PaymentMethodDisplay({
 
   return (
     <div className="space-y-4">
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex items-center justify-between p-4 border rounded-lg">
         <div className="flex items-center gap-4">
           <div className="w-12 h-8 flex items-center justify-center bg-muted rounded">
@@ -100,9 +161,43 @@ export function PaymentMethodDisplay({
             </p>
           </div>
         </div>
-        <Button variant="outline" onClick={onUpdate}>
-          Update
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onUpdate} disabled={isRemoving}>
+            Update
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={isRemoving}>
+                {isRemoving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Remove
+                  </>
+                )}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove Payment Method?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to remove this payment method? You will
+                  need to add a new one to place orders.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRemove}>
+                  Remove Payment Method
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       {isDefault && (
