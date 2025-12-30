@@ -115,18 +115,24 @@ export async function POST(req: NextRequest) {
 
     // Return sanitized error messages
     if (error instanceof Stripe.errors.StripeError) {
-      // Map Stripe error codes to safe, user-friendly messages
-      const safeMessages: Record<string, string> = {
+      // Map Stripe error types to safe, user-friendly messages
+      const safeTypeMessages: Record<string, string> = {
         invalid_request_error: "Invalid payment setup request",
-        resource_missing: "Customer not found",
         api_connection_error: "Payment service temporarily unavailable",
         api_error: "Payment service error",
         authentication_error: "Authentication failed",
         rate_limit_error: "Too many requests, please try again later",
       };
 
+      // Map specific error codes
+      const safeCodeMessages: Record<string, string> = {
+        resource_missing: "Customer not found",
+      };
+
       const message =
-        safeMessages[error.code ?? ""] ?? "Failed to initialize payment setup";
+        safeCodeMessages[error.code ?? ""] ??
+        safeTypeMessages[error.type] ??
+        "Failed to initialize payment setup";
 
       return NextResponse.json(
         { error: message },

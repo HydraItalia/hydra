@@ -115,8 +115,8 @@ export async function POST(req: NextRequest) {
 
     // Return sanitized error messages
     if (error instanceof Stripe.errors.StripeError) {
-      // Map Stripe error codes to safe, user-friendly messages
-      const safeMessages: Record<string, string> = {
+      // Map Stripe error types to safe, user-friendly messages
+      const safeTypeMessages: Record<string, string> = {
         invalid_request_error: "Invalid customer data",
         api_connection_error: "Payment service temporarily unavailable",
         api_error: "Payment service error",
@@ -124,8 +124,13 @@ export async function POST(req: NextRequest) {
         rate_limit_error: "Too many requests, please try again later",
       };
 
+      // Map specific error codes (if needed in the future)
+      const safeCodeMessages: Record<string, string> = {};
+
       const message =
-        safeMessages[error.code ?? ""] ?? "Failed to create customer";
+        safeCodeMessages[error.code ?? ""] ??
+        safeTypeMessages[error.type] ??
+        "Failed to create customer";
 
       return NextResponse.json(
         { error: message },

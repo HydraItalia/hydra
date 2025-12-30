@@ -19,7 +19,6 @@ const stripePromise = loadStripe(
 
 interface PaymentMethodManagerProps {
   clientId: string;
-  clientName: string;
   stripeCustomerId: string | null;
   hasPaymentMethod: boolean;
   defaultPaymentMethodId: string | null;
@@ -141,9 +140,45 @@ export function PaymentMethodManager({
     setClientSecret(null);
   };
 
-  const handleRemove = () => {
-    setHasPaymentMethod(false);
-    setDefaultPaymentMethodId(null);
+  const handleRemove = async () => {
+    if (!defaultPaymentMethodId) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    try {
+      const response = await fetch(
+        `/api/stripe/payment-methods/${defaultPaymentMethodId}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to remove payment method");
+      }
+
+      setHasPaymentMethod(false);
+      setDefaultPaymentMethodId(null);
+    } catch (err) {
+      clearTimeout(timeoutId);
+
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("Request timed out. Please try again.");
+      } else {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

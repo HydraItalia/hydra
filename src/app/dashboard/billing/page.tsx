@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/card";
 import { PaymentMethodManager } from "@/components/billing/payment-method-manager";
 
+type ClientBillingInfo = {
+  id: string;
+  stripeCustomerId: string | null;
+  defaultPaymentMethodId: string | null;
+  hasPaymentMethod: boolean;
+};
+
 /**
  * Client Billing Page
  *
@@ -32,7 +39,7 @@ export default async function BillingPage() {
 
   // For CLIENT role, fetch their client record
   // For ADMIN, this would need client selection (future enhancement)
-  let client = null;
+  let client: ClientBillingInfo | null = null;
 
   if (user.role === "CLIENT") {
     // User.clientId references Client.id
@@ -46,7 +53,6 @@ export default async function BillingPage() {
         where: { id: user.clientId },
         select: {
           id: true,
-          name: true,
           stripeCustomerId: true,
           defaultPaymentMethodId: true,
           hasPaymentMethod: true,
@@ -58,7 +64,10 @@ export default async function BillingPage() {
         redirect("/dashboard");
       }
     } catch (error) {
-      console.error("Failed to fetch client record for billing:", error);
+      console.error("Failed to fetch client record for billing:", {
+        clientId: user.clientId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
       redirect("/dashboard?error=billing_unavailable");
     }
   }
@@ -83,7 +92,6 @@ export default async function BillingPage() {
             {client && (
               <PaymentMethodManager
                 clientId={client.id}
-                clientName={client.name}
                 stripeCustomerId={client.stripeCustomerId}
                 hasPaymentMethod={client.hasPaymentMethod}
                 defaultPaymentMethodId={client.defaultPaymentMethodId}

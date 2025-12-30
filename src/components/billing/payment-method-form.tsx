@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
+const SUCCESS_MESSAGE_DURATION = 1500;
+
 interface PaymentMethodFormProps {
   onSuccess: (paymentMethodId: string) => void;
   onCancel: () => void;
@@ -25,11 +27,16 @@ export function PaymentMethodForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const isMountedRef = useRef(true);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Track mounted state to prevent memory leaks
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
+      // Clear timeout to prevent memory leak
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
   }, []);
 
@@ -67,7 +74,11 @@ export function PaymentMethodForm({
       }
 
       if (setupIntent.status === "succeeded" && setupIntent.payment_method) {
-        const paymentMethodId = setupIntent.payment_method as string;
+        // Handle both string and PaymentMethod object types
+        const paymentMethodId =
+          typeof setupIntent.payment_method === "string"
+            ? setupIntent.payment_method
+            : setupIntent.payment_method.id;
 
         // NOTE: Client record update will be handled by Stripe webhooks (Issue #96)
         // The webhook endpoint will listen for setup_intent.succeeded events
@@ -78,11 +89,12 @@ export function PaymentMethodForm({
 
         // Show success message briefly before closing
         // Use isMountedRef to prevent calling callback after unmount
-        setTimeout(() => {
+        // Store timeout ref to clear on unmount
+        timeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) {
             onSuccess(paymentMethodId);
           }
-        }, 1500);
+        }, SUCCESS_MESSAGE_DURATION);
       } else {
         setError(
           setupIntent.payment_method

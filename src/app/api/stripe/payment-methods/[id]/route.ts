@@ -85,7 +85,12 @@ export async function GET(
       userStripeCustomerId = client.stripeCustomerId;
     } else if (user.role === "ADMIN") {
       // ADMIN can view any payment method (for support purposes)
-      // Note: In production, you may want to log admin access for audit purposes
+      console.log("[AUDIT] Admin accessed payment method", {
+        adminId: user.id,
+        paymentMethodId,
+        action: "GET",
+        timestamp: new Date().toISOString(),
+      });
       userStripeCustomerId = null; // Skip ownership check for admins
     } else {
       // Other roles should not have access
@@ -130,9 +135,8 @@ export async function GET(
 
     // Return sanitized error messages
     if (error instanceof Stripe.errors.StripeError) {
-      // Map Stripe error codes to safe, user-friendly messages
-      const safeMessages: Record<string, string> = {
-        resource_missing: "Payment method not found",
+      // Map Stripe error types to safe, user-friendly messages
+      const safeTypeMessages: Record<string, string> = {
         invalid_request_error: "Invalid request",
         api_connection_error: "Payment service temporarily unavailable",
         api_error: "Payment service error",
@@ -140,7 +144,15 @@ export async function GET(
         rate_limit_error: "Too many requests, please try again later",
       };
 
-      const message = safeMessages[error.code ?? ""] ?? "Payment method error";
+      // Map specific error codes
+      const safeCodeMessages: Record<string, string> = {
+        resource_missing: "Payment method not found",
+      };
+
+      const message =
+        safeCodeMessages[error.code ?? ""] ??
+        safeTypeMessages[error.type] ??
+        "Payment method error";
 
       return NextResponse.json(
         { error: message },
@@ -216,7 +228,12 @@ export async function DELETE(
       userStripeCustomerId = clientRecord.stripeCustomerId;
     } else if (user.role === "ADMIN") {
       // ADMIN can delete any payment method (for support)
-      // Note: Consider audit logging for admin actions
+      console.log("[AUDIT] Admin deleted payment method", {
+        adminId: user.id,
+        paymentMethodId,
+        action: "DELETE",
+        timestamp: new Date().toISOString(),
+      });
       userStripeCustomerId = null; // Skip ownership check
     } else {
       // Other roles should not have access
@@ -249,11 +266,17 @@ export async function DELETE(
       clientRecord &&
       clientRecord.defaultPaymentMethodId === paymentMethodId
     ) {
+      // Check if customer has any remaining payment methods
+      const remainingMethods = await stripe.paymentMethods.list({
+        customer: clientRecord.stripeCustomerId!,
+        limit: 1,
+      });
+
       await prisma.client.update({
         where: { id: clientRecord.id },
         data: {
           defaultPaymentMethodId: null,
-          hasPaymentMethod: false,
+          hasPaymentMethod: remainingMethods.data.length > 0,
         },
       });
     }
@@ -267,8 +290,8 @@ export async function DELETE(
 
     // Return sanitized error messages
     if (error instanceof Stripe.errors.StripeError) {
-      const safeMessages: Record<string, string> = {
-        resource_missing: "Payment method not found",
+      // Map Stripe error types to safe, user-friendly messages
+      const safeTypeMessages: Record<string, string> = {
         invalid_request_error: "Invalid request",
         api_connection_error: "Payment service temporarily unavailable",
         api_error: "Payment service error",
@@ -276,8 +299,15 @@ export async function DELETE(
         rate_limit_error: "Too many requests, please try again later",
       };
 
+      // Map specific error codes
+      const safeCodeMessages: Record<string, string> = {
+        resource_missing: "Payment method not found",
+      };
+
       const message =
-        safeMessages[error.code ?? ""] ?? "Failed to remove payment method";
+        safeCodeMessages[error.code ?? ""] ??
+        safeTypeMessages[error.type] ??
+        "Failed to remove payment method";
 
       return NextResponse.json(
         { error: message },

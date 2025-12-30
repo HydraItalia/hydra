@@ -40,6 +40,7 @@ export function PaymentMethodDisplay({
   const [isLoading, setIsLoading] = useState(true);
   const [isRemoving, setIsRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
 
   const fetchPaymentMethodDetails = useCallback(async () => {
     const controller = new AbortController();
@@ -95,15 +96,25 @@ export function PaymentMethodDisplay({
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to remove payment method");
+        let errorMessage = "Failed to remove payment method";
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // Response wasn't JSON, use default message
+        }
+        throw new Error(errorMessage);
       }
 
-      // Success - call parent callback
+      // Success - close dialog and call parent callback
+      setShowRemoveDialog(false);
       onRemove();
     } catch (err) {
       clearTimeout(timeoutId);
       console.error("Error removing payment method:", err);
+
+      // Close dialog on error and show error message
+      setShowRemoveDialog(false);
 
       if (err instanceof Error && err.name === "AbortError") {
         setError("Request timed out. Please try again.");
@@ -157,7 +168,7 @@ export function PaymentMethodDisplay({
               {formatBrand(details.brand)} ending in {details.last4}
             </p>
             <p className="text-sm text-muted-foreground">
-              Expires {details.expMonth}/{details.expYear}
+              Expires {details.expMonth}/{details.expYear % 100}
             </p>
           </div>
         </div>
@@ -165,7 +176,10 @@ export function PaymentMethodDisplay({
           <Button variant="outline" onClick={onUpdate} disabled={isRemoving}>
             Update
           </Button>
-          <AlertDialog>
+          <AlertDialog
+            open={showRemoveDialog}
+            onOpenChange={setShowRemoveDialog}
+          >
             <AlertDialogTrigger asChild>
               <Button variant="destructive" disabled={isRemoving}>
                 {isRemoving ? (
@@ -190,9 +204,18 @@ export function PaymentMethodDisplay({
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleRemove}>
-                  Remove Payment Method
+                <AlertDialogCancel disabled={isRemoving}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction onClick={handleRemove} disabled={isRemoving}>
+                  {isRemoving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Removing...
+                    </>
+                  ) : (
+                    "Remove Payment Method"
+                  )}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
