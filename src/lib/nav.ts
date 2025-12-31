@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Settings,
   UserCog,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 
@@ -177,6 +178,11 @@ export function getNavItems(role: Role): NavItem[] {
           label: "Orders",
           href: "/dashboard/orders",
           icon: FileText,
+        },
+        {
+          label: "Payment Methods",
+          href: "/dashboard/billing",
+          icon: CreditCard,
         },
       ];
 
