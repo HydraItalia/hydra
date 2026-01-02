@@ -49,13 +49,16 @@ export function ClientPaymentStatus({
       return;
     }
 
+    const abortController = new AbortController();
+
     const fetchPaymentMethodDetails = async () => {
       setIsLoading(true);
       setError(null);
 
       try {
         const response = await fetch(
-          `/api/stripe/payment-methods/${defaultPaymentMethodId}`
+          `/api/stripe/payment-methods/${defaultPaymentMethodId}`,
+          { signal: abortController.signal }
         );
 
         if (!response.ok) {
@@ -63,8 +66,25 @@ export function ClientPaymentStatus({
         }
 
         const data = await response.json();
+
+        // Validate response data shape
+        if (
+          !data ||
+          typeof data.brand !== "string" ||
+          typeof data.last4 !== "string" ||
+          typeof data.expMonth !== "number" ||
+          typeof data.expYear !== "number"
+        ) {
+          throw new Error("Invalid payment method data received");
+        }
+
         setDetails(data);
       } catch (err) {
+        // Don't set error if request was aborted (component unmounted)
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+
         console.error("Error fetching payment method:", err);
         setError("Could not load payment method details");
       } finally {
@@ -73,6 +93,11 @@ export function ClientPaymentStatus({
     };
 
     fetchPaymentMethodDetails();
+
+    // Cleanup: abort fetch if component unmounts or dependencies change
+    return () => {
+      abortController.abort();
+    };
   }, [hasPaymentMethod, defaultPaymentMethodId]);
 
   // Show "No payment method" state
@@ -118,12 +143,15 @@ export function ClientPaymentStatus({
     );
   }
 
-  // Format last updated date
-  const lastUpdated = new Date(updatedAt).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  // Format last updated date with validation
+  const lastUpdatedDate = new Date(updatedAt);
+  const lastUpdated = isNaN(lastUpdatedDate.getTime())
+    ? "Unknown"
+    : lastUpdatedDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
 
   // Show payment method details
   return (

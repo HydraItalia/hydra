@@ -10,57 +10,6 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import type { Prisma } from "@prisma/client";
 
-/**
- * Type for Prisma client query result with relations
- * Used in getClientById to avoid excessive type assertions
- */
-type PrismaClientWithRelations = {
-  id: string;
-  name: string;
-  region: string | null;
-  fullAddress: string | null;
-  shortAddress: string | null;
-  deliveryAddress: string | null;
-  deliveryLat: number | null;
-  deliveryLng: number | null;
-  notes: string | null;
-  contactPerson: string | null;
-  email: string | null;
-  phone: string | null;
-  taxId: string | null;
-  pinColor: string | null;
-  hidden: boolean;
-  externalId: string | null;
-  freezco: boolean | null;
-  mandanti: string | null;
-  stripeCustomerId: string | null;
-  defaultPaymentMethodId: string | null;
-  hasPaymentMethod: boolean;
-  lastVisitAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  User: { email: string; name: string | null } | null;
-  AgentClient: Array<{
-    User: { id: string; name: string | null; agentCode: string | null } | null;
-  }>;
-  Agreement: Array<{
-    id: string;
-    Vendor: { id: string; name: string };
-    priceMode: string;
-    discountPct: number | null;
-    createdAt: Date;
-  }>;
-  Order: Array<{
-    id: string;
-    orderNumber: string;
-    createdAt: Date;
-    totalCents: number;
-    status: string;
-  }>;
-  ClientStats: { totalVisits: number } | null;
-  _count: { Agreement: number; Order: number };
-};
-
 export type ClientFilters = {
   region?: string;
   hasAgreement?: boolean;

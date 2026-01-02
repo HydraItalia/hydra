@@ -155,6 +155,9 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
         )}
 
         {/* Payment Status (Phase 10) */}
+        {/* Note: Always shown (unlike optional sections) because payment status
+            is critical business information that admins should always see,
+            even when client has no payment method set up */}
         <div className="pt-3 border-t">
           <h4 className="text-sm font-semibold mb-3">Payment Information</h4>
           <ClientPaymentStatus
