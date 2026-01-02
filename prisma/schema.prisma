@@ -418,6 +418,12 @@ model Vendor {
   address           String?
   businessHours     String?
   defaultOrderNotes String?
+
+  // Stripe Connect Integration (Phase 11)
+  stripeAccountId   String?         @unique // Stripe Connect account ID for receiving payments
+  chargesEnabled    Boolean         @default(false) // Whether the vendor can accept charges
+  payoutsEnabled    Boolean         @default(false) // Whether the vendor can receive payouts
+
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   deletedAt         DateTime?
