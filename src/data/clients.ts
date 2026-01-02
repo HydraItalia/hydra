@@ -33,8 +33,12 @@ type PrismaClientWithRelations = {
   externalId: string | null;
   freezco: boolean | null;
   mandanti: string | null;
+  stripeCustomerId: string | null;
+  defaultPaymentMethodId: string | null;
+  hasPaymentMethod: boolean;
   lastVisitAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
   User: { email: string; name: string | null } | null;
   AgentClient: Array<{
     User: { id: string; name: string | null; agentCode: string | null } | null;
@@ -322,9 +326,15 @@ export type ClientDetail = {
   freezco: boolean | null;
   mandanti: string | null;
 
+  // Payment (Phase 10)
+  stripeCustomerId: string | null;
+  defaultPaymentMethodId: string | null;
+  hasPaymentMethod: boolean;
+
   // Tracking
   lastVisitAt: string | null;
   createdAt: string;
+  updatedAt: string;
 
   // Relationships
   user: { email: string; name: string | null } | null;
@@ -432,9 +442,6 @@ export async function getClientById(clientId: string): Promise<ClientDetail> {
     throw new Error(`Client not found or access denied`);
   }
 
-  // Map to result type - cast to our defined type for better type safety
-  const typedClient = client as PrismaClientWithRelations;
-
   return {
     id: client.id,
     name: client.name,
@@ -461,9 +468,15 @@ export async function getClientById(clientId: string): Promise<ClientDetail> {
     freezco: client.freezco,
     mandanti: client.mandanti,
 
+    // Payment (Phase 10)
+    stripeCustomerId: client.stripeCustomerId,
+    defaultPaymentMethodId: client.defaultPaymentMethodId,
+    hasPaymentMethod: client.hasPaymentMethod,
+
     // Tracking
     lastVisitAt: client.lastVisitAt?.toISOString() || null,
     createdAt: client.createdAt.toISOString(),
+    updatedAt: client.updatedAt.toISOString(),
 
     // Relationships
     user: client.User

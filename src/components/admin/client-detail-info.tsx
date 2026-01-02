@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ClientEditDialog } from "./client-edit-dialog";
+import { ClientPaymentStatus } from "./client-payment-status";
 import type { ClientDetail } from "@/data/clients";
 import { formatDate } from "@/lib/utils";
 
@@ -78,7 +79,9 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
               </a>
             </div>
           )}
-          {client.taxId && <DetailField label="Tax ID">{client.taxId}</DetailField>}
+          {client.taxId && (
+            <DetailField label="Tax ID">{client.taxId}</DetailField>
+          )}
           {!client.contactPerson &&
             !client.email &&
             !client.phone &&
@@ -101,7 +104,9 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
             </DetailField>
           )}
           {client.shortAddress && (
-            <DetailField label="Short Address">{client.shortAddress}</DetailField>
+            <DetailField label="Short Address">
+              {client.shortAddress}
+            </DetailField>
           )}
           {client.deliveryLat != null && client.deliveryLng != null && (
             <div>
@@ -149,6 +154,16 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
           </div>
         )}
 
+        {/* Payment Status (Phase 10) */}
+        <div className="pt-3 border-t">
+          <h4 className="text-sm font-semibold mb-3">Payment Information</h4>
+          <ClientPaymentStatus
+            hasPaymentMethod={client.hasPaymentMethod}
+            defaultPaymentMethodId={client.defaultPaymentMethodId}
+            updatedAt={client.updatedAt}
+          />
+        </div>
+
         {/* Last Visit & Created */}
         <div className="space-y-2 pt-3 border-t">
           <DetailField label="Last Visit">
@@ -172,7 +187,9 @@ export function ClientDetailInfo({ client }: ClientDetailInfoProps) {
           <div className="pt-3 border-t">
             <h4 className="text-sm font-semibold mb-2">UI Settings</h4>
             <div className="flex gap-2">
-              {client.hidden && <Badge variant="secondary">Hidden on Map</Badge>}
+              {client.hidden && (
+                <Badge variant="secondary">Hidden on Map</Badge>
+              )}
               {client.pinColor && (
                 <Badge variant="outline">
                   Pin Color:{" "}
