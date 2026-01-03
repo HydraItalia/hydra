@@ -10,7 +10,7 @@ import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-// Vendor settings type
+// Vendor settings type (read-only, includes Stripe Connect fields)
 export type VendorSettings = {
   name: string;
   contactEmail?: string | null;
@@ -18,10 +18,20 @@ export type VendorSettings = {
   address?: string | null;
   businessHours?: string | null;
   defaultOrderNotes?: string | null;
-  // Stripe Connect (Phase 11)
+  // Stripe Connect (Phase 11) - read-only fields
   stripeAccountId?: string | null;
   chargesEnabled?: boolean;
   payoutsEnabled?: boolean;
+};
+
+// Input type for updating vendor settings (excludes read-only Stripe fields)
+export type VendorSettingsInput = {
+  name: string;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  address?: string | null;
+  businessHours?: string | null;
+  defaultOrderNotes?: string | null;
 };
 
 // Result type for server actions
@@ -96,7 +106,7 @@ export async function getVendorSettings(): Promise<
  * Update vendor settings for the current logged-in vendor
  */
 export async function updateVendorSettings(
-  input: VendorSettings
+  input: VendorSettingsInput
 ): Promise<ActionResult<VendorSettings>> {
   try {
     const user = await currentUser();

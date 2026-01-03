@@ -90,15 +90,29 @@ export async function POST(req: NextRequest) {
 
     // If vendor doesn't have a Stripe account, create one
     if (!accountId) {
+      // Validate email is available
+      const email = vendor.contactEmail || user.email;
+      if (!email) {
+        return NextResponse.json(
+          { error: "Email address is required for account setup" },
+          { status: 400 }
+        );
+      }
+
+      // Get country and business type from environment or use defaults
+      const country = process.env.STRIPE_DEFAULT_COUNTRY || "IT";
+      const businessType = (process.env.STRIPE_DEFAULT_BUSINESS_TYPE ||
+        "company") as Stripe.AccountCreateParams.BusinessType;
+
       const account = await stripe.accounts.create({
         type: "express", // Express accounts have simplified onboarding
-        country: "IT", // Italy - adjust based on your business location
-        email: vendor.contactEmail || user.email,
+        country: country,
+        email: email,
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
-        business_type: "company", // Most vendors will be companies
+        business_type: businessType,
         metadata: {
           vendorId: vendor.id,
           source: "hydra",
@@ -117,7 +131,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate account link for onboarding
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const baseUrl =
+      process.env.BASE_URL ||
+      process.env.NEXT_PUBLIC_BASE_URL ||
+      "http://localhost:3000";
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: `${baseUrl}/dashboard/vendor/settings?refresh=true`,

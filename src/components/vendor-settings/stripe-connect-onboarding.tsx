@@ -4,13 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import {
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  CreditCard,
-  AlertCircle,
-} from "lucide-react";
+import { Loader2, CheckCircle2, CreditCard, AlertCircle } from "lucide-react";
 
 interface StripeConnectOnboardingProps {
   stripeAccountId: string | null;
@@ -31,23 +25,48 @@ export function StripeConnectOnboarding({
     setError(null);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const response = await fetch("/api/stripe/connect/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to start onboarding");
+        let errorMessage = "Failed to start onboarding";
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // Response body is not valid JSON, use default message
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
 
-      // Redirect to Stripe onboarding
+      // Redirect to Stripe onboarding - validate URL to prevent open redirect
+      const url = new URL(data.url);
+      if (
+        !url.hostname.endsWith(".stripe.com") &&
+        url.hostname !== "stripe.com"
+      ) {
+        throw new Error("Invalid onboarding URL");
+      }
       window.location.href = data.url;
     } catch (err) {
       console.error("Error starting onboarding:", err);
-      setError(err instanceof Error ? err.message : "An error occurred");
+      const message =
+        err instanceof Error
+          ? err.name === "AbortError"
+            ? "Request timed out. Please try again."
+            : err.message
+          : "An error occurred";
+      setError(message);
       setIsLoading(false);
     }
   };
@@ -149,20 +168,12 @@ export function StripeConnectOnboarding({
           </p>
           <div className="flex gap-4 text-xs text-muted-foreground">
             <div className="flex items-center gap-1">
-              {chargesEnabled ? (
-                <CheckCircle2 className="h-3 w-3 text-green-600" />
-              ) : (
-                <XCircle className="h-3 w-3 text-red-600" />
-              )}
-              <span>Charges {chargesEnabled ? "enabled" : "disabled"}</span>
+              <CheckCircle2 className="h-3 w-3 text-green-600" />
+              <span>Charges enabled</span>
             </div>
             <div className="flex items-center gap-1">
-              {payoutsEnabled ? (
-                <CheckCircle2 className="h-3 w-3 text-green-600" />
-              ) : (
-                <XCircle className="h-3 w-3 text-red-600" />
-              )}
-              <span>Payouts {payoutsEnabled ? "enabled" : "disabled"}</span>
+              <CheckCircle2 className="h-3 w-3 text-green-600" />
+              <span>Payouts enabled</span>
             </div>
           </div>
         </div>

@@ -281,8 +281,8 @@ async function handleAccountUpdated(event: Stripe.Event) {
     await prisma.vendor.update({
       where: { id: vendor.id },
       data: {
-        chargesEnabled: account.charges_enabled,
-        payoutsEnabled: account.payouts_enabled,
+        chargesEnabled: account.charges_enabled ?? false,
+        payoutsEnabled: account.payouts_enabled ?? false,
       },
     });
 
