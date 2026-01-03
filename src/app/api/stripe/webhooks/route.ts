@@ -29,11 +29,12 @@ function getStripe() {
 /**
  * POST /api/stripe/webhooks
  *
- * Handles Stripe webhook events for SetupIntents and PaymentMethods.
+ * Handles Stripe webhook events for SetupIntents, PaymentMethods, and Connect accounts.
  *
  * Events handled:
  * - setup_intent.succeeded: Updates client record when payment method is successfully set up
  * - payment_method.attached: Logs when payment method is attached to customer
+ * - account.updated: Updates vendor capabilities when Connect account is updated
  *
  * Security:
  * - Verifies webhook signatures using STRIPE_WEBHOOK_SECRET
@@ -59,10 +60,7 @@ export async function POST(req: NextRequest) {
 
     if (!signature) {
       console.error("[WEBHOOK] Missing stripe-signature header");
-      return NextResponse.json(
-        { error: "Missing signature" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
     // Verify webhook signature
@@ -73,10 +71,7 @@ export async function POST(req: NextRequest) {
       console.error("[WEBHOOK] Signature verification failed:", {
         error: err instanceof Error ? err.message : "Unknown error",
       });
-      return NextResponse.json(
-        { error: "Invalid signature" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
     // Log all webhook events for debugging
@@ -94,6 +89,10 @@ export async function POST(req: NextRequest) {
 
       case "payment_method.attached":
         await handlePaymentMethodAttached(event);
+        break;
+
+      case "account.updated":
+        await handleAccountUpdated(event);
         break;
 
       default:
@@ -229,4 +228,76 @@ async function handlePaymentMethodAttached(event: Stripe.Event) {
 
   // This event is primarily for logging/monitoring
   // The actual client record update happens in setup_intent.succeeded
+}
+
+/**
+ * Handles account.updated event
+ * Updates vendor capabilities when Stripe Connect account is updated
+ */
+async function handleAccountUpdated(event: Stripe.Event) {
+  const account = event.data.object as Stripe.Account;
+
+  console.log("[WEBHOOK] Processing account.updated:", {
+    accountId: account.id,
+    chargesEnabled: account.charges_enabled,
+    payoutsEnabled: account.payouts_enabled,
+    detailsSubmitted: account.details_submitted,
+  });
+
+  try {
+    // Find vendor by Stripe account ID
+    const vendor = await prisma.vendor.findUnique({
+      where: { stripeAccountId: account.id },
+      select: {
+        id: true,
+        name: true,
+        chargesEnabled: true,
+        payoutsEnabled: true,
+      },
+    });
+
+    if (!vendor) {
+      console.warn("[WEBHOOK] No vendor found for Stripe account:", {
+        accountId: account.id,
+      });
+      return;
+    }
+
+    // Check if capabilities have changed
+    const needsUpdate =
+      vendor.chargesEnabled !== account.charges_enabled ||
+      vendor.payoutsEnabled !== account.payouts_enabled;
+
+    if (!needsUpdate) {
+      console.log("[WEBHOOK] Vendor capabilities unchanged:", {
+        vendorId: vendor.id,
+        chargesEnabled: account.charges_enabled,
+        payoutsEnabled: account.payouts_enabled,
+      });
+      return;
+    }
+
+    // Update vendor capabilities
+    await prisma.vendor.update({
+      where: { id: vendor.id },
+      data: {
+        chargesEnabled: account.charges_enabled,
+        payoutsEnabled: account.payouts_enabled,
+      },
+    });
+
+    console.log("[WEBHOOK] Vendor capabilities updated:", {
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      chargesEnabled: account.charges_enabled,
+      payoutsEnabled: account.payouts_enabled,
+      accountId: account.id,
+    });
+  } catch (error) {
+    console.error("[WEBHOOK] Error updating vendor capabilities:", {
+      accountId: account.id,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+    throw error; // Re-throw to trigger webhook retry
+  }
 }

@@ -2,8 +2,15 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { getVendorSettings } from "@/actions/vendor-settings";
 import { PageHeader } from "@/components/shared/page-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { VendorSettingsForm } from "@/components/vendor-settings/vendor-settings-form";
+import { StripeConnectOnboarding } from "@/components/vendor-settings/stripe-connect-onboarding";
 
 export default async function VendorSettingsPage() {
   // Check authentication and role
@@ -34,10 +41,7 @@ export default async function VendorSettingsPage() {
   if (!settingsResult.success || !settingsResult.data) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="Vendor Settings"
-          subtitle="Error loading settings"
-        />
+        <PageHeader title="Vendor Settings" subtitle="Error loading settings" />
         <Card>
           <CardContent className="py-12 text-center text-destructive">
             {settingsResult.error || "Failed to load vendor settings"}
@@ -53,6 +57,23 @@ export default async function VendorSettingsPage() {
         title="Vendor Settings"
         subtitle="Update your business information and contact details"
       />
+
+      {/* Stripe Connect Onboarding (Phase 11) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment Settings</CardTitle>
+          <CardDescription>
+            Connect your Stripe account to receive payments from clients
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <StripeConnectOnboarding
+            stripeAccountId={settingsResult.data.stripeAccountId || null}
+            chargesEnabled={settingsResult.data.chargesEnabled || false}
+            payoutsEnabled={settingsResult.data.payoutsEnabled || false}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -18,6 +18,10 @@ export type VendorSettings = {
   address?: string | null;
   businessHours?: string | null;
   defaultOrderNotes?: string | null;
+  // Stripe Connect (Phase 11)
+  stripeAccountId?: string | null;
+  chargesEnabled?: boolean;
+  payoutsEnabled?: boolean;
 };
 
 // Result type for server actions
@@ -38,7 +42,9 @@ function isValidEmail(email: string): boolean {
 /**
  * Get vendor settings for the current logged-in vendor
  */
-export async function getVendorSettings(): Promise<ActionResult<VendorSettings>> {
+export async function getVendorSettings(): Promise<
+  ActionResult<VendorSettings>
+> {
   try {
     const user = await currentUser();
 
@@ -66,6 +72,9 @@ export async function getVendorSettings(): Promise<ActionResult<VendorSettings>>
         address: true,
         businessHours: true,
         defaultOrderNotes: true,
+        stripeAccountId: true,
+        chargesEnabled: true,
+        payoutsEnabled: true,
       },
     });
 

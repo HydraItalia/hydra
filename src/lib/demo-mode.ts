@@ -38,6 +38,12 @@ export const DEMO_USERS: DemoUser[] = [
     description: "Beverage distributor - manage inventory and fulfill orders",
   },
   {
+    email: "testvendor@stripe-test.com",
+    name: "Test Vendor - Stripe Connect",
+    role: "VENDOR",
+    description: "Test vendor for Stripe Connect onboarding (safe to test)",
+  },
+  {
     email: "driver.marco@hydra.local",
     name: "Marco (Driver)",
     role: "DRIVER",
