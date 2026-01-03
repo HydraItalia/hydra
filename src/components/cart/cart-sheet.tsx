@@ -11,6 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
   SheetFooter,
+  SheetClose,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -85,9 +86,11 @@ export function CartSheet() {
           <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
             <ShoppingCart className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">Your cart is empty</p>
-            <Button asChild variant="link" className="mt-2">
-              <Link href="/dashboard/catalog">Browse Catalog</Link>
-            </Button>
+            <SheetClose asChild>
+              <Button asChild variant="link" className="mt-2">
+                <Link href="/dashboard/catalog">Browse Catalog</Link>
+              </Button>
+            </SheetClose>
           </div>
         ) : (
           <>
@@ -112,12 +115,16 @@ export function CartSheet() {
                 <span className="font-bold">{formatCurrency(totalCents)}</span>
               </div>
               <SheetFooter className="flex-col gap-2 sm:flex-col">
-                <Button asChild className="w-full">
-                  <Link href="/dashboard/cart">View Full Cart</Link>
-                </Button>
-                <Button asChild variant="outline" className="w-full">
-                  <Link href="/dashboard/catalog">Continue Shopping</Link>
-                </Button>
+                <SheetClose asChild>
+                  <Button asChild className="w-full">
+                    <Link href="/dashboard/cart">View Full Cart</Link>
+                  </Button>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/dashboard/catalog">Continue Shopping</Link>
+                  </Button>
+                </SheetClose>
               </SheetFooter>
             </div>
           </>
