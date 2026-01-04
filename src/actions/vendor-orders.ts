@@ -2,40 +2,61 @@
 
 /**
  * Phase 6.3 - Vendor Order Management Server Actions
+ * Updated for SubOrder support (Phase 12)
  *
- * Server actions for vendors to view and manage orders containing their products.
+ * Server actions for vendors to view and manage their SubOrders.
  */
 
 import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
-import {
-  Order,
-  OrderItem,
-  Client,
-  VendorProduct,
-  Product,
-  OrderStatus,
-} from "@prisma/client";
+import { SubOrderStatus, DeliveryStatus } from "@prisma/client";
 
-// Extended types with relations
-export type VendorOrderListItem = Order & {
-  Client: Client;
-  OrderItem: (OrderItem & {
-    VendorProduct: VendorProduct;
-  })[];
-  _count: {
-    OrderItem: number;
+// Type for SubOrder list items
+export type VendorSubOrderListItem = {
+  id: string;
+  subOrderNumber: string;
+  status: SubOrderStatus;
+  subTotalCents: number;
+  createdAt: Date;
+  confirmedAt: Date | null;
+  readyAt: Date | null;
+  Order: {
+    orderNumber: string;
+    clientName: string;
   };
+  itemCount: number;
+  hasDelivery: boolean;
+  deliveryStatus?: DeliveryStatus;
 };
 
-export type VendorOrderDetail = Order & {
-  Client: Client;
-  OrderItem: (OrderItem & {
-    VendorProduct: VendorProduct & {
-      Product: Product;
-    };
-  })[];
+// Type for SubOrder detail view
+export type VendorSubOrderDetail = {
+  id: string;
+  subOrderNumber: string;
+  status: SubOrderStatus;
+  subTotalCents: number;
+  confirmedAt: Date | null;
+  readyAt: Date | null;
+  canceledAt: Date | null;
+  vendorNotes: string | null;
+  createdAt: Date;
+  Order: {
+    orderNumber: string;
+    clientName: string;
+    deliveryAddress: string | null;
+  };
+  OrderItem: Array<{
+    id: string;
+    productName: string;
+    qty: number;
+    unitPriceCents: number;
+    lineTotalCents: number;
+  }>;
+  Delivery: {
+    status: DeliveryStatus;
+    driverName: string | null;
+    assignedAt: Date;
+  } | null;
 };
 
 // Result type for server actions
@@ -46,11 +67,12 @@ type ActionResult<T> = {
 };
 
 /**
- * Get all orders containing products from this vendor
+ * Get all SubOrders for this vendor
+ * Replaces the old getVendorOrders function
  */
 export async function getVendorOrders(
-  statusFilter?: OrderStatus
-): Promise<ActionResult<VendorOrderListItem[]>> {
+  statusFilter?: SubOrderStatus
+): Promise<ActionResult<VendorSubOrderListItem[]>> {
   try {
     const user = await currentUser();
 
@@ -69,44 +91,25 @@ export async function getVendorOrders(
       };
     }
 
-    // Build where conditions
-    const whereConditions: {
-      OrderItem: {
-        some: {
-          VendorProduct: {
-            vendorId: string;
-          };
-        };
-      };
-      status?: OrderStatus;
-      deletedAt: null;
-    } = {
-      OrderItem: {
-        some: {
-          VendorProduct: {
-            vendorId: user.vendorId,
-          },
-        },
+    // Query SubOrders directly
+    const subOrders = await prisma.subOrder.findMany({
+      where: {
+        vendorId: user.vendorId,
+        ...(statusFilter && { status: statusFilter }),
       },
-      deletedAt: null,
-    };
-
-    if (statusFilter) {
-      whereConditions.status = statusFilter;
-    }
-
-    const orders = await prisma.order.findMany({
-      where: whereConditions,
       include: {
-        Client: true,
-        OrderItem: {
-          where: {
-            VendorProduct: {
-              vendorId: user.vendorId,
+        Order: {
+          include: {
+            Client: {
+              select: { name: true },
             },
           },
+        },
+        Delivery: {
           include: {
-            VendorProduct: true,
+            Driver: {
+              select: { name: true },
+            },
           },
         },
         _count: {
@@ -115,14 +118,30 @@ export async function getVendorOrders(
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
-    return { success: true, data: orders };
+    // Transform to VendorSubOrderListItem
+    const result: VendorSubOrderListItem[] = subOrders.map((subOrder) => ({
+      id: subOrder.id,
+      subOrderNumber: subOrder.subOrderNumber,
+      status: subOrder.status,
+      subTotalCents: subOrder.subTotalCents,
+      createdAt: subOrder.createdAt,
+      confirmedAt: subOrder.confirmedAt,
+      readyAt: subOrder.readyAt,
+      Order: {
+        orderNumber: subOrder.Order.orderNumber,
+        clientName: subOrder.Order.Client.name,
+      },
+      itemCount: subOrder._count.OrderItem,
+      hasDelivery: !!subOrder.Delivery,
+      deliveryStatus: subOrder.Delivery?.status,
+    }));
+
+    return { success: true, data: result };
   } catch (error) {
-    console.error("Error fetching vendor orders:", error);
+    console.error("Error fetching vendor SubOrders:", error);
     return {
       success: false,
       error: "Failed to fetch orders",
@@ -131,12 +150,12 @@ export async function getVendorOrders(
 }
 
 /**
- * Get detailed order information for a specific order
- * Only returns order if it contains this vendor's products
+ * Get detailed SubOrder information
+ * Updated to work with SubOrders
  */
 export async function getVendorOrderDetail(
-  orderId: string
-): Promise<ActionResult<VendorOrderDetail>> {
+  subOrderId: string
+): Promise<ActionResult<VendorSubOrderDetail>> {
   try {
     const user = await currentUser();
 
@@ -155,45 +174,72 @@ export async function getVendorOrderDetail(
       };
     }
 
-    // Fetch order with vendor product filter
-    const order = await prisma.order.findFirst({
+    // Fetch SubOrder for this vendor
+    const subOrder = await prisma.subOrder.findFirst({
       where: {
-        id: orderId,
-        deletedAt: null,
-        OrderItem: {
-          some: {
-            VendorProduct: {
-              vendorId: user.vendorId,
+        id: subOrderId,
+        vendorId: user.vendorId,
+      },
+      include: {
+        Order: {
+          include: {
+            Client: {
+              select: { name: true },
             },
           },
         },
-      },
-      include: {
-        Client: true,
         OrderItem: {
-          where: {
-            VendorProduct: {
-              vendorId: user.vendorId,
-            },
+          select: {
+            id: true,
+            productName: true,
+            qty: true,
+            unitPriceCents: true,
+            lineTotalCents: true,
           },
+        },
+        Delivery: {
           include: {
-            VendorProduct: {
-              include: {
-                Product: true,
-              },
+            Driver: {
+              select: { name: true },
             },
           },
         },
       },
     });
 
-    if (!order) {
-      return { success: false, error: "Order not found or unauthorized" };
+    if (!subOrder) {
+      return { success: false, error: "SubOrder not found or unauthorized" };
     }
 
-    return { success: true, data: order };
+    // Transform to VendorSubOrderDetail
+    const result: VendorSubOrderDetail = {
+      id: subOrder.id,
+      subOrderNumber: subOrder.subOrderNumber,
+      status: subOrder.status,
+      subTotalCents: subOrder.subTotalCents,
+      confirmedAt: subOrder.confirmedAt,
+      readyAt: subOrder.readyAt,
+      canceledAt: subOrder.canceledAt,
+      vendorNotes: subOrder.vendorNotes,
+      createdAt: subOrder.createdAt,
+      Order: {
+        orderNumber: subOrder.Order.orderNumber,
+        clientName: subOrder.Order.Client.name,
+        deliveryAddress: subOrder.Order.deliveryAddress,
+      },
+      OrderItem: subOrder.OrderItem,
+      Delivery: subOrder.Delivery
+        ? {
+            status: subOrder.Delivery.status,
+            driverName: subOrder.Delivery.Driver?.name || null,
+            assignedAt: subOrder.Delivery.assignedAt,
+          }
+        : null,
+    };
+
+    return { success: true, data: result };
   } catch (error) {
-    console.error("Error fetching vendor order detail:", error);
+    console.error("Error fetching vendor SubOrder detail:", error);
     return {
       success: false,
       error: "Failed to fetch order details",
@@ -202,100 +248,32 @@ export async function getVendorOrderDetail(
 }
 
 /**
- * Update order status
- * Note: This is a simplified version. In a real system, you might have
- * vendor-specific status fields or more complex state transitions.
+ * @deprecated Use updateSubOrderStatus from vendor-suborders.ts instead
+ * This function is kept for backward compatibility but should not be used for new SubOrders
  */
 export async function updateVendorOrderStatus(
-  orderId: string,
-  newStatus: OrderStatus
-): Promise<ActionResult<Order>> {
-  try {
-    const user = await currentUser();
-
-    if (!user) {
-      return { success: false, error: "Not authenticated" };
-    }
-
-    if (user.role !== "VENDOR") {
-      return { success: false, error: "Unauthorized: Vendor access required" };
-    }
-
-    if (!user.vendorId) {
-      return {
-        success: false,
-        error: "No vendor associated with this account",
-      };
-    }
-
-    // Verify vendor has products in this order
-    const order = await prisma.order.findFirst({
-      where: {
-        id: orderId,
-        deletedAt: null,
-        OrderItem: {
-          some: {
-            VendorProduct: {
-              vendorId: user.vendorId,
-            },
-          },
-        },
-      },
-    });
-
-    if (!order) {
-      return { success: false, error: "Order not found or unauthorized" };
-    }
-
-    // Validate status transition
-    // Note: Vendors can only confirm orders. FULFILLING requires admin/agent to assign delivery.
-    const validTransitions: Record<OrderStatus, OrderStatus[]> = {
-      DRAFT: ["SUBMITTED", "CANCELED"],
-      SUBMITTED: ["CONFIRMED", "CANCELED"],
-      CONFIRMED: ["CANCELED"], // Removed FULFILLING - requires delivery assignment
-      FULFILLING: ["DELIVERED", "CANCELED"],
-      DELIVERED: [],
-      CANCELED: [],
-    };
-
-    const allowedStatuses = validTransitions[order.status];
-    if (!allowedStatuses.includes(newStatus)) {
-      return {
-        success: false,
-        error: `Cannot transition from ${order.status} to ${newStatus}`,
-      };
-    }
-
-    // Update the order status
-    const updatedOrder = await prisma.order.update({
-      where: { id: orderId },
-      data: { status: newStatus },
-    });
-
-    // Revalidate relevant paths
-    revalidatePath("/dashboard/orders");
-    revalidatePath(`/dashboard/orders/${orderId}`);
-
-    return { success: true, data: updatedOrder };
-  } catch (error) {
-    console.error("Error updating order status:", error);
-    return {
-      success: false,
-      error: "Failed to update order status",
-    };
-  }
+  _orderId: string,
+  _newStatus: SubOrderStatus
+): Promise<ActionResult<{ message: string }>> {
+  return {
+    success: false,
+    error:
+      "This function is deprecated. Use updateSubOrderStatus from vendor-suborders.ts instead",
+  };
 }
 
 /**
- * Get order statistics for vendor dashboard
+ * Get SubOrder statistics for vendor dashboard
+ * Updated to count SubOrders instead of Orders
  */
 export async function getVendorOrderStats(): Promise<
   ActionResult<{
     totalOrders: number;
+    pendingOrders: number;
     submittedOrders: number;
     confirmedOrders: number;
     fulfillingOrders: number;
-    deliveredOrders: number;
+    readyOrders: number;
   }>
 > {
   try {
@@ -317,42 +295,38 @@ export async function getVendorOrderStats(): Promise<
     }
 
     const baseWhere = {
-      deletedAt: null,
-      OrderItem: {
-        some: {
-          VendorProduct: {
-            vendorId: user.vendorId,
-          },
-        },
-      },
+      vendorId: user.vendorId,
     };
 
     const [
       totalOrders,
+      pendingOrders,
       submittedOrders,
       confirmedOrders,
       fulfillingOrders,
-      deliveredOrders,
+      readyOrders,
     ] = await Promise.all([
-      prisma.order.count({ where: baseWhere }),
-      prisma.order.count({ where: { ...baseWhere, status: "SUBMITTED" } }),
-      prisma.order.count({ where: { ...baseWhere, status: "CONFIRMED" } }),
-      prisma.order.count({ where: { ...baseWhere, status: "FULFILLING" } }),
-      prisma.order.count({ where: { ...baseWhere, status: "DELIVERED" } }),
+      prisma.subOrder.count({ where: baseWhere }),
+      prisma.subOrder.count({ where: { ...baseWhere, status: "PENDING" } }),
+      prisma.subOrder.count({ where: { ...baseWhere, status: "SUBMITTED" } }),
+      prisma.subOrder.count({ where: { ...baseWhere, status: "CONFIRMED" } }),
+      prisma.subOrder.count({ where: { ...baseWhere, status: "FULFILLING" } }),
+      prisma.subOrder.count({ where: { ...baseWhere, status: "READY" } }),
     ]);
 
     return {
       success: true,
       data: {
         totalOrders,
+        pendingOrders,
         submittedOrders,
         confirmedOrders,
         fulfillingOrders,
-        deliveredOrders,
+        readyOrders,
       },
     };
   } catch (error) {
-    console.error("Error fetching vendor order stats:", error);
+    console.error("Error fetching vendor SubOrder stats:", error);
     return {
       success: false,
       error: "Failed to fetch order statistics",

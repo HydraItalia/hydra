@@ -2,8 +2,10 @@
 
 /**
  * Phase 9.3.1 - Delivery Assignment Actions (Admin/Agent)
+ * Updated for SubOrder support (Phase 12)
  *
  * Server actions for admin/agent to create deliveries and assign drivers.
+ * Deliveries are now assigned to SubOrders (vendor-specific) instead of Orders.
  * Only accessible to ADMIN and AGENT roles.
  */
 
@@ -14,15 +16,16 @@ import { revalidatePath } from "next/cache";
 import { createId } from "@paralleldrive/cuid2";
 
 /**
- * Create delivery for an order and assign to a driver
+ * Create delivery for a SubOrder and assign to a driver
+ * UPDATED: Now works with SubOrders instead of Orders
  *
- * @param orderId - The ID of the order
+ * @param subOrderId - The ID of the SubOrder
  * @param driverId - The ID of the driver to assign
  * @param routeSequence - Optional sequence number for driver's route
  * @returns Success result with delivery ID or error
  */
 export async function createDeliveryForOrder(
-  orderId: string,
+  subOrderId: string,
   driverId: string,
   routeSequence?: number
 ): Promise<
@@ -32,35 +35,42 @@ export async function createDeliveryForOrder(
     // Require ADMIN or AGENT role
     await requireRole("ADMIN", "AGENT");
 
-    // Validate order exists and is ready for delivery
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: {
-        id: true,
-        status: true,
+    // Validate SubOrder exists and is ready for delivery
+    const subOrder = await prisma.subOrder.findUnique({
+      where: { id: subOrderId },
+      include: {
         Delivery: {
+          select: { id: true },
+        },
+        Order: {
           select: {
             id: true,
+            deliveryAddress: true,
+            deliveryLat: true,
+            deliveryLng: true,
           },
+        },
+        Vendor: {
+          select: { name: true },
         },
       },
     });
 
-    if (!order) {
-      return { success: false, error: "Order not found" };
+    if (!subOrder) {
+      return { success: false, error: "SubOrder not found" };
     }
 
-    if (order.status !== "CONFIRMED") {
+    if (subOrder.status !== "READY") {
       return {
         success: false,
-        error: "Order must be CONFIRMED to assign delivery",
+        error: "SubOrder must be READY to assign delivery",
       };
     }
 
-    if (order.Delivery) {
+    if (subOrder.Delivery) {
       return {
         success: false,
-        error: "Order already has a delivery assigned",
+        error: "SubOrder already has a delivery assigned",
       };
     }
 
@@ -82,22 +92,22 @@ export async function createDeliveryForOrder(
     if (driver.status === "BUSY") {
       return {
         success: false,
-        error: "Driver is currently busy and cannot be assigned to this order",
+        error: "Driver is currently busy and cannot be assigned",
       };
     }
 
     if (driver.status === "OFFLINE") {
       return {
         success: false,
-        error: "Driver is offline and cannot be assigned to this order",
+        error: "Driver is offline and cannot be assigned",
       };
     }
 
-    // Create delivery
+    // Create delivery linked to SubOrder
     const delivery = await prisma.delivery.create({
       data: {
         id: createId(),
-        orderId,
+        subOrderId: subOrder.id,
         driverId,
         status: "ASSIGNED",
         routeSequence: routeSequence || null,
@@ -111,7 +121,10 @@ export async function createDeliveryForOrder(
       entityId: delivery.id,
       action: AuditAction.DELIVERY_CREATED,
       diff: {
-        orderId,
+        subOrderId: subOrder.id,
+        subOrderNumber: subOrder.subOrderNumber,
+        orderId: subOrder.Order.id,
+        vendorName: subOrder.Vendor.name,
         driverId,
         driverName: driver.name,
         routeSequence,
@@ -120,12 +133,12 @@ export async function createDeliveryForOrder(
 
     // Revalidate relevant pages
     revalidatePath("/dashboard/orders");
-    revalidatePath(`/dashboard/orders/${orderId}`);
+    revalidatePath(`/dashboard/orders/${subOrder.Order.id}`);
     revalidatePath("/dashboard/deliveries");
 
     return { success: true, deliveryId: delivery.id };
   } catch (error) {
-    console.error("Error creating delivery for order:", error);
+    console.error("Error creating delivery for SubOrder:", error);
     return {
       success: false,
       error:

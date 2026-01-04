@@ -68,7 +68,7 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
   // 2. Recalculate cart prices to ensure accuracy
   await recalcCartPricesForUser();
 
-  // 3. Load cart with items
+  // 3. Load cart with items (include vendorId for grouping)
   const cart = await prisma.cart.findFirst({
     where: {
       clientId,
@@ -87,6 +87,7 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
               Vendor: {
                 select: {
                   name: true,
+                  id: true,
                 },
               },
             },
@@ -121,7 +122,17 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
     throw new Error("Order total is invalid or exceeds safe limits");
   }
 
-  // 5. Create order in a transaction
+  // 5. Group cart items by vendor
+  const itemsByVendor = new Map<string, typeof cart.CartItem>();
+  for (const item of cart.CartItem) {
+    const vendorId = item.VendorProduct.Vendor.id;
+    if (!itemsByVendor.has(vendorId)) {
+      itemsByVendor.set(vendorId, []);
+    }
+    itemsByVendor.get(vendorId)!.push(item);
+  }
+
+  // 6. Create order in a transaction (with SubOrders)
   const result = await prisma.$transaction(async (tx) => {
     // Generate unique order number (with retry logic for uniqueness)
     let orderNumber = "";
@@ -159,17 +170,54 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
       },
     });
 
-    // Create OrderItems
-    const orderItemsData = cart.CartItem.map((item) => ({
-      id: createId(),
-      orderId: order.id,
-      vendorProductId: item.vendorProductId,
-      qty: item.qty,
-      unitPriceCents: item.unitPriceCents ?? 0,
-      lineTotalCents: calculateLineTotal(item.unitPriceCents, item.qty),
-      productName: item.VendorProduct.Product.name,
-      vendorName: item.VendorProduct.Vendor.name,
-    }));
+    // Create SubOrders (one per vendor)
+    const subOrders: Array<{ id: string; vendorId: string }> = [];
+    let vendorSeq = 1;
+
+    for (const [vendorId, items] of itemsByVendor.entries()) {
+      const subTotalCents = items.reduce(
+        (sum, item) => sum + calculateLineTotal(item.unitPriceCents, item.qty),
+        0
+      );
+
+      const subOrderNumber = `${orderNumber}-V${String(vendorSeq).padStart(
+        2,
+        "0"
+      )}`;
+
+      const subOrder = await tx.subOrder.create({
+        data: {
+          id: createId(),
+          orderId: order.id,
+          vendorId,
+          status: "SUBMITTED",
+          subOrderNumber,
+          subTotalCents,
+        },
+      });
+
+      subOrders.push({ id: subOrder.id, vendorId });
+      vendorSeq++;
+    }
+
+    // Create OrderItems linked to SubOrders
+    const orderItemsData = [];
+    for (const subOrder of subOrders) {
+      const items = itemsByVendor.get(subOrder.vendorId)!;
+      for (const item of items) {
+        orderItemsData.push({
+          id: createId(),
+          orderId: order.id,
+          subOrderId: subOrder.id, // Link to SubOrder
+          vendorProductId: item.vendorProductId,
+          qty: item.qty,
+          unitPriceCents: item.unitPriceCents ?? 0,
+          lineTotalCents: calculateLineTotal(item.unitPriceCents, item.qty),
+          productName: item.VendorProduct.Product.name,
+          vendorName: item.VendorProduct.Vendor.name,
+        });
+      }
+    }
 
     await tx.orderItem.createMany({
       data: orderItemsData,
