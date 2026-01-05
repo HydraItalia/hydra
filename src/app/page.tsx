@@ -17,14 +17,21 @@ export default function HomePage() {
           {/* Main Hero Content */}
           <div className="text-center space-y-8 mb-20">
             <div className="flex justify-center px-4">
-              <Image
-                src="/hydra-logo.png"
-                alt="Hydra - Restaurant Procurement, Simplified"
-                width={700}
-                height={450}
-                priority
-                className="w-full max-w-4xl h-auto"
-              />
+              <div className="w-full max-w-4xl overflow-hidden">
+                <Image
+                  src="/hydra-logo.png"
+                  alt="Hydra - Restaurant Procurement, Simplified"
+                  width={700}
+                  height={450}
+                  priority
+                  className="w-full h-auto"
+                  style={{
+                    transform: "scale(1.02)",
+                    transformOrigin: "center",
+                    marginRight: "-2%",
+                  }}
+                />
+              </div>
             </div>
 
             {/* CTA Buttons */}

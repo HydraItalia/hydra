@@ -38,6 +38,12 @@ export const DEMO_USERS: DemoUser[] = [
     description: "Beverage distributor - manage inventory and fulfill orders",
   },
   {
+    email: "vendor.cdfish@hydra.local",
+    name: "CD Fish S.r.l.",
+    role: "VENDOR",
+    description: "Seafood distributor - manage inventory and fulfill orders",
+  },
+  {
     email: "testvendor@stripe-test.com",
     name: "Test Vendor - Stripe Connect",
     role: "VENDOR",

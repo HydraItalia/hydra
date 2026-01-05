@@ -1,24 +1,26 @@
 import { Badge } from "@/components/ui/badge";
-import { OrderStatus } from "@prisma/client";
+import { OrderStatus, SubOrderStatus } from "@prisma/client";
 
 interface OrderStatusBadgeProps {
-  status: OrderStatus;
+  status: OrderStatus | SubOrderStatus;
 }
 
 /**
- * Get badge variant based on order status
+ * Get badge variant based on order/suborder status
  */
 function getStatusVariant(
-  status: OrderStatus
+  status: OrderStatus | SubOrderStatus
 ): "default" | "secondary" | "destructive" | "outline" {
   const variants: Record<
-    OrderStatus,
+    string,
     "default" | "secondary" | "destructive" | "outline"
   > = {
     DRAFT: "outline",
+    PENDING: "outline",
     SUBMITTED: "default",
     CONFIRMED: "secondary",
     FULFILLING: "secondary",
+    READY: "secondary",
     DELIVERED: "secondary",
     CANCELED: "destructive",
   };
@@ -28,12 +30,14 @@ function getStatusVariant(
 /**
  * Get status display name
  */
-function getStatusDisplay(status: OrderStatus): string {
-  const displays: Record<OrderStatus, string> = {
+function getStatusDisplay(status: OrderStatus | SubOrderStatus): string {
+  const displays: Record<string, string> = {
     DRAFT: "Draft",
+    PENDING: "Pending",
     SUBMITTED: "Submitted",
     CONFIRMED: "Confirmed",
     FULFILLING: "Fulfilling",
+    READY: "Ready",
     DELIVERED: "Delivered",
     CANCELED: "Canceled",
   };

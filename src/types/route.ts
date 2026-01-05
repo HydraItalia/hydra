@@ -7,7 +7,8 @@ import { DeliveryStatus } from "@prisma/client";
  */
 export type RouteStop = {
   deliveryId: string;
-  orderId: string;
+  orderId: string | null; // Null for new deliveries (use subOrderId instead)
+  subOrderId?: string | null; // Added for SubOrder support
   clientName: string;
   address: string;
   lat: number | null; // null when coordinates are missing

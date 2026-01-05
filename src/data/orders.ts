@@ -227,6 +227,7 @@ export type AdminOrdersResult = {
     clientName: string;
     assignedAgentName: string | null;
     itemCount: number;
+    subOrderCount: number;
     delivery: {
       id: string;
       status: string;
@@ -353,6 +354,7 @@ export async function fetchAllOrdersForAdmin(
         _count: {
           select: {
             OrderItem: true,
+            SubOrder: true,
           },
         },
       },
@@ -375,6 +377,7 @@ export async function fetchAllOrdersForAdmin(
     clientName: order.Client.name || "Unknown Client",
     assignedAgentName: order.User_Order_assignedAgentUserIdToUser?.name || null,
     itemCount: order._count.OrderItem,
+    subOrderCount: order._count.SubOrder,
     delivery: order.Delivery
       ? {
           id: order.Delivery.id,
@@ -426,6 +429,19 @@ export type AdminOrderDetail = {
     name: string | null;
     email: string;
   } | null;
+  subOrders: {
+    id: string;
+    subOrderNumber: string;
+    vendorName: string;
+    status: string;
+    subTotalCents: number;
+    itemCount: number;
+    delivery: {
+      id: string;
+      status: string;
+      driverName: string | null;
+    } | null;
+  }[];
   orderItems: {
     id: string;
     productName: string;
@@ -502,6 +518,38 @@ export async function fetchAdminOrderDetail(
           id: true,
           name: true,
           email: true,
+        },
+      },
+      SubOrder: {
+        select: {
+          id: true,
+          subOrderNumber: true,
+          status: true,
+          subTotalCents: true,
+          Vendor: {
+            select: {
+              name: true,
+            },
+          },
+          Delivery: {
+            select: {
+              id: true,
+              status: true,
+              Driver: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+          _count: {
+            select: {
+              OrderItem: true,
+            },
+          },
+        },
+        orderBy: {
+          subOrderNumber: "asc",
         },
       },
       OrderItem: {
@@ -586,6 +634,21 @@ export async function fetchAdminOrderDetail(
           email: order.User_Order_assignedAgentUserIdToUser.email,
         }
       : null,
+    subOrders: order.SubOrder.map((subOrder) => ({
+      id: subOrder.id,
+      subOrderNumber: subOrder.subOrderNumber,
+      vendorName: subOrder.Vendor.name,
+      status: subOrder.status,
+      subTotalCents: subOrder.subTotalCents,
+      itemCount: subOrder._count.OrderItem,
+      delivery: subOrder.Delivery
+        ? {
+            id: subOrder.Delivery.id,
+            status: subOrder.Delivery.status,
+            driverName: subOrder.Delivery.Driver?.name || null,
+          }
+        : null,
+    })),
     orderItems: order.OrderItem.map((item) => ({
       id: item.id,
       productName: item.productName,
@@ -927,5 +990,121 @@ export async function fetchAvailableDrivers(): Promise<AvailableDriver[]> {
     name: driver.name,
     status: driver.status,
     activeDeliveryCount: driver.Delivery.length,
+  }));
+}
+
+/**
+ * SubOrder ready for delivery result type
+ */
+export type SubOrderReadyForDelivery = {
+  id: string;
+  subOrderNumber: string;
+  subTotalCents: number;
+  updatedAt: string;
+  vendorName: string;
+  order: {
+    id: string;
+    orderNumber: string;
+    deliveryAddress: string | null;
+    deliveryLat: number | null;
+    deliveryLng: number | null;
+    client: {
+      id: string;
+      name: string;
+      shortAddress: string | null;
+    };
+  };
+  itemCount: number;
+};
+
+/**
+ * Fetch SubOrders ready for delivery (READY with no Delivery record)
+ *
+ * Authorization: Only ADMIN and AGENT users can access this
+ * - ADMIN: sees all READY SubOrders
+ * - AGENT: sees only SubOrders from their assigned orders
+ *
+ * @returns SubOrders ready for driver assignment
+ * @throws Error if user is not authenticated or not ADMIN/AGENT
+ */
+export async function fetchSubOrdersReadyForDelivery(): Promise<
+  SubOrderReadyForDelivery[]
+> {
+  // 1. Authorization check
+  const user = await requireAdminOrAgent();
+
+  // 2. Build where clause
+  const where: Prisma.SubOrderWhereInput = {
+    status: "READY",
+    Delivery: null, // No delivery exists
+  };
+
+  // AGENT scoping: only see SubOrders from their assigned orders
+  if (user.role === "AGENT") {
+    where.Order = {
+      assignedAgentUserId: user.id,
+    };
+  }
+
+  // 3. Fetch READY SubOrders without delivery
+  const subOrders = await prisma.subOrder.findMany({
+    where,
+    select: {
+      id: true,
+      subOrderNumber: true,
+      subTotalCents: true,
+      updatedAt: true,
+      Vendor: {
+        select: {
+          name: true,
+        },
+      },
+      Order: {
+        select: {
+          id: true,
+          orderNumber: true,
+          deliveryAddress: true,
+          deliveryLat: true,
+          deliveryLng: true,
+          Client: {
+            select: {
+              id: true,
+              name: true,
+              shortAddress: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          OrderItem: true,
+        },
+      },
+    },
+    orderBy: {
+      updatedAt: "asc", // Oldest first
+    },
+  });
+
+  // 4. Map to result format
+  return subOrders.map((subOrder) => ({
+    id: subOrder.id,
+    subOrderNumber: subOrder.subOrderNumber,
+    subTotalCents: subOrder.subTotalCents,
+    updatedAt: subOrder.updatedAt.toISOString(),
+    vendorName: subOrder.Vendor.name,
+    order: {
+      id: subOrder.Order.id,
+      orderNumber: subOrder.Order.orderNumber,
+      deliveryAddress: subOrder.Order.deliveryAddress,
+      deliveryLat: subOrder.Order.deliveryLat,
+      deliveryLng: subOrder.Order.deliveryLng,
+      client: {
+        id: subOrder.Order.Client.id,
+        name: subOrder.Order.Client.name,
+        shortAddress: subOrder.Order.Client.shortAddress,
+      },
+    },
+    itemCount: subOrder._count.OrderItem,
   }));
 }

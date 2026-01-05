@@ -24,7 +24,7 @@ import { createId } from "@paralleldrive/cuid2";
  * @param routeSequence - Optional sequence number for driver's route
  * @returns Success result with delivery ID or error
  */
-export async function createDeliveryForOrder(
+export async function createDeliveryForSubOrder(
   subOrderId: string,
   driverId: string,
   routeSequence?: number
@@ -110,7 +110,7 @@ export async function createDeliveryForOrder(
         subOrderId: subOrder.id,
         driverId,
         status: "ASSIGNED",
-        routeSequence: routeSequence || null,
+        routeSequence: routeSequence ?? null,
         assignedAt: new Date(),
       },
     });
@@ -341,6 +341,232 @@ export async function reassignDriverToOrder(
       success: false,
       error:
         error instanceof Error ? error.message : "Failed to reassign driver",
+    };
+  }
+}
+
+/**
+ * Reassign SubOrder to a different driver
+ * UPDATED: SubOrder-specific version
+ *
+ * @param subOrderId - The ID of the SubOrder
+ * @param newDriverId - The ID of the new driver
+ * @returns Success result or error
+ */
+export async function reassignDriverToSubOrder(
+  subOrderId: string,
+  newDriverId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    // Require ADMIN or AGENT role
+    await requireRole("ADMIN", "AGENT");
+
+    // Find the SubOrder's delivery
+    const delivery = await prisma.delivery.findFirst({
+      where: { subOrderId },
+      select: {
+        id: true,
+        status: true,
+        driverId: true,
+        Driver: {
+          select: {
+            name: true,
+          },
+        },
+        SubOrder: {
+          select: {
+            id: true,
+            subOrderNumber: true,
+            orderId: true,
+            Vendor: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!delivery) {
+      return { success: false, error: "No delivery found for this SubOrder" };
+    }
+
+    // Don't allow reassigning if delivery is in progress or completed
+    if (
+      delivery.status === "PICKED_UP" ||
+      delivery.status === "IN_TRANSIT" ||
+      delivery.status === "DELIVERED"
+    ) {
+      return {
+        success: false,
+        error: `Cannot reassign driver when delivery status is ${delivery.status}`,
+      };
+    }
+
+    // Check if it's the same driver
+    if (delivery.driverId === newDriverId) {
+      return {
+        success: false,
+        error: "SubOrder is already assigned to this driver",
+      };
+    }
+
+    // Validate new driver exists
+    const newDriver = await prisma.driver.findUnique({
+      where: { id: newDriverId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+      },
+    });
+
+    if (!newDriver) {
+      return { success: false, error: "Driver not found" };
+    }
+
+    // Validate new driver is available for assignment
+    if (newDriver.status === "BUSY") {
+      return {
+        success: false,
+        error: "Driver is currently busy and cannot be assigned",
+      };
+    }
+
+    if (newDriver.status === "OFFLINE") {
+      return {
+        success: false,
+        error: "Driver is offline and cannot be assigned",
+      };
+    }
+
+    // Update the delivery
+    await prisma.delivery.update({
+      where: { id: delivery.id },
+      data: {
+        driverId: newDriverId,
+        assignedAt: new Date(), // Update assignment time
+      },
+    });
+
+    // Log the reassignment
+    await logAction({
+      entityType: "Delivery",
+      entityId: delivery.id,
+      action: AuditAction.DELIVERY_DRIVER_CHANGED,
+      diff: {
+        subOrderId: delivery.SubOrder!.id,
+        subOrderNumber: delivery.SubOrder!.subOrderNumber,
+        orderId: delivery.SubOrder!.orderId,
+        vendorName: delivery.SubOrder!.Vendor.name,
+        fromDriver: delivery.Driver.name,
+        toDriver: newDriver.name,
+      },
+    });
+
+    // Revalidate relevant pages
+    revalidatePath("/dashboard/orders");
+    revalidatePath(`/dashboard/orders/${delivery.SubOrder!.orderId}`);
+    revalidatePath("/dashboard/deliveries");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error reassigning driver to SubOrder:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to reassign driver",
+    };
+  }
+}
+
+/**
+ * Unassign driver from SubOrder (delete delivery record)
+ * UPDATED: SubOrder-specific version
+ *
+ * @param subOrderId - The ID of the SubOrder
+ * @returns Success result or error
+ */
+export async function unassignDriverFromSubOrder(
+  subOrderId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    // Require ADMIN or AGENT role
+    await requireRole("ADMIN", "AGENT");
+
+    // Find the SubOrder's delivery
+    const delivery = await prisma.delivery.findFirst({
+      where: { subOrderId },
+      select: {
+        id: true,
+        status: true,
+        Driver: {
+          select: {
+            name: true,
+          },
+        },
+        SubOrder: {
+          select: {
+            id: true,
+            subOrderNumber: true,
+            orderId: true,
+            Vendor: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!delivery) {
+      return { success: false, error: "No delivery found for this SubOrder" };
+    }
+
+    // Don't allow unassigning if delivery is in progress
+    if (delivery.status === "PICKED_UP" || delivery.status === "IN_TRANSIT") {
+      return {
+        success: false,
+        error: "Cannot unassign driver when delivery is in progress",
+      };
+    }
+
+    if (delivery.status === "DELIVERED") {
+      return {
+        success: false,
+        error: "Cannot unassign driver from completed delivery",
+      };
+    }
+
+    // Delete the delivery
+    await prisma.delivery.delete({
+      where: { id: delivery.id },
+    });
+
+    // Log the unassignment
+    await logAction({
+      entityType: "Delivery",
+      entityId: delivery.id,
+      action: AuditAction.DELIVERY_DELETED,
+      diff: {
+        subOrderId: delivery.SubOrder!.id,
+        subOrderNumber: delivery.SubOrder!.subOrderNumber,
+        orderId: delivery.SubOrder!.orderId,
+        vendorName: delivery.SubOrder!.Vendor.name,
+        driverName: delivery.Driver.name,
+      },
+    });
+
+    // Revalidate relevant pages
+    revalidatePath("/dashboard/orders");
+    revalidatePath(`/dashboard/orders/${delivery.SubOrder!.orderId}`);
+    revalidatePath("/dashboard/deliveries");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error unassigning driver from SubOrder:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to unassign driver",
     };
   }
 }

@@ -238,8 +238,8 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
     notFound();
   }
 
-  const order = orderResult.data;
-  const formattedDate = formatDateTime(order.createdAt);
+  const subOrder = orderResult.data;
+  const formattedDate = formatDateTime(subOrder.createdAt);
 
   return (
     <div className="space-y-6">
@@ -253,11 +253,15 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Order {order.orderNumber}</h1>
-            <p className="text-sm text-muted-foreground">{formattedDate}</p>
+            <h1 className="text-2xl font-bold">
+              SubOrder {subOrder.subOrderNumber}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Order #{subOrder.Order.orderNumber} • {formattedDate}
+            </p>
           </div>
         </div>
-        <OrderStatusBadge status={order.status} />
+        <OrderStatusBadge status={subOrder.status} />
       </div>
 
       {/* Order Summary */}
@@ -269,30 +273,17 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
           <CardContent className="space-y-2">
             <div>
               <div className="text-sm text-muted-foreground">Client Name</div>
-              <div className="font-medium">{order.Client.name}</div>
+              <div className="font-medium">{subOrder.Order.clientName}</div>
             </div>
-            {order.Client.region && (
-              <div>
-                <div className="text-sm text-muted-foreground">Region</div>
-                <div className="font-medium">{order.Client.region}</div>
-              </div>
-            )}
-            {order.deliveryAddress && (
+            {subOrder.Order.deliveryAddress && (
               <div>
                 <div className="text-sm text-muted-foreground flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
                   Delivery Address
                 </div>
-                <div className="font-medium">{order.deliveryAddress}</div>
-              </div>
-            )}
-            {order.Client.fullAddress && !order.deliveryAddress && (
-              <div>
-                <div className="text-sm text-muted-foreground flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  Address
+                <div className="font-medium">
+                  {subOrder.Order.deliveryAddress}
                 </div>
-                <div className="font-medium">{order.Client.fullAddress}</div>
               </div>
             )}
           </CardContent>
@@ -300,7 +291,7 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Order Status</CardTitle>
+            <CardTitle>SubOrder Status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -308,7 +299,7 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
                 Current Status
               </div>
               <div className="mt-1">
-                <OrderStatusBadge status={order.status} />
+                <OrderStatusBadge status={subOrder.status} />
               </div>
             </div>
             <Separator />
@@ -317,18 +308,18 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
                 Update Status
               </div>
               <StatusActionButtons
-                orderId={order.id}
-                currentStatus={order.status}
+                orderId={subOrder.id}
+                currentStatus={subOrder.status}
               />
             </div>
-            {order.notes && (
+            {subOrder.vendorNotes && (
               <>
                 <Separator />
                 <div>
                   <div className="text-sm text-muted-foreground">
-                    Order Notes
+                    Vendor Notes
                   </div>
-                  <div className="mt-1 text-sm">{order.notes}</div>
+                  <div className="mt-1 text-sm">{subOrder.vendorNotes}</div>
                 </div>
               </>
             )}
@@ -339,13 +330,13 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
       {/* Order Items */}
       <Card>
         <CardHeader>
-          <CardTitle>Your Items in This Order</CardTitle>
+          <CardTitle>Items in This SubOrder</CardTitle>
           <CardDescription>
-            Products from your inventory included in this order
+            Products from your inventory in this vendor-specific order
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <OrderItemsTable order={order} />
+          <OrderItemsTable order={subOrder} />
         </CardContent>
       </Card>
     </div>
@@ -492,35 +483,71 @@ async function AdminOrderDetailView({ orderId }: { orderId: string }) {
                 </div>
               </>
             )}
-            <Separator />
-            <div className="space-y-3">
-              <div className="text-sm text-muted-foreground">
-                Driver Assignment
-              </div>
-              <DriverManagementDropdown
-                orderId={order.id}
-                drivers={drivers}
-                currentDriver={
-                  order.delivery?.driverName
-                    ? {
-                        id: order.delivery.id,
-                        name: order.delivery.driverName,
-                      }
-                    : null
-                }
-              />
-              {order.delivery && (
-                <Link
-                  href={`/dashboard/deliveries/${order.delivery.id}`}
-                  className="text-sm text-primary hover:underline block"
-                >
-                  View Full Delivery Details →
-                </Link>
-              )}
-            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* SubOrders */}
+      {order.subOrders && order.subOrders.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Vendor SubOrders</CardTitle>
+            <CardDescription>
+              This order has been split into {order.subOrders.length}{" "}
+              vendor-specific sub-orders
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {order.subOrders.map((subOrder) => (
+                <Card key={subOrder.id}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-base">
+                          {subOrder.subOrderNumber}
+                        </CardTitle>
+                        <CardDescription>{subOrder.vendorName}</CardDescription>
+                      </div>
+                      <Badge>{subOrder.status}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Items:</span>
+                      <span className="font-medium">{subOrder.itemCount}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total:</span>
+                      <span className="font-medium">
+                        {formatCurrency(subOrder.subTotalCents)}
+                      </span>
+                    </div>
+                    <Separator />
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-2">
+                        Driver Assignment
+                      </div>
+                      <DriverManagementDropdown
+                        subOrderId={subOrder.id}
+                        drivers={drivers}
+                        currentDriver={
+                          subOrder.delivery?.driverName
+                            ? {
+                                id: subOrder.delivery.id,
+                                name: subOrder.delivery.driverName,
+                              }
+                            : null
+                        }
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Order Items */}
       <Card>

@@ -16,16 +16,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  createDeliveryForOrder,
-  unassignDriverFromOrder,
-  reassignDriverToOrder,
+  createDeliveryForSubOrder,
+  reassignDriverToSubOrder,
+  unassignDriverFromSubOrder,
 } from "@/actions/admin-deliveries";
 import { toast } from "sonner";
 import { ChevronDown, Truck, UserX } from "lucide-react";
 import type { AvailableDriver } from "@/data/orders";
 
 type DriverManagementDropdownProps = {
-  orderId: string;
+  subOrderId: string;
   drivers: AvailableDriver[];
   currentDriver?: {
     id: string;
@@ -35,7 +35,7 @@ type DriverManagementDropdownProps = {
 };
 
 export function DriverManagementDropdown({
-  orderId,
+  subOrderId,
   drivers,
   currentDriver,
   disabled = false,
@@ -46,7 +46,7 @@ export function DriverManagementDropdown({
   const handleAssignDriver = async (driverId: string) => {
     setIsProcessing(true);
     try {
-      const result = await createDeliveryForOrder(orderId, driverId);
+      const result = await createDeliveryForSubOrder(subOrderId, driverId);
 
       if (result.success) {
         toast.success("Driver assigned successfully");
@@ -62,14 +62,9 @@ export function DriverManagementDropdown({
   };
 
   const handleReassignDriver = async (newDriverId: string) => {
-    if (currentDriver?.id === newDriverId) {
-      toast.error("Driver is already assigned to this order");
-      return;
-    }
-
     setIsProcessing(true);
     try {
-      const result = await reassignDriverToOrder(orderId, newDriverId);
+      const result = await reassignDriverToSubOrder(subOrderId, newDriverId);
 
       if (result.success) {
         toast.success("Driver reassigned successfully");
@@ -87,7 +82,7 @@ export function DriverManagementDropdown({
   const handleUnassignDriver = async () => {
     setIsProcessing(true);
     try {
-      const result = await unassignDriverFromOrder(orderId);
+      const result = await unassignDriverFromSubOrder(subOrderId);
 
       if (result.success) {
         toast.success("Driver unassigned successfully");

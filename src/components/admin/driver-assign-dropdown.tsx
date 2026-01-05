@@ -10,18 +10,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { createDeliveryForOrder } from "@/actions/admin-deliveries";
+import { createDeliveryForSubOrder } from "@/actions/admin-deliveries";
 import { toast } from "sonner";
 import type { AvailableDriver } from "@/data/orders";
 
 type DriverAssignDropdownProps = {
-  orderId: string;
+  subOrderId: string;
   drivers: AvailableDriver[];
   disabled?: boolean;
 };
 
 export function DriverAssignDropdown({
-  orderId,
+  subOrderId,
   drivers,
   disabled = false,
 }: DriverAssignDropdownProps) {
@@ -31,7 +31,7 @@ export function DriverAssignDropdown({
   const handleAssignDriver = async (driverId: string) => {
     setIsAssigning(true);
     try {
-      const result = await createDeliveryForOrder(orderId, driverId);
+      const result = await createDeliveryForSubOrder(subOrderId, driverId);
 
       if (result.success) {
         toast.success("Driver assigned successfully");

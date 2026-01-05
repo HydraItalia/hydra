@@ -24,6 +24,33 @@ const VALID_TRANSITIONS: Record<SubOrderStatus, SubOrderStatus[]> = {
 };
 
 /**
+ * Authenticate vendor user and return their vendorId
+ * Reduces duplication across vendor-specific actions
+ */
+async function authenticateVendor(): Promise<
+  { success: false; error: string } | { success: true; vendorId: string }
+> {
+  const user = await currentUser();
+
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  if (user.role !== "VENDOR") {
+    return { success: false, error: "Unauthorized: Vendor access required" };
+  }
+
+  if (!user.vendorId) {
+    return {
+      success: false,
+      error: "No vendor associated with this account",
+    };
+  }
+
+  return { success: true, vendorId: user.vendorId };
+}
+
+/**
  * Update the status of a SubOrder
  *
  * This function:
@@ -41,26 +68,15 @@ export async function updateSubOrderStatus(
   newStatus: SubOrderStatus
 ): Promise<ActionResult<{ id: string; status: SubOrderStatus }>> {
   try {
-    const user = await currentUser();
-
-    if (!user) {
-      return { success: false, error: "Not authenticated" };
-    }
-
-    if (user.role !== "VENDOR") {
-      return { success: false, error: "Unauthorized: Vendor access required" };
-    }
-
-    if (!user.vendorId) {
-      return {
-        success: false,
-        error: "No vendor associated with this account",
-      };
+    // Authenticate vendor
+    const auth = await authenticateVendor();
+    if (!auth.success) {
+      return auth;
     }
 
     // Verify vendor owns this SubOrder
     const subOrder = await prisma.subOrder.findFirst({
-      where: { id: subOrderId, vendorId: user.vendorId },
+      where: { id: subOrderId, vendorId: auth.vendorId },
       select: {
         id: true,
         status: true,
@@ -80,30 +96,39 @@ export async function updateSubOrderStatus(
       };
     }
 
-    // Update SubOrder with timestamps
-    const updated = await prisma.subOrder.update({
-      where: { id: subOrderId },
-      data: {
-        status: newStatus,
-        ...(newStatus === "CONFIRMED" && { confirmedAt: new Date() }),
-        ...(newStatus === "READY" && { readyAt: new Date() }),
-        ...(newStatus === "CANCELED" && { canceledAt: new Date() }),
-      },
-      select: {
-        id: true,
-        status: true,
-      },
-    });
+    // Update SubOrder and parent Order in a transaction
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedSubOrder = await tx.subOrder.update({
+        where: { id: subOrderId },
+        data: {
+          status: newStatus,
+          ...(newStatus === "CONFIRMED" && { confirmedAt: new Date() }),
+          ...(newStatus === "READY" && { readyAt: new Date() }),
+          ...(newStatus === "CANCELED" && { canceledAt: new Date() }),
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      });
 
-    // Update parent Order status
-    await updateParentOrderStatus(subOrder.orderId);
+      // Update parent Order status within same transaction
+      await updateParentOrderStatusInTx(tx, subOrder.orderId);
+
+      return updatedSubOrder;
+    });
 
     revalidatePath("/dashboard/orders");
     revalidatePath("/dashboard/vendor/orders");
 
     return { success: true, data: updated };
   } catch (error) {
-    console.error("Error updating SubOrder status:", error);
+    console.error("[updateSubOrderStatus] Error:", {
+      subOrderId,
+      newStatus,
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return {
       success: false,
       error: "Failed to update SubOrder status",
@@ -112,7 +137,7 @@ export async function updateSubOrderStatus(
 }
 
 /**
- * Derive parent Order status from SubOrder statuses
+ * Derive parent Order status from SubOrder statuses (within transaction)
  *
  * Rules:
  * - All CANCELED → Order CANCELED
@@ -120,10 +145,14 @@ export async function updateSubOrderStatus(
  * - Any CONFIRMED/FULFILLING/READY → Order CONFIRMED
  * - Otherwise → Order SUBMITTED
  *
+ * @param tx - Prisma transaction client
  * @param orderId - The ID of the Order to update
  */
-async function updateParentOrderStatus(orderId: string): Promise<void> {
-  const order = await prisma.order.findUnique({
+async function updateParentOrderStatusInTx(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  orderId: string
+): Promise<void> {
+  const order = await tx.order.findUnique({
     where: { id: orderId },
     include: { SubOrder: { select: { status: true } } },
   });
@@ -152,7 +181,7 @@ async function updateParentOrderStatus(orderId: string): Promise<void> {
 
   // Only update if status changed
   if (order.status !== newOrderStatus) {
-    await prisma.order.update({
+    await tx.order.update({
       where: { id: orderId },
       data: { status: newOrderStatus },
     });
@@ -190,27 +219,16 @@ export async function getVendorSubOrder(subOrderId: string): Promise<
   }>
 > {
   try {
-    const user = await currentUser();
-
-    if (!user) {
-      return { success: false, error: "Not authenticated" };
-    }
-
-    if (user.role !== "VENDOR") {
-      return { success: false, error: "Unauthorized: Vendor access required" };
-    }
-
-    if (!user.vendorId) {
-      return {
-        success: false,
-        error: "No vendor associated with this account",
-      };
+    // Authenticate vendor
+    const auth = await authenticateVendor();
+    if (!auth.success) {
+      return auth;
     }
 
     const subOrder = await prisma.subOrder.findFirst({
       where: {
         id: subOrderId,
-        vendorId: user.vendorId,
+        vendorId: auth.vendorId,
       },
       select: {
         id: true,
@@ -259,7 +277,11 @@ export async function getVendorSubOrder(subOrderId: string): Promise<
 
     return { success: true, data: result };
   } catch (error) {
-    console.error("Error fetching SubOrder:", error);
+    console.error("[getVendorSubOrder] Error:", {
+      subOrderId,
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return {
       success: false,
       error: "Failed to fetch SubOrder",

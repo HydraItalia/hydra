@@ -14,10 +14,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { MapPin, Map } from "lucide-react";
 import { DriverAssignDropdown } from "./driver-assign-dropdown";
-import type { OrderReadyForDelivery, AvailableDriver } from "@/data/orders";
+import type {
+  SubOrderReadyForDelivery,
+  AvailableDriver,
+} from "@/data/orders";
 
 type ReadyForDeliveryTableProps = {
-  orders: OrderReadyForDelivery[];
+  subOrders: SubOrderReadyForDelivery[];
   drivers: AvailableDriver[];
 };
 
@@ -35,18 +38,18 @@ function getGoogleMapsUrl(
 }
 
 export function ReadyForDeliveryTable({
-  orders,
+  subOrders,
   drivers,
 }: ReadyForDeliveryTableProps) {
-  if (orders.length === 0) {
+  if (subOrders.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <p className="text-lg font-medium text-muted-foreground">
-            No orders ready for delivery
+            No SubOrders ready for delivery
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            All confirmed orders have been assigned to drivers
+            All ready SubOrders have been assigned to drivers
           </p>
         </div>
       </div>
@@ -60,35 +63,41 @@ export function ReadyForDeliveryTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Order #</TableHead>
+              <TableHead>SubOrder #</TableHead>
+              <TableHead>Vendor</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Delivery Address</TableHead>
               <TableHead className="text-right">Items</TableHead>
               <TableHead className="text-right">Total</TableHead>
-              <TableHead>Confirmed</TableHead>
+              <TableHead>Ready</TableHead>
               <TableHead>Assign Driver</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((order) => {
+            {subOrders.map((subOrder) => {
               const address =
-                order.deliveryAddress ||
-                order.client.shortAddress ||
+                subOrder.order.deliveryAddress ||
+                subOrder.order.client.shortAddress ||
                 "No address";
-              const hasLocation = order.deliveryLat != null && order.deliveryLng != null;
+              const hasLocation =
+                subOrder.order.deliveryLat != null &&
+                subOrder.order.deliveryLng != null;
 
               return (
-                <TableRow key={order.id}>
+                <TableRow key={subOrder.id}>
                   <TableCell>
                     <Link
-                      href={`/dashboard/orders/${order.id}`}
+                      href={`/dashboard/orders/${subOrder.order.id}`}
                       className="font-medium hover:underline"
                     >
-                      {order.orderNumber}
+                      {subOrder.subOrderNumber}
                     </Link>
                   </TableCell>
-                  <TableCell>{order.client.name}</TableCell>
+                  <TableCell className="text-sm">
+                    {subOrder.vendorName}
+                  </TableCell>
+                  <TableCell>{subOrder.order.client.name}</TableCell>
                   <TableCell className="max-w-[200px]">
                     <div className="flex items-start gap-2">
                       <MapPin className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
@@ -96,17 +105,17 @@ export function ReadyForDeliveryTable({
                     </div>
                   </TableCell>
                   <TableCell className="text-right text-sm">
-                    {order.itemCount}
+                    {subOrder.itemCount}
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(order.totalCents)}
+                    {formatCurrency(subOrder.subTotalCents)}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatDateTime(order.updatedAt)}
+                    {formatDateTime(subOrder.updatedAt)}
                   </TableCell>
                   <TableCell>
                     <DriverAssignDropdown
-                      orderId={order.id}
+                      subOrderId={subOrder.id}
                       drivers={drivers}
                     />
                   </TableCell>
@@ -116,8 +125,8 @@ export function ReadyForDeliveryTable({
                         <a
                           href={getGoogleMapsUrl(
                             address,
-                            order.deliveryLat,
-                            order.deliveryLng
+                            subOrder.order.deliveryLat,
+                            subOrder.order.deliveryLng
                           )}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -137,25 +146,30 @@ export function ReadyForDeliveryTable({
 
       {/* Mobile Card View */}
       <div className="space-y-4 md:hidden">
-        {orders.map((order) => {
+        {subOrders.map((subOrder) => {
           const address =
-            order.deliveryAddress || order.client.shortAddress || "No address";
-          const hasLocation = order.deliveryLat != null && order.deliveryLng != null;
+            subOrder.order.deliveryAddress ||
+            subOrder.order.client.shortAddress ||
+            "No address";
+          const hasLocation =
+            subOrder.order.deliveryLat != null &&
+            subOrder.order.deliveryLng != null;
 
           return (
-            <Card key={order.id}>
+            <Card key={subOrder.id}>
               <CardContent className="p-4 space-y-3">
-                {/* Order Number and Date */}
+                {/* SubOrder Number and Date */}
                 <div className="flex items-start justify-between">
                   <div>
                     <Link
-                      href={`/dashboard/orders/${order.id}`}
+                      href={`/dashboard/orders/${subOrder.order.id}`}
                       className="font-medium hover:underline"
                     >
-                      {order.orderNumber}
+                      {subOrder.subOrderNumber}
                     </Link>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Confirmed {formatDateTime(order.updatedAt)}
+                      {subOrder.vendorName} • Ready{" "}
+                      {formatDateTime(subOrder.updatedAt)}
                     </p>
                   </div>
                   {hasLocation && (
@@ -163,8 +177,8 @@ export function ReadyForDeliveryTable({
                       <a
                         href={getGoogleMapsUrl(
                           address,
-                          order.deliveryLat,
-                          order.deliveryLng
+                          subOrder.order.deliveryLat,
+                          subOrder.order.deliveryLng
                         )}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -178,7 +192,9 @@ export function ReadyForDeliveryTable({
 
                 {/* Client Info */}
                 <div>
-                  <p className="text-sm font-medium">{order.client.name}</p>
+                  <p className="text-sm font-medium">
+                    {subOrder.order.client.name}
+                  </p>
                   <div className="flex items-start gap-2 mt-1">
                     <MapPin className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">
@@ -187,13 +203,13 @@ export function ReadyForDeliveryTable({
                   </div>
                 </div>
 
-                {/* Order Details */}
+                {/* SubOrder Details */}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
-                    {order.itemCount} items
+                    {subOrder.itemCount} items
                   </span>
                   <span className="font-medium">
-                    {formatCurrency(order.totalCents)}
+                    {formatCurrency(subOrder.subTotalCents)}
                   </span>
                 </div>
 
@@ -202,7 +218,10 @@ export function ReadyForDeliveryTable({
                   <p className="text-xs text-muted-foreground mb-2">
                     Assign driver
                   </p>
-                  <DriverAssignDropdown orderId={order.id} drivers={drivers} />
+                  <DriverAssignDropdown
+                    subOrderId={subOrder.id}
+                    drivers={drivers}
+                  />
                 </div>
               </CardContent>
             </Card>
