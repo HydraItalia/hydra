@@ -439,6 +439,14 @@ export async function reassignDriverToSubOrder(
       };
     }
 
+    // Verify SubOrder data exists
+    if (!delivery.SubOrder) {
+      return {
+        success: false,
+        error: "SubOrder data not found for delivery",
+      };
+    }
+
     // Update the delivery
     await prisma.delivery.update({
       where: { id: delivery.id },
@@ -454,10 +462,10 @@ export async function reassignDriverToSubOrder(
       entityId: delivery.id,
       action: AuditAction.DELIVERY_DRIVER_CHANGED,
       diff: {
-        subOrderId: delivery.SubOrder!.id,
-        subOrderNumber: delivery.SubOrder!.subOrderNumber,
-        orderId: delivery.SubOrder!.orderId,
-        vendorName: delivery.SubOrder!.Vendor.name,
+        subOrderId: delivery.SubOrder.id,
+        subOrderNumber: delivery.SubOrder.subOrderNumber,
+        orderId: delivery.SubOrder.orderId,
+        vendorName: delivery.SubOrder.Vendor.name,
         fromDriver: delivery.Driver.name,
         toDriver: newDriver.name,
       },
@@ -465,7 +473,7 @@ export async function reassignDriverToSubOrder(
 
     // Revalidate relevant pages
     revalidatePath("/dashboard/orders");
-    revalidatePath(`/dashboard/orders/${delivery.SubOrder!.orderId}`);
+    revalidatePath(`/dashboard/orders/${delivery.SubOrder.orderId}`);
     revalidatePath("/dashboard/deliveries");
 
     return { success: true };
@@ -536,6 +544,14 @@ export async function unassignDriverFromSubOrder(
       };
     }
 
+    // Verify SubOrder data exists
+    if (!delivery.SubOrder) {
+      return {
+        success: false,
+        error: "SubOrder data not found for delivery",
+      };
+    }
+
     // Delete the delivery
     await prisma.delivery.delete({
       where: { id: delivery.id },
@@ -547,17 +563,17 @@ export async function unassignDriverFromSubOrder(
       entityId: delivery.id,
       action: AuditAction.DELIVERY_DELETED,
       diff: {
-        subOrderId: delivery.SubOrder!.id,
-        subOrderNumber: delivery.SubOrder!.subOrderNumber,
-        orderId: delivery.SubOrder!.orderId,
-        vendorName: delivery.SubOrder!.Vendor.name,
+        subOrderId: delivery.SubOrder.id,
+        subOrderNumber: delivery.SubOrder.subOrderNumber,
+        orderId: delivery.SubOrder.orderId,
+        vendorName: delivery.SubOrder.Vendor.name,
         driverName: delivery.Driver.name,
       },
     });
 
     // Revalidate relevant pages
     revalidatePath("/dashboard/orders");
-    revalidatePath(`/dashboard/orders/${delivery.SubOrder!.orderId}`);
+    revalidatePath(`/dashboard/orders/${delivery.SubOrder.orderId}`);
     revalidatePath("/dashboard/deliveries");
 
     return { success: true };

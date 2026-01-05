@@ -172,23 +172,32 @@ async function ClientOrderDetailView({ orderId }: { orderId: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {order.OrderItem.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                      {item.productName}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {item.vendorName}
-                    </TableCell>
-                    <TableCell className="text-center">{item.qty}</TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(item.unitPriceCents)}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(item.lineTotalCents)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {(() => {
+                  // For orders with SubOrders, aggregate all items from SubOrders
+                  // For old orders, use OrderItem directly
+                  const items =
+                    order.SubOrder && order.SubOrder.length > 0
+                      ? order.SubOrder.flatMap((subOrder) => subOrder.OrderItem)
+                      : order.OrderItem;
+
+                  return items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">
+                        {item.productName}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {item.vendorName}
+                      </TableCell>
+                      <TableCell className="text-center">{item.qty}</TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(item.unitPriceCents)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(item.lineTotalCents)}
+                      </TableCell>
+                    </TableRow>
+                  ));
+                })()}
               </TableBody>
             </Table>
           </div>
@@ -487,11 +496,11 @@ async function AdminOrderDetailView({ orderId }: { orderId: string }) {
         </Card>
       </div>
 
-      {/* SubOrders */}
+      {/* Sub-orders */}
       {order.subOrders && order.subOrders.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Vendor SubOrders</CardTitle>
+            <CardTitle>Vendor Sub-orders</CardTitle>
             <CardDescription>
               This order has been split into {order.subOrders.length}{" "}
               vendor-specific sub-orders
@@ -532,9 +541,10 @@ async function AdminOrderDetailView({ orderId }: { orderId: string }) {
                         subOrderId={subOrder.id}
                         drivers={drivers}
                         currentDriver={
+                          subOrder.delivery?.driverId &&
                           subOrder.delivery?.driverName
                             ? {
-                                id: subOrder.delivery.id,
+                                id: subOrder.delivery.driverId,
                                 name: subOrder.delivery.driverName,
                               }
                             : null

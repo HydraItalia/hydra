@@ -107,10 +107,11 @@ export async function getOptimizedDriverRoute(
     const firstOrder = firstDelivery.SubOrder
       ? firstDelivery.SubOrder.Order
       : firstDelivery.Order;
-    console.log(
-      `[Route Calculator] Raw first delivery Order:`,
-      JSON.stringify(firstOrder, null, 2)
-    );
+    console.log(`[Route Calculator] Raw first delivery Order:`, {
+      id: firstOrder?.id,
+      deliveryLat: firstOrder?.deliveryLat,
+      deliveryLng: firstOrder?.deliveryLng,
+    });
 
     const sampleDelivery = validDeliveries[0];
     const sampleOrder = sampleDelivery.SubOrder
@@ -199,10 +200,8 @@ export async function getOptimizedDriverRoute(
         ? delivery.SubOrder.Order
         : delivery.Order;
 
-      return {
+      const baseStop = {
         deliveryId: delivery.id,
-        orderId: delivery.orderId,
-        subOrderId: delivery.subOrderId,
         clientName: order.Client.name,
         address: order.deliveryAddress!,
         lat: order.deliveryLat!,
@@ -211,6 +210,25 @@ export async function getOptimizedDriverRoute(
         etaMinutes: leg ? Math.round(leg.duration.value / 60) : undefined,
         legDistanceKm: leg ? leg.distance.value / 1000 : undefined,
       };
+
+      // Ensure at least one identifier is present (match union type)
+      if (delivery.subOrderId) {
+        return {
+          ...baseStop,
+          orderId: delivery.orderId,
+          subOrderId: delivery.subOrderId,
+        };
+      } else if (delivery.orderId) {
+        return {
+          ...baseStop,
+          orderId: delivery.orderId,
+          subOrderId: delivery.subOrderId,
+        };
+      } else {
+        throw new Error(
+          `Delivery ${delivery.id} has neither orderId nor subOrderId`
+        );
+      }
     });
 
     // Calculate totals
@@ -237,16 +255,34 @@ export async function getOptimizedDriverRoute(
       const order = delivery.SubOrder
         ? delivery.SubOrder.Order
         : delivery.Order;
-      return {
+
+      const baseStop = {
         deliveryId: delivery.id,
-        orderId: delivery.orderId,
-        subOrderId: delivery.subOrderId,
         clientName: order.Client.name,
         address: order.deliveryAddress!,
         lat: order.deliveryLat!,
         lng: order.deliveryLng!,
         status: delivery.status,
       };
+
+      // Ensure at least one identifier is present (match union type)
+      if (delivery.subOrderId) {
+        return {
+          ...baseStop,
+          orderId: delivery.orderId,
+          subOrderId: delivery.subOrderId,
+        };
+      } else if (delivery.orderId) {
+        return {
+          ...baseStop,
+          orderId: delivery.orderId,
+          subOrderId: delivery.subOrderId,
+        };
+      } else {
+        throw new Error(
+          `Delivery ${delivery.id} has neither orderId nor subOrderId`
+        );
+      }
     });
 
     return {

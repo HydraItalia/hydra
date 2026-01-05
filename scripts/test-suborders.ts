@@ -213,70 +213,74 @@ async function main() {
   ];
   console.log(`   Cart has items from ${vendorIds.length} vendors`);
 
-  // Simulate order creation
+  // Simulate order creation (wrapped in transaction for data consistency)
   const orderNumber = `HYD-TEST-${Date.now()}`;
   const totalCents = cart.CartItem.reduce(
     (sum, item) => sum + item.unitPriceCents * item.qty,
     0
   );
 
-  const order = await prisma.order.create({
-    data: {
-      id: createId(),
-      clientId: cart.clientId,
-      submitterUserId: cart.createdByUserId,
-      orderNumber,
-      status: "SUBMITTED",
-      totalCents,
-    },
-  });
-  console.log(`✅ Created Order: ${orderNumber}`);
-
-  // Create SubOrders (one per vendor)
-  const subOrders = [];
-  for (let i = 0; i < vendorIds.length; i++) {
-    const vendorId = vendorIds[i];
-    const vendorItems = cart.CartItem.filter(
-      (item) => item.VendorProduct.Vendor.id === vendorId
-    );
-    const subTotalCents = vendorItems.reduce(
-      (sum, item) => sum + item.unitPriceCents * item.qty,
-      0
-    );
-
-    const subOrder = await prisma.subOrder.create({
+  const { order, subOrders } = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.create({
       data: {
         id: createId(),
-        orderId: order.id,
-        vendorId,
+        clientId: cart.clientId,
+        submitterUserId: cart.createdByUserId,
+        orderNumber,
         status: "SUBMITTED",
-        subOrderNumber: `${orderNumber}-V${String(i + 1).padStart(2, "0")}`,
-        subTotalCents,
+        totalCents,
       },
     });
-    subOrders.push(subOrder);
+    console.log(`✅ Created Order: ${orderNumber}`);
 
-    // Create OrderItems linked to SubOrder
-    for (const item of vendorItems) {
-      await prisma.orderItem.create({
+    // Create SubOrders (one per vendor)
+    const subOrders = [];
+    for (let i = 0; i < vendorIds.length; i++) {
+      const vendorId = vendorIds[i];
+      const vendorItems = cart.CartItem.filter(
+        (item) => item.VendorProduct.Vendor.id === vendorId
+      );
+      const subTotalCents = vendorItems.reduce(
+        (sum, item) => sum + item.unitPriceCents * item.qty,
+        0
+      );
+
+      const subOrder = await tx.subOrder.create({
         data: {
           id: createId(),
           orderId: order.id,
-          subOrderId: subOrder.id,
-          vendorProductId: item.vendorProductId,
-          qty: item.qty,
-          unitPriceCents: item.unitPriceCents,
-          lineTotalCents: item.unitPriceCents * item.qty,
-          productName: item.VendorProduct.Product.name,
-          vendorName: item.VendorProduct.Vendor.name,
+          vendorId,
+          status: "SUBMITTED",
+          subOrderNumber: `${orderNumber}-V${String(i + 1).padStart(2, "0")}`,
+          subTotalCents,
         },
       });
+      subOrders.push(subOrder);
+
+      // Create OrderItems linked to SubOrder
+      for (const item of vendorItems) {
+        await tx.orderItem.create({
+          data: {
+            id: createId(),
+            orderId: order.id,
+            subOrderId: subOrder.id,
+            vendorProductId: item.vendorProductId,
+            qty: item.qty,
+            unitPriceCents: item.unitPriceCents,
+            lineTotalCents: item.unitPriceCents * item.qty,
+            productName: item.VendorProduct.Product.name,
+            vendorName: item.VendorProduct.Vendor.name,
+          },
+        });
+      }
+
+      console.log(
+        `✅ Created SubOrder: ${subOrder.subOrderNumber} (${subTotalCents} cents)`
+      );
     }
 
-    console.log(
-      `✅ Created SubOrder: ${subOrder.subOrderNumber} (${subTotalCents} cents)`
-    );
-  }
+    return { order, subOrders };
+  });
 
   // Verify totals match
   const subOrderTotal = subOrders.reduce(
@@ -307,7 +311,7 @@ async function main() {
     for (const [currentStatus, nextStatus] of Object.entries(
       validTransitions
     )) {
-      const updated = await prisma.subOrder.update({
+      await prisma.subOrder.update({
         where: { id: testSubOrder.id },
         data: {
           status: nextStatus as any,

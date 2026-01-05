@@ -600,16 +600,16 @@ async function ReadyForDeliveryView() {
     <div className="space-y-6">
       <PageHeader
         title="Ready for Delivery"
-        subtitle="Assign ready SubOrders to drivers"
+        subtitle="Assign ready sub-orders to drivers"
       />
 
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>SubOrders Awaiting Driver Assignment</CardTitle>
+              <CardTitle>Sub-orders Awaiting Driver Assignment</CardTitle>
               <CardDescription>
-                {readySubOrders.length} SubOrder
+                {readySubOrders.length} sub-order
                 {readySubOrders.length !== 1 ? "s" : ""} ready for delivery
               </CardDescription>
             </div>

@@ -82,6 +82,23 @@ export type OrderDetail = {
     unitPriceCents: number;
     lineTotalCents: number;
   }[];
+  SubOrder?: {
+    id: string;
+    subOrderNumber: string;
+    status: string;
+    subTotalCents: number;
+    Vendor: {
+      name: string;
+    };
+    OrderItem: {
+      id: string;
+      productName: string;
+      vendorName: string;
+      qty: number;
+      unitPriceCents: number;
+      lineTotalCents: number;
+    }[];
+  }[];
 };
 
 /**
@@ -195,6 +212,35 @@ export async function fetchOrderById(orderId: string): Promise<OrderDetail> {
           qty: true,
           unitPriceCents: true,
           lineTotalCents: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      SubOrder: {
+        select: {
+          id: true,
+          subOrderNumber: true,
+          status: true,
+          subTotalCents: true,
+          Vendor: {
+            select: {
+              name: true,
+            },
+          },
+          OrderItem: {
+            select: {
+              id: true,
+              productName: true,
+              vendorName: true,
+              qty: true,
+              unitPriceCents: true,
+              lineTotalCents: true,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
         },
         orderBy: {
           createdAt: "asc",
@@ -439,6 +485,7 @@ export type AdminOrderDetail = {
     delivery: {
       id: string;
       status: string;
+      driverId: string | null;
       driverName: string | null;
     } | null;
   }[];
@@ -535,6 +582,7 @@ export async function fetchAdminOrderDetail(
             select: {
               id: true,
               status: true,
+              driverId: true,
               Driver: {
                 select: {
                   name: true,
@@ -645,6 +693,7 @@ export async function fetchAdminOrderDetail(
         ? {
             id: subOrder.Delivery.id,
             status: subOrder.Delivery.status,
+            driverId: subOrder.Delivery.driverId,
             driverName: subOrder.Delivery.Driver?.name || null,
           }
         : null,

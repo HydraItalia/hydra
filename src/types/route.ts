@@ -4,11 +4,10 @@ import { DeliveryStatus } from "@prisma/client";
 
 /**
  * Represents a single stop in a driver's route
+ * Ensures at least one identifier (orderId or subOrderId) is always present
  */
 export type RouteStop = {
   deliveryId: string;
-  orderId: string | null; // Null for new deliveries (use subOrderId instead)
-  subOrderId?: string | null; // Added for SubOrder support
   clientName: string;
   address: string;
   lat: number | null; // null when coordinates are missing
@@ -16,7 +15,10 @@ export type RouteStop = {
   status: DeliveryStatus;
   etaMinutes?: number; // Estimated time from previous stop
   legDistanceKm?: number; // Distance from previous stop
-};
+} & (
+  | { orderId: string; subOrderId?: string | null }
+  | { orderId: null; subOrderId: string }
+);
 
 /**
  * Represents a complete optimized route for a driver

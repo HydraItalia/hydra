@@ -12,15 +12,12 @@ async function main() {
     orderBy: [{ CategoryGroup: { name: "asc" } }, { name: "asc" }],
   });
 
-  const grouped = categories.reduce(
-    (acc, cat) => {
-      const groupName = cat.CategoryGroup.name;
-      if (!acc[groupName]) acc[groupName] = [];
-      acc[groupName].push({ name: cat.name, slug: cat.slug });
-      return acc;
-    },
-    {} as Record<string, Array<{ name: string; slug: string }>>
-  );
+  const grouped = categories.reduce((acc, cat) => {
+    const groupName = cat.CategoryGroup.name;
+    if (!acc[groupName]) acc[groupName] = [];
+    acc[groupName].push({ name: cat.name, slug: cat.slug });
+    return acc;
+  }, {} as Record<string, Array<{ name: string; slug: string }>>);
 
   console.log("\n=== CATEGORIES BY GROUP ===\n");
   Object.entries(grouped).forEach(([group, cats]) => {
@@ -31,5 +28,8 @@ async function main() {
 }
 
 main()
-  .catch(console.error)
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());

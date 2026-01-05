@@ -14,10 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MapPin, Map } from "lucide-react";
 import { DriverAssignDropdown } from "./driver-assign-dropdown";
-import type {
-  SubOrderReadyForDelivery,
-  AvailableDriver,
-} from "@/data/orders";
+import type { SubOrderReadyForDelivery, AvailableDriver } from "@/data/orders";
 
 type ReadyForDeliveryTableProps = {
   subOrders: SubOrderReadyForDelivery[];
@@ -46,10 +43,10 @@ export function ReadyForDeliveryTable({
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <p className="text-lg font-medium text-muted-foreground">
-            No SubOrders ready for delivery
+            No sub-orders ready for delivery
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            All ready SubOrders have been assigned to drivers
+            All ready sub-orders have been assigned to drivers
           </p>
         </div>
       </div>
@@ -63,7 +60,7 @@ export function ReadyForDeliveryTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>SubOrder #</TableHead>
+              <TableHead>Sub-order #</TableHead>
               <TableHead>Vendor</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Delivery Address</TableHead>
@@ -158,7 +155,7 @@ export function ReadyForDeliveryTable({
           return (
             <Card key={subOrder.id}>
               <CardContent className="p-4 space-y-3">
-                {/* SubOrder Number and Date */}
+                {/* Sub-order Number and Date */}
                 <div className="flex items-start justify-between">
                   <div>
                     <Link
@@ -203,7 +200,7 @@ export function ReadyForDeliveryTable({
                   </div>
                 </div>
 
-                {/* SubOrder Details */}
+                {/* Sub-order Details */}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
                     {subOrder.itemCount} items
