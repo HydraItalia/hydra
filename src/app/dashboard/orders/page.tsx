@@ -36,7 +36,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { Package, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { OrderStatus } from "@prisma/client";
+import { OrderStatus, SubOrderStatus } from "@prisma/client";
 
 type SearchParams = {
   page?: string;
@@ -236,17 +236,17 @@ async function VendorOrdersView({
   // Parse search params
   const params = await searchParams;
   const statusValue = params.status?.toUpperCase();
-  const validStatuses: OrderStatus[] = [
-    "DRAFT",
+  const validStatuses = [
+    "PENDING",
     "SUBMITTED",
     "CONFIRMED",
     "FULFILLING",
-    "DELIVERED",
+    "READY",
     "CANCELED",
-  ];
+  ] as const;
   const statusFilter =
-    statusValue && validStatuses.includes(statusValue as OrderStatus)
-      ? (statusValue as OrderStatus)
+    statusValue && validStatuses.includes(statusValue as any)
+      ? (statusValue as SubOrderStatus)
       : undefined;
 
   // Fetch vendor orders
@@ -317,10 +317,10 @@ async function VendorOrdersView({
             </Button>
             <Button
               asChild
-              variant={statusFilter === "DELIVERED" ? "default" : "outline"}
+              variant={statusFilter === "READY" ? "default" : "outline"}
               size="sm"
             >
-              <Link href="/dashboard/orders?status=DELIVERED">Delivered</Link>
+              <Link href="/dashboard/orders?status=READY">Ready</Link>
             </Button>
           </div>
         </CardContent>

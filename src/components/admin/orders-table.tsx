@@ -104,7 +104,7 @@ export function AdminOrdersTable({ orders, drivers }: OrdersTableProps) {
                 </TableCell>
                 <TableCell>
                   <DriverManagementDropdown
-                    orderId={order.id}
+                    subOrderId={order.id}
                     drivers={drivers}
                     currentDriver={
                       order.delivery?.driverName
