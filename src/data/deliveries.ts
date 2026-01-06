@@ -141,6 +141,25 @@ export async function getDeliveryById(deliveryId: string) {
           },
         },
       },
+      SubOrder: {
+        include: {
+          Order: {
+            include: {
+              Client: true,
+            },
+          },
+          OrderItem: {
+            include: {
+              VendorProduct: {
+                include: {
+                  Product: true,
+                  Vendor: true,
+                },
+              },
+            },
+          },
+        },
+      },
       Driver: true,
     },
   });
