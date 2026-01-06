@@ -90,7 +90,7 @@ model Cart {
   createdByUserId String
   status          CartStatus @default(ACTIVE)
   createdAt       DateTime   @default(now())
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime   @updatedAt
   Client          Client     @relation(fields: [clientId], references: [id])
   User            User       @relation(fields: [createdByUserId], references: [id])
   CartItem        CartItem[]
@@ -105,7 +105,7 @@ model CartItem {
   qty             Int
   unitPriceCents  Int
   createdAt       DateTime      @default(now())
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime      @updatedAt
   Cart            Cart          @relation(fields: [cartId], references: [id], onDelete: Cascade)
   VendorProduct   VendorProduct @relation(fields: [vendorProductId], references: [id])
 
@@ -117,15 +117,15 @@ model CategoryGroup {
   id              String            @id
   name            CategoryGroupType @unique
   createdAt       DateTime          @default(now())
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime          @updatedAt
   ProductCategory ProductCategory[]
 }
 
 model Client {
-  id              String        @id
-  name            String
-  region          String?
-  notes           String?
+  id     String  @id
+  name   String
+  region String?
+  notes  String?
 
   // Address & Location
   fullAddress     String?
@@ -135,39 +135,39 @@ model Client {
   deliveryLng     Float?
 
   // Contact Info
-  contactPerson   String?
-  email           String?
-  phone           String?
-  taxId           String?       // P.IVA/C.F.
+  contactPerson String?
+  email         String?
+  phone         String?
+  taxId         String? // P.IVA/C.F.
 
   // Display/UI
-  pinColor        String?
-  hidden          Boolean       @default(false)
+  pinColor String?
+  hidden   Boolean @default(false)
 
   // Integration/Migration
-  externalId      String?       @unique // GentmoID
-  freezco         Boolean?      // Freezco flag
-  mandanti        String?       // Principals/Agents
+  externalId String?  @unique // GentmoID
+  freezco    Boolean? // Freezco flag
+  mandanti   String? // Principals/Agents
 
   // Payment Integration (Phase 10)
-  stripeCustomerId       String?  @unique // Stripe Customer ID for payment processing
-  defaultPaymentMethodId String?  // Default payment method ID from Stripe
-  hasPaymentMethod       Boolean  @default(false) // Quick flag: does client have a payment method on file?
+  stripeCustomerId       String? @unique // Stripe Customer ID for payment processing
+  defaultPaymentMethodId String? // Default payment method ID from Stripe
+  hasPaymentMethod       Boolean @default(false) // Quick flag: does client have a payment method on file?
 
   // Tracking
-  lastVisitAt     DateTime?
+  lastVisitAt DateTime?
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  deletedAt       DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  AgentClient     AgentClient[]
-  Agreement       Agreement[]
-  Cart            Cart[]
-  ClientStats     ClientStats?
-  DriverStop      DriverStop[]
-  Order           Order[]
-  User            User?
+  AgentClient AgentClient[]
+  Agreement   Agreement[]
+  Cart        Cart[]
+  ClientStats ClientStats?
+  DriverStop  DriverStop[]
+  Order       Order[]
+  User        User?
 
   @@index([region])
   @@index([email])
@@ -175,33 +175,34 @@ model Client {
 }
 
 model ClientStats {
-  id                  String   @id
-  clientId            String   @unique
+  id       String @id
+  clientId String @unique
 
   // Visit/Contact Statistics
-  totalVisits         Int      @default(0)
-  clientVisits        Int      @default(0)  // visita dal cliente
-  phoneCalls          Int      @default(0)  // telefonata
-  emails              Int      @default(0)  // email
-  other               Int      @default(0)  // altro
+  totalVisits  Int @default(0)
+  clientVisits Int @default(0) // visita dal cliente
+  phoneCalls   Int @default(0) // telefonata
+  emails       Int @default(0) // email
+  other        Int @default(0) // altro
 
   // Business Statistics
-  deliveryCount       Int      @default(0)  // consegna
-  bankTransferCount   Int      @default(0)  // bonifico
-  invoiceCount        Int      @default(0)  // fattura
-  collectionCount     Int      @default(0)  // incasso
-  failedCollectionCount Int    @default(0)  // incasso mancato
-  extensionCount      Int      @default(0)  // proroga
+  deliveryCount         Int @default(0) // consegna
+  bankTransferCount     Int @default(0) // bonifico
+  invoiceCount          Int @default(0) // fattura
+  collectionCount       Int @default(0) // incasso
+  failedCollectionCount Int @default(0) // incasso mancato
+  extensionCount        Int @default(0) // proroga
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  Client              Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  Client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
 
 model Delivery {
   id              String         @id
-  orderId         String         @unique
+  orderId         String?        @unique
+  subOrderId      String?        @unique
   driverId        String
   status          DeliveryStatus @default(ASSIGNED)
   notes           String?
@@ -212,15 +213,18 @@ model Delivery {
   deliveredAt     DateTime?
   exceptionAt     DateTime?
   createdAt       DateTime       @default(now())
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime       @updatedAt
   routeSequence   Int?
   Driver          Driver         @relation(fields: [driverId], references: [id])
-  Order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  Order           Order?         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  SubOrder        SubOrder?      @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
 
   @@index([assignedAt])
   @@index([driverId])
   @@index([driverId, routeSequence])
   @@index([status])
+  @@index([orderId])
+  @@index([subOrderId])
 }
 
 model Driver {
@@ -229,7 +233,7 @@ model Driver {
   phone       String?
   status      DriverStatus  @default(OFFLINE)
   createdAt   DateTime      @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
   Delivery    Delivery[]
   DriverShift DriverShift[]
@@ -239,7 +243,7 @@ model Driver {
 }
 
 model DriverShift {
-  id                    String       @id @default(cuid())
+  id                    String     @id @default(cuid())
   driverId              String
   vehicleId             String
   date                  DateTime
@@ -250,9 +254,9 @@ model DriverShift {
   endFuelLevel          FuelLevel?
   endTime               DateTime?
   closingNotes          String?
-  cashReturnedConfirmed Boolean?     @default(false)
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  cashReturnedConfirmed Boolean?   @default(false)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
 
   driver  Driver       @relation(fields: [driverId], references: [id])
   vehicle Vehicle      @relation(fields: [vehicleId], references: [id])
@@ -303,7 +307,7 @@ model Order {
   assignedAgentUserId                  String?
   notes                                String?
   createdAt                            DateTime    @default(now())
-  updatedAt                            DateTime  @updatedAt
+  updatedAt                            DateTime    @updatedAt
   deletedAt                            DateTime?
   orderNumber                          String      @unique
   totalCents                           Int
@@ -315,10 +319,48 @@ model Order {
   Client                               Client      @relation(fields: [clientId], references: [id])
   User_Order_submitterUserIdToUser     User        @relation("Order_submitterUserIdToUser", fields: [submitterUserId], references: [id])
   OrderItem                            OrderItem[]
+  SubOrder                             SubOrder[]
 
   @@index([assignedAgentUserId])
   @@index([clientId])
   @@index([status])
+}
+
+model SubOrder {
+  id             String         @id
+  orderId        String
+  vendorId       String
+  status         SubOrderStatus @default(PENDING)
+  subOrderNumber String         @unique
+  subTotalCents  Int
+
+  // Payment tracking (Phase 11)
+  stripeChargeId String?
+  paidAt         DateTime?
+  paymentStatus  PaymentStatus?
+
+  // Fulfillment timestamps
+  confirmedAt DateTime?
+  readyAt     DateTime?
+  canceledAt  DateTime?
+
+  // Notes
+  vendorNotes   String?
+  internalNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  Order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  Vendor    Vendor      @relation(fields: [vendorId], references: [id])
+  OrderItem OrderItem[]
+  Delivery  Delivery?
+
+  @@index([orderId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([vendorId, status])
 }
 
 model OrderItem {
@@ -329,14 +371,17 @@ model OrderItem {
   unitPriceCents  Int
   lineTotalCents  Int
   createdAt       DateTime      @default(now())
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime      @updatedAt
   productName     String
   vendorName      String
+  subOrderId      String?
   Order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   VendorProduct   VendorProduct @relation(fields: [vendorProductId], references: [id])
+  SubOrder        SubOrder?     @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([vendorProductId])
+  @@index([subOrderId])
 }
 
 model Product {
@@ -347,7 +392,7 @@ model Product {
   unit            ProductUnit     @default(PIECE)
   imageUrl        String?
   createdAt       DateTime        @default(now())
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime        @updatedAt
   deletedAt       DateTime?
   ProductCategory ProductCategory @relation(fields: [categoryId], references: [id])
   VendorProduct   VendorProduct[]
@@ -362,7 +407,7 @@ model ProductCategory {
   name          String
   slug          String        @unique
   createdAt     DateTime      @default(now())
-  updatedAt     DateTime  @updatedAt
+  updatedAt     DateTime      @updatedAt
   Product       Product[]
   CategoryGroup CategoryGroup @relation(fields: [groupId], references: [id])
 
@@ -388,7 +433,7 @@ model User {
   vendorId                              String?       @unique
   clientId                              String?       @unique
   createdAt                             DateTime      @default(now())
-  updatedAt                             DateTime  @updatedAt
+  updatedAt                             DateTime      @updatedAt
   deletedAt                             DateTime?
   emailVerified                         DateTime?
   driverId                              String?       @unique
@@ -409,7 +454,7 @@ model User {
 }
 
 model Vendor {
-  id                String          @id
+  id                String  @id
   name              String
   region            String?
   notes             String?
@@ -420,17 +465,18 @@ model Vendor {
   defaultOrderNotes String?
 
   // Stripe Connect Integration (Phase 11)
-  stripeAccountId   String?         @unique // Stripe Connect account ID for receiving payments
-  chargesEnabled    Boolean         @default(false) // Whether the vendor can accept charges
-  payoutsEnabled    Boolean         @default(false) // Whether the vendor can receive payouts
+  stripeAccountId String? @unique // Stripe Connect account ID for receiving payments
+  chargesEnabled  Boolean @default(false) // Whether the vendor can accept charges
+  payoutsEnabled  Boolean @default(false) // Whether the vendor can receive payouts
 
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  deletedAt         DateTime?
-  AgentVendor       AgentVendor[]
-  Agreement         Agreement[]
-  User              User?
-  VendorProduct     VendorProduct[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+  AgentVendor   AgentVendor[]
+  Agreement     Agreement[]
+  User          User?
+  VendorProduct VendorProduct[]
+  SubOrder      SubOrder[]
 
   @@index([region])
 }
@@ -447,7 +493,7 @@ model VendorProduct {
   minOrderQty    Int?
   isActive       Boolean     @default(true)
   createdAt      DateTime    @default(now())
-  updatedAt      DateTime  @updatedAt
+  updatedAt      DateTime    @updatedAt
   deletedAt      DateTime?
   CartItem       CartItem[]
   OrderItem      OrderItem[]
@@ -537,4 +583,22 @@ enum Role {
   VENDOR
   CLIENT
   DRIVER
+}
+
+enum SubOrderStatus {
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  FULFILLING
+  READY
+  CANCELED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
 }

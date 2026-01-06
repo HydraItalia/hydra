@@ -1,4 +1,4 @@
-import { VendorOrderDetail } from "@/actions/vendor-orders";
+import { VendorSubOrderDetail } from "@/actions/vendor-orders";
 import {
   Table,
   TableBody,
@@ -10,7 +10,7 @@ import {
 import { formatCurrency } from "@/lib/utils";
 
 interface OrderItemsTableProps {
-  order: VendorOrderDetail;
+  order: VendorSubOrderDetail;
 }
 
 export function OrderItemsTable({ order }: OrderItemsTableProps) {
@@ -36,12 +36,7 @@ export function OrderItemsTable({ order }: OrderItemsTableProps) {
             {order.OrderItem.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>
-                  <div>
-                    <div className="font-medium">{item.productName}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {item.VendorProduct?.Product?.unit ?? "N/A"}
-                    </div>
-                  </div>
+                  <div className="font-medium">{item.productName}</div>
                 </TableCell>
                 <TableCell className="text-right">{item.qty}</TableCell>
                 <TableCell className="text-right">

@@ -1,44 +1,51 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { OrderStatus } from "@prisma/client";
+import { SubOrderStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
-import { updateVendorOrderStatus } from "@/actions/vendor-orders";
+import { updateSubOrderStatus } from "@/actions/vendor-suborders";
 import { toast } from "sonner";
 import { Check, Package, Truck, X } from "lucide-react";
 
 interface StatusActionButtonsProps {
-  orderId: string;
-  currentStatus: OrderStatus;
+  orderId: string; // Actually subOrderId for vendors
+  currentStatus: SubOrderStatus;
 }
 
-// Define valid status transitions
-// Note: Vendors can only confirm orders. FULFILLING requires admin/agent to assign delivery.
-const statusTransitions: Record<OrderStatus, OrderStatus[]> = {
-  DRAFT: ["SUBMITTED", "CANCELED"],
+// Define valid status transitions for SubOrders
+const statusTransitions: Record<SubOrderStatus, SubOrderStatus[]> = {
+  PENDING: ["SUBMITTED", "CANCELED"],
   SUBMITTED: ["CONFIRMED", "CANCELED"],
-  CONFIRMED: ["CANCELED"], // Removed FULFILLING - requires delivery assignment
-  FULFILLING: ["DELIVERED", "CANCELED"],
-  DELIVERED: [],
+  CONFIRMED: ["FULFILLING", "CANCELED"],
+  FULFILLING: ["READY", "CANCELED"],
+  READY: ["CANCELED"],
   CANCELED: [],
 };
 
 // Button configurations for each status transition
+// Maps the TARGET status to the button label/icon (what action takes you TO that status)
 const statusButtonConfig: Record<
-  OrderStatus,
+  SubOrderStatus,
   { label: string; icon: React.ReactNode; variant?: "default" | "destructive" }
 > = {
-  SUBMITTED: {
-    label: "Mark as Submitted",
+  PENDING: {
+    label: "Move to Pending",
     icon: <Check className="h-4 w-4" />,
   },
-  CONFIRMED: { label: "Confirm Order", icon: <Check className="h-4 w-4" /> },
+  SUBMITTED: {
+    label: "Submit Order",
+    icon: <Check className="h-4 w-4" />,
+  },
+  CONFIRMED: {
+    label: "Confirm Order",
+    icon: <Check className="h-4 w-4" />,
+  },
   FULFILLING: {
     label: "Start Fulfilling",
     icon: <Package className="h-4 w-4" />,
   },
-  DELIVERED: {
-    label: "Mark as Delivered",
+  READY: {
+    label: "Mark Ready for Pickup",
     icon: <Truck className="h-4 w-4" />,
   },
   CANCELED: {
@@ -46,7 +53,6 @@ const statusButtonConfig: Record<
     icon: <X className="h-4 w-4" />,
     variant: "destructive",
   },
-  DRAFT: { label: "Save as Draft", icon: <Check className="h-4 w-4" /> },
 };
 
 export function StatusActionButtons({
@@ -71,15 +77,16 @@ export function StatusActionButtons({
     );
   }
 
-  const handleStatusUpdate = async (newStatus: OrderStatus) => {
+  const handleStatusUpdate = async (newStatus: SubOrderStatus) => {
     setIsPending(true);
     try {
-      const result = await updateVendorOrderStatus(orderId, newStatus);
+      const result = await updateSubOrderStatus(orderId, newStatus);
 
       if (result.success) {
-        toast.success(`Order status updated to ${newStatus}`);
+        toast.success(`SubOrder status updated to ${newStatus}`);
+        window.location.reload(); // Refresh to show updated status
       } else {
-        toast.error(result.error || "Failed to update order status");
+        toast.error(result.error || "Failed to update SubOrder status");
       }
     } catch (error) {
       toast.error("An unexpected error occurred");

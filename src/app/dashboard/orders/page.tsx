@@ -6,7 +6,7 @@ import {
   fetchAllOrdersForAdmin,
   fetchUnassignedOrders,
   fetchAllAgents,
-  fetchOrdersReadyForDelivery,
+  fetchSubOrdersReadyForDelivery,
   fetchAvailableDrivers,
 } from "@/data/orders";
 import { getVendorOrders } from "@/actions/vendor-orders";
@@ -36,7 +36,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { Package, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { OrderStatus } from "@prisma/client";
+import { SubOrderStatus } from "@prisma/client";
 
 type SearchParams = {
   page?: string;
@@ -236,17 +236,17 @@ async function VendorOrdersView({
   // Parse search params
   const params = await searchParams;
   const statusValue = params.status?.toUpperCase();
-  const validStatuses: OrderStatus[] = [
-    "DRAFT",
+  const validStatuses = [
+    "PENDING",
     "SUBMITTED",
     "CONFIRMED",
     "FULFILLING",
-    "DELIVERED",
+    "READY",
     "CANCELED",
-  ];
+  ] as const;
   const statusFilter =
-    statusValue && validStatuses.includes(statusValue as OrderStatus)
-      ? (statusValue as OrderStatus)
+    statusValue && validStatuses.includes(statusValue as any)
+      ? (statusValue as SubOrderStatus)
       : undefined;
 
   // Fetch vendor orders
@@ -265,16 +265,13 @@ async function VendorOrdersView({
     );
   }
 
-  const orders = ordersResult.data || [];
+  const subOrders = ordersResult.data || [];
 
-  // Calculate vendor item totals
-  const ordersWithTotals = orders.map((order) => {
-    const vendorTotal = order.OrderItem.reduce(
-      (sum, item) => sum + item.lineTotalCents,
-      0
-    );
-    return { ...order, vendorTotal };
-  });
+  // SubOrders already have subTotalCents calculated
+  const ordersWithTotals = subOrders.map((subOrder) => ({
+    ...subOrder,
+    vendorTotal: subOrder.subTotalCents,
+  }));
 
   return (
     <div className="space-y-6">
@@ -320,10 +317,10 @@ async function VendorOrdersView({
             </Button>
             <Button
               asChild
-              variant={statusFilter === "DELIVERED" ? "default" : "outline"}
+              variant={statusFilter === "READY" ? "default" : "outline"}
               size="sm"
             >
-              <Link href="/dashboard/orders?status=DELIVERED">Delivered</Link>
+              <Link href="/dashboard/orders?status=READY">Ready</Link>
             </Button>
           </div>
         </CardContent>
@@ -342,49 +339,51 @@ async function VendorOrdersView({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order Number</TableHead>
-                  <TableHead>Client</TableHead>
+                  <TableHead>SubOrder #</TableHead>
+                  <TableHead>Client & Order</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead className="text-center">Your Items</TableHead>
-                  <TableHead className="text-right">Your Total</TableHead>
+                  <TableHead className="text-center">Items</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ordersWithTotals.map((order) => (
-                  <TableRow key={order.id}>
+                {ordersWithTotals.map((subOrder) => (
+                  <TableRow key={subOrder.id}>
                     <TableCell>
                       <Link
-                        href={`/dashboard/orders/${order.id}`}
+                        href={`/dashboard/orders/${subOrder.id}`}
                         className="font-mono font-medium hover:underline"
                       >
-                        {order.orderNumber}
+                        {subOrder.subOrderNumber}
                       </Link>
                     </TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{order.Client.name}</div>
-                        {order.Client.region && (
-                          <div className="text-sm text-muted-foreground">
-                            {order.Client.region}
-                          </div>
-                        )}
+                        <div className="font-medium">
+                          {subOrder.Order.clientName}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Order #{subOrder.Order.orderNumber}
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell>{formatDate(order.createdAt)}</TableCell>
+                    <TableCell>{formatDate(subOrder.createdAt)}</TableCell>
                     <TableCell className="text-center">
-                      {order.OrderItem.length}
+                      {subOrder.itemCount}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatCurrency(order.vendorTotal)}
+                      {formatCurrency(subOrder.vendorTotal)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <OrderStatusBadge status={order.status} />
+                      <OrderStatusBadge status={subOrder.status} />
                     </TableCell>
                     <TableCell>
                       <Button asChild variant="outline" size="sm">
-                        <Link href={`/dashboard/orders/${order.id}`}>View</Link>
+                        <Link href={`/dashboard/orders/${subOrder.id}`}>
+                          View
+                        </Link>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -591,9 +590,9 @@ async function ReadyForDeliveryView() {
     redirect("/dashboard");
   }
 
-  // Fetch ready for delivery orders and available drivers in parallel
-  const [readyOrders, drivers] = await Promise.all([
-    fetchOrdersReadyForDelivery(),
+  // Fetch ready for delivery SubOrders and available drivers in parallel
+  const [readySubOrders, drivers] = await Promise.all([
+    fetchSubOrdersReadyForDelivery(),
     fetchAvailableDrivers(),
   ]);
 
@@ -601,17 +600,17 @@ async function ReadyForDeliveryView() {
     <div className="space-y-6">
       <PageHeader
         title="Ready for Delivery"
-        subtitle="Assign confirmed orders to drivers"
+        subtitle="Assign ready sub-orders to drivers"
       />
 
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Orders Awaiting Driver Assignment</CardTitle>
+              <CardTitle>Sub-orders Awaiting Driver Assignment</CardTitle>
               <CardDescription>
-                {readyOrders.length} order
-                {readyOrders.length !== 1 ? "s" : ""} ready for delivery
+                {readySubOrders.length} sub-order
+                {readySubOrders.length !== 1 ? "s" : ""} ready for delivery
               </CardDescription>
             </div>
             <Button asChild variant="outline">
@@ -620,7 +619,7 @@ async function ReadyForDeliveryView() {
           </div>
         </CardHeader>
         <CardContent>
-          <ReadyForDeliveryTable orders={readyOrders} drivers={drivers} />
+          <ReadyForDeliveryTable subOrders={readySubOrders} drivers={drivers} />
         </CardContent>
       </Card>
     </div>

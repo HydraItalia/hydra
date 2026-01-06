@@ -275,6 +275,20 @@ export async function getRecentDeliveries(
           },
         },
       },
+      SubOrder: {
+        include: {
+          Order: {
+            include: {
+              Client: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
       Driver: {
         select: {
           id: true,
@@ -284,23 +298,40 @@ export async function getRecentDeliveries(
     },
   });
 
-  return deliveries.map((delivery) => ({
-    id: delivery.id,
-    status: delivery.status,
-    deliveredAt: delivery.deliveredAt,
-    order: {
-      id: delivery.Order.id,
-      orderNumber: delivery.Order.orderNumber,
-      client: {
-        id: delivery.Order.Client.id,
-        name: delivery.Order.Client.name,
-      },
-    },
-    driver: {
-      id: delivery.Driver.id,
-      name: delivery.Driver.name,
-    },
-  }));
+  return deliveries
+    .map((delivery) => {
+      // Handle both old (Order) and new (SubOrder) deliveries
+      const order = delivery.SubOrder
+        ? delivery.SubOrder.Order
+        : delivery.Order;
+      const orderNumber = delivery.SubOrder
+        ? delivery.SubOrder.subOrderNumber
+        : delivery.Order?.orderNumber || "N/A";
+
+      if (!order) {
+        // Skip deliveries without valid order data
+        return null;
+      }
+
+      return {
+        id: delivery.id,
+        status: delivery.status,
+        deliveredAt: delivery.deliveredAt,
+        order: {
+          id: order.id,
+          orderNumber,
+          client: {
+            id: order.Client?.id ?? "",
+            name: order.Client?.name ?? "Unknown",
+          },
+        },
+        driver: {
+          id: delivery.Driver?.id ?? "",
+          name: delivery.Driver?.name ?? "Unknown",
+        },
+      };
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
 }
 
 /**

@@ -9,11 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import {
@@ -49,7 +45,9 @@ type DashboardPageProps = {
   searchParams?: Promise<{ error?: string }>;
 };
 
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
   const user = await currentUser();
 
   if (!user) {
@@ -57,9 +55,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   const params = searchParams ? await searchParams : {};
-  const errorMessage = params.error === "unauthorized"
-    ? "You don't have permission to access that page."
-    : null;
+  const errorMessage =
+    params.error === "unauthorized"
+      ? "You don't have permission to access that page."
+      : null;
 
   // Route to role-specific dashboard
   switch (user.role) {
@@ -379,6 +378,11 @@ async function ClientDashboard({
     orderBy: { createdAt: "desc" },
     include: {
       OrderItem: true,
+      SubOrder: {
+        include: {
+          OrderItem: true,
+        },
+      },
     },
   });
 
@@ -439,22 +443,33 @@ async function ClientDashboard({
               <p className="text-sm text-muted-foreground">No orders yet</p>
             ) : (
               <div className="space-y-4">
-                {recentOrders.slice(0, 3).map((order) => (
-                  <div
-                    key={order.id}
-                    className="flex items-center justify-between border-b pb-2 last:border-0"
-                  >
-                    <div>
-                      <p className="text-sm font-medium">{order.status}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {order.OrderItem.length} items
-                      </p>
+                {recentOrders.slice(0, 3).map((order) => {
+                  // Calculate item count from either OrderItem or SubOrders
+                  const itemCount =
+                    order.SubOrder && order.SubOrder.length > 0
+                      ? order.SubOrder.reduce(
+                          (sum, subOrder) => sum + subOrder.OrderItem.length,
+                          0
+                        )
+                      : order.OrderItem.length;
+
+                  return (
+                    <div
+                      key={order.id}
+                      className="flex items-center justify-between border-b pb-2 last:border-0"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{order.status}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {itemCount} items
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/dashboard/orders/${order.id}`}>View</Link>
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/dashboard/orders/${order.id}`}>View</Link>
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -523,6 +538,15 @@ async function DriverDashboard({
       Order: {
         include: {
           Client: true,
+        },
+      },
+      SubOrder: {
+        include: {
+          Order: {
+            include: {
+              Client: true,
+            },
+          },
         },
       },
     },
@@ -611,27 +635,37 @@ async function DriverDashboard({
               </p>
             ) : (
               <div className="space-y-4">
-                {nextDeliveries.map((delivery) => (
-                  <div
-                    key={delivery.id}
-                    className="flex items-center justify-between border-b pb-2 last:border-0"
-                  >
-                    <div>
-                      <p className="text-sm font-medium">
-                        {delivery.Order.orderNumber}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {delivery.Order.Client.name} •{" "}
-                        {delivery.status.replace(/_/g, " ")}
-                      </p>
+                {nextDeliveries.map((delivery) => {
+                  // Handle both old (Order) and new (SubOrder) deliveries
+                  const order = delivery.SubOrder
+                    ? delivery.SubOrder.Order
+                    : delivery.Order;
+                  const orderNumber = delivery.SubOrder
+                    ? delivery.SubOrder.subOrderNumber
+                    : order?.orderNumber;
+
+                  if (!order) return null;
+
+                  return (
+                    <div
+                      key={delivery.id}
+                      className="flex items-center justify-between border-b pb-2 last:border-0"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{orderNumber}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {order.Client?.name} •{" "}
+                          {delivery.status.replace(/_/g, " ")}
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/dashboard/deliveries/${delivery.id}`}>
+                          View
+                        </Link>
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/dashboard/deliveries/${delivery.id}`}>
-                        View
-                      </Link>
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

@@ -48,7 +48,7 @@ interface DeliveryDetailProps {
     inTransitAt: Date | null;
     deliveredAt: Date | null;
     exceptionAt: Date | null;
-    Order: {
+    Order?: {
       id: string;
       orderNumber: string;
       totalCents: number;
@@ -71,7 +71,33 @@ interface DeliveryDetailProps {
           };
         };
       }>;
-    };
+    } | null;
+    SubOrder?: {
+      subOrderNumber: string;
+      subTotalCents: number;
+      Order: {
+        id: string;
+        notes: string | null;
+        Client: {
+          name: string;
+          region: string | null;
+        };
+      };
+      OrderItem: Array<{
+        id: string;
+        qty: number;
+        productName: string;
+        vendorName: string;
+        unitPriceCents: number;
+        lineTotalCents: number;
+        VendorProduct: {
+          Product: {
+            name: string;
+            unit: string;
+          };
+        };
+      }>;
+    } | null;
   };
 }
 
@@ -88,6 +114,20 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [exceptionReason, setExceptionReason] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
+
+  // Handle both Order and SubOrder deliveries
+  const order = delivery.SubOrder ? delivery.SubOrder.Order : delivery.Order;
+  const orderNumber = delivery.SubOrder
+    ? delivery.SubOrder.subOrderNumber
+    : delivery.Order?.orderNumber || "N/A";
+  const orderItems = delivery.SubOrder
+    ? delivery.SubOrder.OrderItem
+    : delivery.Order?.OrderItem || [];
+  const totalCents = delivery.SubOrder
+    ? delivery.SubOrder.subTotalCents
+    : delivery.Order?.totalCents || 0;
+  const orderNotes = order?.notes;
+  const client = order?.Client;
 
   const handleStatusUpdate = async (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,7 +163,7 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Order Details</CardTitle>
-              <CardDescription>{delivery.Order.orderNumber}</CardDescription>
+              <CardDescription>{orderNumber}</CardDescription>
             </div>
             <Badge
               className={`${statusColors[delivery.status]} text-white`}
@@ -134,34 +174,34 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-start gap-2">
-            <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
-            <div>
-              <p className="font-medium">{delivery.Order.Client.name}</p>
-              {delivery.Order.Client.region && (
-                <p className="text-sm text-muted-foreground">
-                  {delivery.Order.Client.region}
-                </p>
-              )}
+          {client && (
+            <div className="flex items-start gap-2">
+              <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
+              <div>
+                <p className="font-medium">{client.name}</p>
+                {client.region && (
+                  <p className="text-sm text-muted-foreground">
+                    {client.region}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm">
-              {delivery.Order.OrderItem.length} item(s) •{" "}
+              {orderItems.length} item(s) •{" "}
               <span className="font-medium">
-                €{(delivery.Order.totalCents / 100).toFixed(2)}
+                €{(totalCents / 100).toFixed(2)}
               </span>
             </p>
           </div>
 
-          {delivery.Order.notes && (
+          {orderNotes && (
             <div className="p-3 bg-muted rounded-md">
               <p className="text-sm font-medium mb-1">Order Notes:</p>
-              <p className="text-sm text-muted-foreground">
-                {delivery.Order.notes}
-              </p>
+              <p className="text-sm text-muted-foreground">{orderNotes}</p>
             </div>
           )}
         </CardContent>
@@ -222,7 +262,7 @@ export function DeliveryDetail({ delivery }: DeliveryDetailProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {delivery.Order.OrderItem.map((item) => (
+            {orderItems.map((item) => (
               <div
                 key={item.id}
                 className="flex items-center justify-between py-2 border-b last:border-0"

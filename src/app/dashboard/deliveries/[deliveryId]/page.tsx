@@ -52,10 +52,15 @@ export default async function DeliveryDetailPage({
     redirect("/dashboard"); // Better UX than 404 - gives driver a clear path forward
   }
 
+  // Get order number from either Order or SubOrder
+  const orderNumber = delivery.SubOrder
+    ? delivery.SubOrder.subOrderNumber
+    : delivery.Order?.orderNumber || "N/A";
+
   return (
     <div className="space-y-6 p-8">
       <PageHeader
-        title={`Delivery ${delivery.Order.orderNumber}`}
+        title={`Delivery ${orderNumber}`}
         subtitle={`Status: ${delivery.status.replace(/_/g, " ")}`}
       />
 

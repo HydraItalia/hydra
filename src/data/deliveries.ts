@@ -77,6 +77,25 @@ export async function getMyDeliveries(params?: {
             },
           },
         },
+        SubOrder: {
+          include: {
+            Order: {
+              include: {
+                Client: true,
+              },
+            },
+            OrderItem: {
+              include: {
+                VendorProduct: {
+                  include: {
+                    Product: true,
+                    Vendor: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: { assignedAt: "asc" }, // Oldest first (priority)
       take: pageSize,
@@ -110,6 +129,25 @@ export async function getDeliveryById(deliveryId: string) {
       Order: {
         include: {
           Client: true,
+          OrderItem: {
+            include: {
+              VendorProduct: {
+                include: {
+                  Product: true,
+                  Vendor: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      SubOrder: {
+        include: {
+          Order: {
+            include: {
+              Client: true,
+            },
+          },
           OrderItem: {
             include: {
               VendorProduct: {
@@ -221,16 +259,21 @@ export async function markAsDelivered(deliveryId: string, notes?: string) {
         },
         include: {
           Order: true,
+          SubOrder: true,
         },
       });
 
-      // Also update the order status to DELIVERED
-      await tx.order.update({
-        where: { id: delivery.orderId },
-        data: {
-          status: "DELIVERED",
-        },
-      });
+      // Update order status to DELIVERED (only for old orders)
+      // SubOrders don't have a DELIVERED status - they track vendor fulfillment,
+      // while Deliveries track the actual delivery to the client
+      if (delivery.orderId) {
+        await tx.order.update({
+          where: { id: delivery.orderId },
+          data: {
+            status: "DELIVERED",
+          },
+        });
+      }
 
       return delivery;
     });
@@ -366,12 +409,12 @@ export type AdminDeliveryFilters = {
  */
 export type AdminDeliveryResult = {
   id: string;
-  orderNumber: string;
+  orderNumber: string; // Can be Order number or SubOrder number
   clientName: string;
   driverName: string;
   status: DeliveryStatus;
   assignedAt: string;
-  orderId: string;
+  orderId: string | null; // Parent Order ID (for linking to order detail page)
   deliveryAddress: string | null;
   deliveryLat: number | null;
   deliveryLng: number | null;
@@ -404,9 +447,22 @@ export async function fetchAllDeliveriesForAdmin(
 
   // AGENT scoping: only see deliveries for their assigned orders
   if (user.role === "AGENT") {
-    where.Order = {
-      assignedAgentUserId: user.id,
-    };
+    where.OR = [
+      // Old deliveries linked to Order
+      {
+        Order: {
+          assignedAgentUserId: user.id,
+        },
+      },
+      // New deliveries linked to SubOrder
+      {
+        SubOrder: {
+          Order: {
+            assignedAgentUserId: user.id,
+          },
+        },
+      },
+    ];
   }
 
   if (filters.status) {
@@ -425,12 +481,45 @@ export async function fetchAllDeliveriesForAdmin(
         Order: {
           select: {
             orderNumber: true,
+            totalCents: true,
             deliveryAddress: true,
             deliveryLat: true,
             deliveryLng: true,
+            OrderItem: {
+              select: {
+                id: true,
+              },
+            },
             Client: {
               select: {
                 name: true,
+                region: true,
+              },
+            },
+          },
+        },
+        SubOrder: {
+          select: {
+            subOrderNumber: true,
+            subTotalCents: true,
+            OrderItem: {
+              select: {
+                id: true,
+              },
+            },
+            Order: {
+              select: {
+                id: true,
+                orderNumber: true,
+                deliveryAddress: true,
+                deliveryLat: true,
+                deliveryLng: true,
+                Client: {
+                  select: {
+                    name: true,
+                    region: true,
+                  },
+                },
               },
             },
           },
@@ -448,19 +537,29 @@ export async function fetchAllDeliveriesForAdmin(
     prisma.delivery.count({ where }),
   ]);
 
-  // Map to result format
-  const data: AdminDeliveryResult[] = deliveries.map((delivery) => ({
-    id: delivery.id,
-    orderNumber: delivery.Order.orderNumber,
-    clientName: delivery.Order.Client.name,
-    driverName: delivery.Driver.name,
-    status: delivery.status,
-    assignedAt: delivery.assignedAt.toISOString(),
-    orderId: delivery.orderId,
-    deliveryAddress: delivery.Order.deliveryAddress,
-    deliveryLat: delivery.Order.deliveryLat,
-    deliveryLng: delivery.Order.deliveryLng,
-  }));
+  // Map to result format - handle both Order and SubOrder based deliveries
+  const data: AdminDeliveryResult[] = deliveries.map((delivery) => {
+    // Use SubOrder data if available (new deliveries), otherwise use Order data (old deliveries)
+    const order = delivery.SubOrder ? delivery.SubOrder.Order : delivery.Order;
+    const orderNumber = delivery.SubOrder
+      ? delivery.SubOrder.subOrderNumber
+      : delivery.Order?.orderNumber || "N/A";
+
+    return {
+      id: delivery.id,
+      orderNumber,
+      clientName: order?.Client.name || "Unknown",
+      driverName: delivery.Driver.name,
+      status: delivery.status,
+      assignedAt: delivery.assignedAt.toISOString(),
+      orderId: delivery.SubOrder
+        ? delivery.SubOrder.Order.id
+        : delivery.orderId || null,
+      deliveryAddress: order?.deliveryAddress ?? null,
+      deliveryLat: order?.deliveryLat ?? null,
+      deliveryLng: order?.deliveryLng ?? null,
+    };
+  });
 
   const totalPages = Math.ceil(total / pageSize);
 

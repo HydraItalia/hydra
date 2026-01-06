@@ -37,7 +37,21 @@ interface DeliveryListProps {
         OrderItem: Array<{
           id: string;
         }>;
-      };
+      } | null;
+      SubOrder?: {
+        subOrderNumber: string;
+        subTotalCents: number;
+        Order: {
+          id: string;
+          Client: {
+            name: string;
+            region: string | null;
+          };
+        };
+        OrderItem: Array<{
+          id: string;
+        }>;
+      } | null;
     }>;
     total: number;
     page: number;
@@ -78,61 +92,79 @@ export function DeliveryList({ deliveries, currentPage }: DeliveryListProps) {
 
   return (
     <div className="space-y-4">
-      {deliveries.data.map((delivery) => (
-        <Card
-          key={delivery.id}
-          className="hover:bg-accent/50 transition-colors"
-        >
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  {delivery.Order.orderNumber}
-                </CardTitle>
-                <CardDescription className="flex items-center gap-2">
-                  <MapPin className="h-3 w-3" />
-                  {delivery.Order.Client.name}
-                  {delivery.Order.Client.region && (
-                    <span className="text-xs">
-                      • {delivery.Order.Client.region}
-                    </span>
-                  )}
-                </CardDescription>
+      {deliveries.data.map((delivery) => {
+        // Handle both old (Order) and new (SubOrder) deliveries
+        const order = delivery.SubOrder
+          ? delivery.SubOrder.Order
+          : delivery.Order;
+        const orderNumber = delivery.SubOrder
+          ? delivery.SubOrder.subOrderNumber
+          : delivery.Order?.orderNumber;
+        const itemCount = delivery.SubOrder
+          ? delivery.SubOrder.OrderItem?.length ?? 0
+          : delivery.Order?.OrderItem.length || 0;
+        const totalCents = delivery.SubOrder
+          ? delivery.SubOrder.subTotalCents
+          : delivery.Order?.totalCents;
+
+        if (!order) return null;
+
+        return (
+          <Card
+            key={delivery.id}
+            className="hover:bg-accent/50 transition-colors"
+          >
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    {orderNumber}
+                  </CardTitle>
+                  <CardDescription className="flex items-center gap-2">
+                    <MapPin className="h-3 w-3" />
+                    {order.Client.name}
+                    {order.Client.region && (
+                      <span className="text-xs">• {order.Client.region}</span>
+                    )}
+                  </CardDescription>
+                </div>
+                <Badge
+                  className={`${statusColors[delivery.status]} text-white`}
+                  variant="default"
+                >
+                  {statusLabels[delivery.status]}
+                </Badge>
               </div>
-              <Badge
-                className={`${statusColors[delivery.status]} text-white`}
-                variant="default"
-              >
-                {statusLabels[delivery.status]}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground space-y-1">
-                <p className="flex items-center gap-2">
-                  <Truck className="h-3 w-3" />
-                  {delivery.Order.OrderItem.length} item(s) • €
-                  {(delivery.Order.totalCents / 100).toFixed(2)}
-                </p>
-                <p>
-                  Assigned{" "}
-                  {formatDistanceToNow(new Date(delivery.assignedAt), {
-                    addSuffix: true,
-                  })}
-                </p>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p className="flex items-center gap-2">
+                    <Truck className="h-3 w-3" />
+                    {itemCount} item(s)
+                    {totalCents !== undefined && (
+                      <> • €{(totalCents / 100).toFixed(2)}</>
+                    )}
+                  </p>
+                  <p>
+                    Assigned{" "}
+                    {formatDistanceToNow(new Date(delivery.assignedAt), {
+                      addSuffix: true,
+                    })}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/dashboard/deliveries/${delivery.id}`}>
+                    View Details
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Link>
+                </Button>
               </div>
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/dashboard/deliveries/${delivery.id}`}>
-                  View Details
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
 
       {/* Pagination */}
       {deliveries.totalPages > 1 && (
