@@ -23,29 +23,33 @@ const statusTransitions: Record<SubOrderStatus, SubOrderStatus[]> = {
 };
 
 // Button configurations for each status transition
+// Maps the TARGET status to the button label/icon (what action takes you TO that status)
 const statusButtonConfig: Record<
   SubOrderStatus,
   { label: string; icon: React.ReactNode; variant?: "default" | "destructive" }
 > = {
   PENDING: {
-    label: "Submit",
+    label: "Move to Pending",
     icon: <Check className="h-4 w-4" />,
   },
   SUBMITTED: {
-    label: "Submit",
+    label: "Submit Order",
     icon: <Check className="h-4 w-4" />,
   },
-  CONFIRMED: { label: "Confirm", icon: <Check className="h-4 w-4" /> },
+  CONFIRMED: {
+    label: "Confirm Order",
+    icon: <Check className="h-4 w-4" />,
+  },
   FULFILLING: {
     label: "Start Fulfilling",
     icon: <Package className="h-4 w-4" />,
   },
   READY: {
-    label: "Mark Ready",
+    label: "Mark Ready for Pickup",
     icon: <Truck className="h-4 w-4" />,
   },
   CANCELED: {
-    label: "Cancel",
+    label: "Cancel Order",
     icon: <X className="h-4 w-4" />,
     variant: "destructive",
   },
