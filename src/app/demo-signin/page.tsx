@@ -55,18 +55,18 @@ export default function DemoSigninPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-6xl">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
+          <div className="flex items-center justify-center mb-6">
             <Image
-              src="/hydra-icon.png"
-              alt="Hydra"
-              width={96}
-              height={96}
-              className="h-20 w-20"
+              src="/hydra-logo-multiservice.png"
+              alt="Hydra Multi Service"
+              width={400}
+              height={120}
+              className="h-auto w-full max-w-md"
+              priority
             />
-            <h1 className="text-4xl font-bold">Hydra</h1>
           </div>
           <h2 className="text-2xl font-semibold mb-2">Demo Mode</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
