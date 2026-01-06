@@ -36,7 +36,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { Package, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { OrderStatus, SubOrderStatus } from "@prisma/client";
+import { SubOrderStatus } from "@prisma/client";
 
 type SearchParams = {
   page?: string;
