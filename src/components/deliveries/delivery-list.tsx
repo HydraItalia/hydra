@@ -40,6 +40,7 @@ interface DeliveryListProps {
       } | null;
       SubOrder?: {
         subOrderNumber: string;
+        subTotalCents: number;
         Order: {
           id: string;
           Client: {
@@ -100,8 +101,11 @@ export function DeliveryList({ deliveries, currentPage }: DeliveryListProps) {
           ? delivery.SubOrder.subOrderNumber
           : delivery.Order?.orderNumber;
         const itemCount = delivery.SubOrder
-          ? delivery.SubOrder.OrderItem.length
+          ? delivery.SubOrder.OrderItem?.length ?? 0
           : delivery.Order?.OrderItem.length || 0;
+        const totalCents = delivery.SubOrder
+          ? delivery.SubOrder.subTotalCents
+          : delivery.Order?.totalCents;
 
         if (!order) return null;
 
@@ -139,8 +143,8 @@ export function DeliveryList({ deliveries, currentPage }: DeliveryListProps) {
                   <p className="flex items-center gap-2">
                     <Truck className="h-3 w-3" />
                     {itemCount} item(s)
-                    {delivery.Order && (
-                      <> • €{(delivery.Order.totalCents / 100).toFixed(2)}</>
+                    {totalCents !== undefined && (
+                      <> • €{(totalCents / 100).toFixed(2)}</>
                     )}
                   </p>
                   <p>

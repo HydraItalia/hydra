@@ -105,7 +105,7 @@ Tests that vendors see only their SubOrders.
 #### Setup:
 
 1. Sign in as **VENDOR** role (demo mode)
-2. Navigate to `/dashboard/vendor/orders` (or wherever vendor orders are shown)
+2. Navigate to vendor dashboard (main dashboard shows vendor orders automatically)
 
 #### Test Steps:
 
@@ -146,9 +146,11 @@ Tests the state machine and status updates.
      - If any SubOrder is CONFIRMED/FULFILLING/READY → Order is CONFIRMED
      - If all SubOrders are CANCELED → Order is CANCELED
 
-#### Using Vendor UI (if implemented):
+#### Using Vendor UI:
 
-- [ ] Vendor can update their SubOrder status
+**Status**: ✅ Implemented and functional
+
+- [ ] Vendor can update their SubOrder status via status action buttons
 - [ ] Invalid transitions are blocked (e.g., READY → PENDING)
 - [ ] Parent Order status updates automatically
 
@@ -175,12 +177,17 @@ Tests that deliveries assign to SubOrders (not Orders).
 4. **Verify:**
    - [ ] Delivery created successfully
    - [ ] `routeSequence` is `0` (NOT null) ✅ Tests our nullish coalescing fix
+     - **Why this matters**: The nullish coalescing operator (`??`) correctly distinguishes `0` from `null/undefined`. Using `||` would incorrectly treat `0` as falsy and replace it with `null`, breaking first-position route assignments.
    - [ ] `subOrderId` is set
    - [ ] `orderId` is null
 
-#### Using Admin UI (if implemented):
+#### Using Admin UI:
 
-- [ ] Admin can assign driver to a SubOrder
+**Status**: ✅ Implemented at `/dashboard/orders` (Ready for Delivery section)
+
+- [ ] Admin navigates to Orders dashboard
+- [ ] Admin sees "Sub-orders Awaiting Driver Assignment" section
+- [ ] Admin can assign driver to each SubOrder independently
 - [ ] Multiple SubOrders from same Order can have different drivers
 - [ ] Driver assignment only works for READY SubOrders
 
@@ -251,15 +258,15 @@ npx prisma generate
 
 ### Issue: No SubOrders created when submitting order
 
-**Fix:** Check `src/data/order.ts` - `createOrderFromCart()` should group items by vendor
+**Fix:** Check the `createOrderFromCart()` function in `src/data/order.ts` - verify items are properly grouped by vendor during order creation
 
 ### Issue: routeSequence = null when set to 0
 
-**Fix:** Check `admin-deliveries.ts` line 113 - should use `??` not `||`
+**Fix:** In the delivery assignment function (`assignDeliveryToDriver`), ensure the nullish coalescing operator (`??`) is used instead of logical OR (`||`) when handling `routeSequence`. This preserves `0` as distinct from `null`.
 
 ### Issue: SubOrder status updates but Order status doesn't
 
-**Fix:** Check transaction in `vendor-suborders.ts` - should use `$transaction`
+**Fix:** Check the SubOrder status update function - ensure it uses Prisma's `$transaction` to atomically update both the SubOrder and parent Order status
 
 ### Issue: Can't assign delivery to SubOrder
 

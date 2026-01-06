@@ -654,7 +654,7 @@ async function DriverDashboard({
                       <div>
                         <p className="text-sm font-medium">{orderNumber}</p>
                         <p className="text-xs text-muted-foreground">
-                          {order.Client.name} •{" "}
+                          {order.Client?.name} •{" "}
                           {delivery.status.replace(/_/g, " ")}
                         </p>
                       </div>

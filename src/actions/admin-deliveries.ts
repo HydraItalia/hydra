@@ -16,6 +16,16 @@ import { revalidatePath } from "next/cache";
 import { createId } from "@paralleldrive/cuid2";
 
 /**
+ * Type guard to validate SubOrder exists on a delivery
+ * Provides type narrowing for TypeScript
+ */
+function validateSubOrderExists<T extends { SubOrder: unknown }>(
+  delivery: T
+): delivery is T & { SubOrder: NonNullable<T["SubOrder"]> } {
+  return delivery.SubOrder !== null && delivery.SubOrder !== undefined;
+}
+
+/**
  * Create delivery for a SubOrder and assign to a driver
  * UPDATED: Now works with SubOrders instead of Orders
  *
@@ -440,7 +450,7 @@ export async function reassignDriverToSubOrder(
     }
 
     // Verify SubOrder data exists
-    if (!delivery.SubOrder) {
+    if (!validateSubOrderExists(delivery)) {
       return {
         success: false,
         error: "SubOrder data not found for delivery",
@@ -545,7 +555,7 @@ export async function unassignDriverFromSubOrder(
     }
 
     // Verify SubOrder data exists
-    if (!delivery.SubOrder) {
+    if (!validateSubOrderExists(delivery)) {
       return {
         success: false,
         error: "SubOrder data not found for delivery",

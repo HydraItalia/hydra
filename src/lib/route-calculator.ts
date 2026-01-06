@@ -80,6 +80,55 @@ export async function getOptimizedDriverRoute(
   // Filter deliveries with valid coordinates
   // Get the Order from either direct link (old) or via SubOrder (new)
   type DeliveryWithOrder = (typeof deliveries)[number];
+
+  /**
+   * Helper function to build a RouteStop from a delivery
+   * Reduces duplication and ensures consistent behavior
+   */
+  function buildRouteStop(
+    delivery: DeliveryWithOrder,
+    options?: { etaMinutes?: number; legDistanceKm?: number }
+  ): RouteStop {
+    const order = delivery.SubOrder ? delivery.SubOrder.Order : delivery.Order;
+
+    // Ensure at least one identifier is present
+    if (!delivery.orderId && !delivery.subOrderId) {
+      throw new Error(
+        `Delivery ${delivery.id} has neither orderId nor subOrderId`
+      );
+    }
+
+    const baseStop = {
+      deliveryId: delivery.id,
+      clientName: order!.Client.name,
+      address: order!.deliveryAddress!,
+      lat: order!.deliveryLat!,
+      lng: order!.deliveryLng!,
+      status: delivery.status,
+      ...(options?.etaMinutes !== undefined && {
+        etaMinutes: options.etaMinutes,
+      }),
+      ...(options?.legDistanceKm !== undefined && {
+        legDistanceKm: options.legDistanceKm,
+      }),
+    };
+
+    // Match the RouteStop union type requirements
+    if (delivery.subOrderId) {
+      return {
+        ...baseStop,
+        orderId: delivery.orderId,
+        subOrderId: delivery.subOrderId,
+      };
+    } else {
+      return {
+        ...baseStop,
+        orderId: delivery.orderId!,
+        subOrderId: delivery.subOrderId,
+      };
+    }
+  }
+
   const validDeliveries = deliveries.filter((d) => {
     const order = d.SubOrder ? d.SubOrder.Order : d.Order;
     return (
@@ -196,39 +245,10 @@ export async function getOptimizedDriverRoute(
     // Build RouteStop array with leg information
     const stops: RouteStop[] = orderedDeliveries.map((delivery, index) => {
       const leg = route.legs[index];
-      const order = delivery.SubOrder
-        ? delivery.SubOrder.Order
-        : delivery.Order;
-
-      const baseStop = {
-        deliveryId: delivery.id,
-        clientName: order.Client.name,
-        address: order.deliveryAddress!,
-        lat: order.deliveryLat!,
-        lng: order.deliveryLng!,
-        status: delivery.status,
+      return buildRouteStop(delivery, {
         etaMinutes: leg ? Math.round(leg.duration.value / 60) : undefined,
         legDistanceKm: leg ? leg.distance.value / 1000 : undefined,
-      };
-
-      // Ensure at least one identifier is present (match union type)
-      if (delivery.subOrderId) {
-        return {
-          ...baseStop,
-          orderId: delivery.orderId,
-          subOrderId: delivery.subOrderId,
-        };
-      } else if (delivery.orderId) {
-        return {
-          ...baseStop,
-          orderId: delivery.orderId,
-          subOrderId: delivery.subOrderId,
-        };
-      } else {
-        throw new Error(
-          `Delivery ${delivery.id} has neither orderId nor subOrderId`
-        );
-      }
+      });
     });
 
     // Calculate totals
@@ -251,39 +271,9 @@ export async function getOptimizedDriverRoute(
     console.error("Error calculating optimized route:", error);
 
     // Fallback: return deliveries in their current order without optimization
-    const stops: RouteStop[] = validDeliveries.map((delivery) => {
-      const order = delivery.SubOrder
-        ? delivery.SubOrder.Order
-        : delivery.Order;
-
-      const baseStop = {
-        deliveryId: delivery.id,
-        clientName: order.Client.name,
-        address: order.deliveryAddress!,
-        lat: order.deliveryLat!,
-        lng: order.deliveryLng!,
-        status: delivery.status,
-      };
-
-      // Ensure at least one identifier is present (match union type)
-      if (delivery.subOrderId) {
-        return {
-          ...baseStop,
-          orderId: delivery.orderId,
-          subOrderId: delivery.subOrderId,
-        };
-      } else if (delivery.orderId) {
-        return {
-          ...baseStop,
-          orderId: delivery.orderId,
-          subOrderId: delivery.subOrderId,
-        };
-      } else {
-        throw new Error(
-          `Delivery ${delivery.id} has neither orderId nor subOrderId`
-        );
-      }
-    });
+    const stops: RouteStop[] = validDeliveries.map((delivery) =>
+      buildRouteStop(delivery)
+    );
 
     return {
       stops,

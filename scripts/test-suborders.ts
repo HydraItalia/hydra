@@ -10,7 +10,7 @@
  * 4. Delivery assignment to SubOrders
  */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, SubOrderStatus } from "@prisma/client";
 import { createId } from "@paralleldrive/cuid2";
 
 const prisma = new PrismaClient();
@@ -302,9 +302,9 @@ async function main() {
 
   const testSubOrder = subOrders[0];
   const validTransitions = {
-    SUBMITTED: "CONFIRMED",
-    CONFIRMED: "FULFILLING",
-    FULFILLING: "READY",
+    SUBMITTED: SubOrderStatus.CONFIRMED,
+    CONFIRMED: SubOrderStatus.FULFILLING,
+    FULFILLING: SubOrderStatus.READY,
   };
 
   try {
@@ -314,9 +314,11 @@ async function main() {
       await prisma.subOrder.update({
         where: { id: testSubOrder.id },
         data: {
-          status: nextStatus as any,
-          ...(nextStatus === "CONFIRMED" && { confirmedAt: new Date() }),
-          ...(nextStatus === "READY" && { readyAt: new Date() }),
+          status: nextStatus,
+          ...(nextStatus === SubOrderStatus.CONFIRMED && {
+            confirmedAt: new Date(),
+          }),
+          ...(nextStatus === SubOrderStatus.READY && { readyAt: new Date() }),
         },
       });
       console.log(`✅ Transitioned ${currentStatus} → ${nextStatus}`);
@@ -407,10 +409,9 @@ async function main() {
 }
 
 main()
-  .catch((error) => {
+  .catch(async (error) => {
     console.error("💥 Test failed:", error);
+    await prisma.$disconnect();
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .then(() => prisma.$disconnect());

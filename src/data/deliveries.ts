@@ -462,12 +462,19 @@ export async function fetchAllDeliveriesForAdmin(
         Order: {
           select: {
             orderNumber: true,
+            totalCents: true,
             deliveryAddress: true,
             deliveryLat: true,
             deliveryLng: true,
+            OrderItem: {
+              select: {
+                id: true,
+              },
+            },
             Client: {
               select: {
                 name: true,
+                region: true,
               },
             },
           },
@@ -475,6 +482,12 @@ export async function fetchAllDeliveriesForAdmin(
         SubOrder: {
           select: {
             subOrderNumber: true,
+            subTotalCents: true,
+            OrderItem: {
+              select: {
+                id: true,
+              },
+            },
             Order: {
               select: {
                 id: true,
@@ -485,6 +498,7 @@ export async function fetchAllDeliveriesForAdmin(
                 Client: {
                   select: {
                     name: true,
+                    region: true,
                   },
                 },
               },
@@ -522,9 +536,9 @@ export async function fetchAllDeliveriesForAdmin(
       orderId: delivery.SubOrder
         ? delivery.SubOrder.Order.id
         : delivery.orderId || null,
-      deliveryAddress: order?.deliveryAddress || null,
-      deliveryLat: order?.deliveryLat || null,
-      deliveryLng: order?.deliveryLng || null,
+      deliveryAddress: order?.deliveryAddress ?? null,
+      deliveryLat: order?.deliveryLat ?? null,
+      deliveryLng: order?.deliveryLng ?? null,
     };
   });
 

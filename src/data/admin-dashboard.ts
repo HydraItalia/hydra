@@ -321,13 +321,13 @@ export async function getRecentDeliveries(
           id: order.id,
           orderNumber,
           client: {
-            id: order.Client.id,
-            name: order.Client.name,
+            id: order.Client?.id ?? "",
+            name: order.Client?.name ?? "Unknown",
           },
         },
         driver: {
-          id: delivery.Driver.id,
-          name: delivery.Driver.name,
+          id: delivery.Driver?.id ?? "",
+          name: delivery.Driver?.name ?? "Unknown",
         },
       };
     })

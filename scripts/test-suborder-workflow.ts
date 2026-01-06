@@ -247,6 +247,7 @@ async function main() {
     console.log(`     SubOrder: ${bevSubOrders[0].subOrderNumber}`);
   } else {
     console.error(`     ❌ FAIL: Should see exactly 1 SubOrder`);
+    throw new Error("Vendor visibility check failed for General Beverage");
   }
 
   // CD Fish should see only their SubOrder
@@ -265,6 +266,7 @@ async function main() {
     console.log(`     SubOrder: ${fishSubOrders[0].subOrderNumber}`);
   } else {
     console.error(`     ❌ FAIL: Should see exactly 1 SubOrder`);
+    throw new Error("Vendor visibility check failed for CD Fish");
   }
 
   // ============================================================================
@@ -288,10 +290,10 @@ async function main() {
 
   console.log(`   Admin sees:`);
   console.log(`     Order: ${adminOrderView?.orderNumber}`);
-  console.log(`     Client: ${adminOrderView?.Client.name}`);
-  console.log(`     SubOrders: ${adminOrderView?.SubOrder.length}`);
+  console.log(`     Client: ${adminOrderView?.Client?.name}`);
+  console.log(`     SubOrders: ${adminOrderView?.SubOrder?.length}`);
 
-  if (adminOrderView?.SubOrder.length === 2) {
+  if (adminOrderView?.SubOrder?.length === 2) {
     console.log(`     ✅ Correct - sees all SubOrders`);
     for (const so of adminOrderView.SubOrder) {
       console.log(
@@ -440,6 +442,25 @@ async function main() {
       },
     });
     console.log(`     ✅ Status: DELIVERED`);
+
+    console.log(`\n   Driver delivers fish order`);
+    await prisma.delivery.update({
+      where: { id: fishDelivery.id },
+      data: {
+        status: "IN_TRANSIT",
+        inTransitAt: new Date(),
+      },
+    });
+    console.log(`     ✅ Status: IN_TRANSIT`);
+
+    await prisma.delivery.update({
+      where: { id: fishDelivery.id },
+      data: {
+        status: "DELIVERED",
+        deliveredAt: new Date(),
+      },
+    });
+    console.log(`     ✅ Status: DELIVERED`);
   }
 
   // ============================================================================
@@ -517,12 +538,16 @@ async function main() {
 
 main()
   .then((result) => {
-    process.exit(result.success ? 0 : 1);
+    return result;
   })
-  .catch((e) => {
+  .catch(async (e) => {
     console.error("\n❌ ERROR:", e);
+    await prisma.$disconnect();
     process.exit(1);
   })
-  .finally(() => {
-    prisma.$disconnect();
+  .then(async (result) => {
+    await prisma.$disconnect();
+    if (result) {
+      process.exit(result.success ? 0 : 1);
+    }
   });
