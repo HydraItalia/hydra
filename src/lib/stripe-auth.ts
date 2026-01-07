@@ -6,6 +6,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { PaymentStatus } from "@prisma/client";
 import Stripe from "stripe";
 
 let stripeInstance: Stripe | null = null;
@@ -26,6 +27,8 @@ function getStripe() {
 
   stripeInstance = new Stripe(secretKey, {
     apiVersion: "2025-12-15.clover",
+    timeout: 25000, // 25 second timeout for Stripe API calls
+    maxNetworkRetries: 2, // Retry failed requests up to 2 times
   });
 
   return stripeInstance;
@@ -83,26 +86,54 @@ export async function authorizeSubOrderCharge(
       };
     }
 
-    // Check if already authorized
+    // Check if already authorized - verify PaymentIntent is still valid
     if (subOrder.stripeChargeId) {
-      return {
-        success: true,
-        paymentIntentId: subOrder.stripeChargeId,
-      };
+      // Verify the PaymentIntent is still valid
+      const stripe = getStripe();
+      try {
+        const existingPI = await stripe.paymentIntents.retrieve(
+          subOrder.stripeChargeId,
+          {},
+          {
+            stripeAccount: subOrder.Vendor.stripeAccountId || undefined,
+          }
+        );
+
+        // If PaymentIntent is in a valid state, return success
+        if (
+          existingPI.status === "requires_capture" ||
+          existingPI.status === "succeeded"
+        ) {
+          return {
+            success: true,
+            paymentIntentId: subOrder.stripeChargeId,
+          };
+        }
+
+        // If PaymentIntent is canceled/failed, continue to create a new one
+        console.warn(
+          `[Pre-Auth] Existing PaymentIntent ${subOrder.stripeChargeId} has status ${existingPI.status}, creating new one`
+        );
+      } catch (error) {
+        // If we can't retrieve the PaymentIntent, create a new one
+        console.warn(
+          `[Pre-Auth] Could not retrieve existing PaymentIntent ${subOrder.stripeChargeId}, creating new one`
+        );
+      }
     }
 
     // Validate client has payment method
     if (!subOrder.Order.Client.stripeCustomerId) {
       return {
         success: false,
-        error: `Client ${subOrder.Order.Client.name} does not have a Stripe Customer ID`,
+        error: "Client does not have a Stripe Customer ID",
       };
     }
 
     if (!subOrder.Order.Client.defaultPaymentMethodId) {
       return {
         success: false,
-        error: `Client ${subOrder.Order.Client.name} does not have a default payment method`,
+        error: "Client does not have a default payment method",
       };
     }
 
@@ -110,57 +141,152 @@ export async function authorizeSubOrderCharge(
     if (!subOrder.Vendor.stripeAccountId) {
       return {
         success: false,
-        error: `Vendor ${subOrder.Vendor.name} does not have a Stripe Connect account`,
+        error: "Vendor does not have a Stripe Connect account",
       };
     }
 
     if (!subOrder.Vendor.chargesEnabled) {
       return {
         success: false,
-        error: `Vendor ${subOrder.Vendor.name} is not enabled to accept charges`,
+        error: "Vendor is not enabled to accept charges",
       };
     }
 
     // Create PaymentIntent directly on vendor's connected account
     // The vendor is the merchant of record, so funds go directly to them
     const stripe = getStripe();
-    const paymentIntent = await stripe.paymentIntents.create(
-      {
-        amount: subOrder.subTotalCents,
-        currency: "eur",
-        customer: subOrder.Order.Client.stripeCustomerId,
-        payment_method: subOrder.Order.Client.defaultPaymentMethodId,
-        capture_method: "manual", // Pre-authorize only, don't capture funds
-        confirm: true, // Immediately confirm the payment
-        off_session: true, // Payment is being made without customer present
-        metadata: {
-          subOrderId: subOrder.id,
-          subOrderNumber: subOrder.subOrderNumber,
-          orderId: subOrder.Order.id,
-          orderNumber: subOrder.Order.orderNumber,
-          vendorId: subOrder.Vendor.id,
-          vendorName: subOrder.Vendor.name,
-          clientId: subOrder.Order.Client.id,
-          clientName: subOrder.Order.Client.name,
-          source: "hydra-pre-auth",
+
+    let paymentIntent: Stripe.PaymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.create(
+        {
+          amount: subOrder.subTotalCents,
+          currency: "eur",
+          customer: subOrder.Order.Client.stripeCustomerId,
+          payment_method: subOrder.Order.Client.defaultPaymentMethodId,
+          capture_method: "manual", // Pre-authorize only, don't capture funds
+          confirm: true, // Immediately confirm the payment
+          off_session: true, // Payment is being made without customer present
+          metadata: {
+            subOrderId: subOrder.id,
+            subOrderNumber: subOrder.subOrderNumber,
+            orderId: subOrder.Order.id,
+            orderNumber: subOrder.Order.orderNumber,
+            vendorId: subOrder.Vendor.id,
+            vendorName: subOrder.Vendor.name,
+            clientId: subOrder.Order.Client.id,
+            clientName: subOrder.Order.Client.name,
+            source: "hydra-pre-auth",
+          },
         },
-      },
-      {
-        stripeAccount: subOrder.Vendor.stripeAccountId, // Create on vendor's account
+        {
+          stripeAccount: subOrder.Vendor.stripeAccountId, // Create on vendor's account
+          idempotencyKey: `pre-auth-${subOrderId}`, // Prevent duplicate charges on retry
+        }
+      );
+    } catch (error) {
+      // If PaymentIntent creation fails, don't update database
+      if (error instanceof Stripe.errors.StripeError) {
+        console.error(
+          `[Pre-Auth] Stripe error for SubOrder ${subOrderId}:`,
+          error.message
+        );
       }
-    );
+      throw error; // Re-throw to be handled by outer catch
+    }
+
+    // Map Stripe status to payment status
+    let paymentStatus: PaymentStatus;
+    switch (paymentIntent.status) {
+      case "requires_capture":
+        paymentStatus = PaymentStatus.PROCESSING;
+        break;
+      case "requires_action":
+      case "requires_payment_method":
+        paymentStatus = PaymentStatus.PENDING;
+        break;
+      case "canceled":
+        paymentStatus = PaymentStatus.FAILED;
+        break;
+      case "succeeded":
+        paymentStatus = PaymentStatus.SUCCEEDED;
+        break;
+      default:
+        console.warn(
+          `[Pre-Auth] Unexpected PaymentIntent status: ${paymentIntent.status}`
+        );
+        paymentStatus = PaymentStatus.PENDING;
+    }
 
     // Update SubOrder with PaymentIntent ID and status
-    await prisma.subOrder.update({
-      where: { id: subOrderId },
-      data: {
-        stripeChargeId: paymentIntent.id,
-        paymentStatus:
-          paymentIntent.status === "requires_capture"
-            ? "PROCESSING"
-            : "PENDING",
-      },
-    });
+    // Use updateMany with conditional where to prevent race conditions
+    // Only update if stripeChargeId is still null
+    try {
+      const updateResult = await prisma.subOrder.updateMany({
+        where: {
+          id: subOrderId,
+          stripeChargeId: null, // Only update if not already authorized
+        },
+        data: {
+          stripeChargeId: paymentIntent.id,
+          paymentStatus,
+        },
+      });
+
+      // If no rows were updated, another process already authorized this
+      if (updateResult.count === 0) {
+        console.warn(
+          `[Pre-Auth] SubOrder ${subOrderId} was authorized by another process, canceling new PaymentIntent ${paymentIntent.id}`
+        );
+
+        // Cancel the newly created PaymentIntent since we don't need it
+        await stripe.paymentIntents.cancel(
+          paymentIntent.id,
+          {},
+          {
+            stripeAccount: subOrder.Vendor.stripeAccountId,
+          }
+        );
+
+        // Fetch the existing charge ID
+        const existingSubOrder = await prisma.subOrder.findUnique({
+          where: { id: subOrderId },
+          select: { stripeChargeId: true },
+        });
+
+        return {
+          success: true,
+          paymentIntentId: existingSubOrder?.stripeChargeId || "",
+        };
+      }
+    } catch (dbError) {
+      // Database update failed - log for reconciliation
+      console.error(
+        `[Pre-Auth] Database update failed for SubOrder ${subOrderId}, PaymentIntent ${paymentIntent.id} is orphaned`,
+        dbError
+      );
+
+      // Attempt to cancel the PaymentIntent to prevent orphaned charges
+      try {
+        await stripe.paymentIntents.cancel(
+          paymentIntent.id,
+          {},
+          {
+            stripeAccount: subOrder.Vendor.stripeAccountId,
+          }
+        );
+        console.log(
+          `[Pre-Auth] Canceled orphaned PaymentIntent ${paymentIntent.id}`
+        );
+      } catch (cancelError) {
+        console.error(
+          `[Pre-Auth] Failed to cancel orphaned PaymentIntent ${paymentIntent.id}`,
+          cancelError
+        );
+      }
+
+      throw dbError; // Re-throw database error
+    }
 
     return {
       success: true,

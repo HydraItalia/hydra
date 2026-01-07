@@ -43,6 +43,7 @@ npx tsx scripts/test-pre-authorization.ts
 - [ ] Try confirming without vendor Stripe Connect → Should fail
 - [ ] Use declining test card (4000 0000 0000 9995) → Should fail
 - [ ] Try authorizing already-authorized SubOrder → Should succeed (idempotent)
+- [ ] Test timeout (reduce timeout to 1s temporarily) → Should fail gracefully
 
 ## Database Checks
 

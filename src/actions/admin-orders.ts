@@ -128,6 +128,35 @@ export async function updateOrderStatus(
 }
 
 /**
+ * Wraps a promise with a timeout
+ * @param promise - The promise to wrap
+ * @param timeoutMs - Timeout in milliseconds
+ * @param errorMessage - Error message if timeout occurs
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutHandle!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutHandle!);
+    throw error;
+  }
+}
+
+/**
  * Pre-authorize vendor charges for SubOrders
  * Uses the Stripe authorization module for each SubOrder
  *
@@ -147,6 +176,9 @@ async function preAuthorizeVendorCharges(
     error?: string;
   }>
 > {
+  // Timeout for each authorization (30 seconds per SubOrder)
+  const AUTHORIZATION_TIMEOUT_MS = 30000;
+
   const results = await Promise.allSettled(
     subOrders.map(async (subOrder) => {
       // Skip if already authorized
@@ -157,21 +189,39 @@ async function preAuthorizeVendorCharges(
         };
       }
 
-      // Call the authorization function directly
-      const result = await authorizeSubOrderCharge(subOrder.id);
+      try {
+        // Call the authorization function with timeout
+        const result = await withTimeout(
+          authorizeSubOrderCharge(subOrder.id),
+          AUTHORIZATION_TIMEOUT_MS,
+          `Authorization timed out after ${
+            AUTHORIZATION_TIMEOUT_MS / 1000
+          }s for SubOrder ${subOrder.subOrderNumber}`
+        );
 
-      if (!result.success) {
+        if (!result.success) {
+          return {
+            success: false,
+            subOrderNumber: subOrder.subOrderNumber,
+            error: result.error || "Authorization failed",
+          };
+        }
+
+        return {
+          success: true,
+          subOrderNumber: subOrder.subOrderNumber,
+        };
+      } catch (error) {
+        // Handle timeout or other errors
         return {
           success: false,
           subOrderNumber: subOrder.subOrderNumber,
-          error: result.error || "Authorization failed",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Authorization failed with unknown error",
         };
       }
-
-      return {
-        success: true,
-        subOrderNumber: subOrder.subOrderNumber,
-      };
     })
   );
 

@@ -402,6 +402,49 @@ Expected response (already authorized):
 
 ---
 
+### ⏱️ Scenario 7: Timeout Handling
+
+**Setup:**
+
+- Order with SubOrders
+- Simulate slow Stripe API (for testing only)
+
+**Testing Approaches:**
+
+**Option 1: Temporarily reduce timeout (for testing)**
+
+```typescript
+// In src/actions/admin-orders.ts (TESTING ONLY)
+const AUTHORIZATION_TIMEOUT_MS = 1000; // 1 second instead of 30
+```
+
+**Option 2: Use network throttling**
+
+- Use browser DevTools → Network → Throttling
+- Set to "Slow 3G" or "Offline"
+
+**Steps:**
+
+1. Reduce timeout to 1 second (testing only)
+2. Try to confirm order
+3. Verify timeout error appears
+
+**Expected Result:**
+
+- ❌ Order confirmation fails
+- Error: "Authorization timed out after 1s for SubOrder SO-XXX"
+- Order remains in SUBMITTED status
+- No charges created in Stripe
+
+**Cleanup:**
+
+```typescript
+// Restore production timeout
+const AUTHORIZATION_TIMEOUT_MS = 30000; // 30 seconds
+```
+
+---
+
 ## Stripe Test Cards
 
 Use these cards to test different scenarios:
