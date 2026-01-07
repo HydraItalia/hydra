@@ -14,15 +14,22 @@ import { useUser } from "@/hooks/use-user";
 import { Settings, User, Building2, Truck } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
 
 /**
  * User menu dropdown component for the header
  * Shows user info, role, and navigation options
  */
 export function UserMenu() {
+  const [mounted, setMounted] = useState(false);
   const { user, role, vendorId, clientId, driverId } = useUser();
 
-  if (!user) {
+  // Only render on client side to avoid SSR session issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !user) {
     return null;
   }
 

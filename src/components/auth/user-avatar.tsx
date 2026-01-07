@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/use-user";
+import { useEffect, useState } from "react";
 
 type UserAvatarProps = {
   className?: string;
@@ -12,9 +13,15 @@ type UserAvatarProps = {
  * Component that displays user avatar and optional name
  */
 export function UserAvatar({ className, showName = false }: UserAvatarProps) {
+  const [mounted, setMounted] = useState(false);
   const { user } = useUser();
 
-  if (!user) {
+  // Only render on client side to avoid SSR session issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !user) {
     return null;
   }
 
