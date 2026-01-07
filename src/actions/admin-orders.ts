@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { logAction, AuditAction } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { OrderStatus } from "@prisma/client";
+import { authorizeSubOrderCharge } from "@/lib/stripe-auth";
 
 /**
  * Valid order status transitions
@@ -41,12 +42,19 @@ export async function updateOrderStatus(
     // Require ADMIN or AGENT role
     await requireRole("ADMIN", "AGENT");
 
-    // Fetch the order
+    // Fetch the order with SubOrders
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: {
         id: true,
         status: true,
+        SubOrder: {
+          select: {
+            id: true,
+            subOrderNumber: true,
+            stripeChargeId: true,
+          },
+        },
       },
     });
 
@@ -61,6 +69,27 @@ export async function updateOrderStatus(
         success: false,
         error: `Cannot transition from ${order.status} to ${newStatus}`,
       };
+    }
+
+    // Pre-authorize vendor charges when confirming order
+    if (newStatus === "CONFIRMED" && order.status === "SUBMITTED") {
+      const authorizationResults = await preAuthorizeVendorCharges(
+        order.SubOrder
+      );
+
+      // Check for any failures
+      const failures = authorizationResults.filter((r) => !r.success);
+      if (failures.length > 0) {
+        // Return detailed error about which SubOrders failed
+        const errorDetails = failures
+          .map((f) => `${f.subOrderNumber}: ${f.error}`)
+          .join("; ");
+
+        return {
+          success: false,
+          error: `Failed to pre-authorize charges: ${errorDetails}`,
+        };
+      }
     }
 
     // Atomic conditional update - only update if status hasn't changed
@@ -96,6 +125,68 @@ export async function updateOrderStatus(
       error: error instanceof Error ? error.message : "Failed to update status",
     };
   }
+}
+
+/**
+ * Pre-authorize vendor charges for SubOrders
+ * Uses the Stripe authorization module for each SubOrder
+ *
+ * @param subOrders - Array of SubOrders to pre-authorize
+ * @returns Array of results for each SubOrder
+ */
+async function preAuthorizeVendorCharges(
+  subOrders: Array<{
+    id: string;
+    subOrderNumber: string;
+    stripeChargeId: string | null;
+  }>
+): Promise<
+  Array<{
+    success: boolean;
+    subOrderNumber: string;
+    error?: string;
+  }>
+> {
+  const results = await Promise.allSettled(
+    subOrders.map(async (subOrder) => {
+      // Skip if already authorized
+      if (subOrder.stripeChargeId) {
+        return {
+          success: true,
+          subOrderNumber: subOrder.subOrderNumber,
+        };
+      }
+
+      // Call the authorization function directly
+      const result = await authorizeSubOrderCharge(subOrder.id);
+
+      if (!result.success) {
+        return {
+          success: false,
+          subOrderNumber: subOrder.subOrderNumber,
+          error: result.error || "Authorization failed",
+        };
+      }
+
+      return {
+        success: true,
+        subOrderNumber: subOrder.subOrderNumber,
+      };
+    })
+  );
+
+  // Map Promise.allSettled results to our return type
+  return results.map((result, index) => {
+    if (result.status === "fulfilled") {
+      return result.value;
+    } else {
+      return {
+        success: false,
+        subOrderNumber: subOrders[index].subOrderNumber,
+        error: result.reason?.message || "Unexpected error",
+      };
+    }
+  });
 }
 
 /**
