@@ -5,16 +5,23 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, User } from "lucide-react";
 import Link from "next/link";
 import { useUser } from "@/hooks/use-user";
+import { useEffect, useState } from "react";
 
 /**
  * Banner shown when demo mode is active
  * Displays current user and link to switch users
  */
 export function DemoModeBanner() {
+  const [mounted, setMounted] = useState(false);
   const { user, role } = useUser();
 
+  // Only render on client side to avoid SSR session issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Only show if demo mode is enabled (checked via environment variable)
-  if (process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE !== "true") {
+  if (process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE !== "true" || !mounted) {
     return null;
   }
 
