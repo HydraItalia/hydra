@@ -15,7 +15,8 @@
     "db:reset": "dotenv -e .env.local -- prisma migrate reset --force && dotenv -e .env.local -- tsx prisma/seed.ts",
     "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
     "db:studio": "dotenv -e .env.local -- prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma migrate deploy && next build"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
