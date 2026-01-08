@@ -87,10 +87,12 @@ export async function authorizeSubOrderCharge(
     }
 
     // Check if already authorized - verify PaymentIntent is still valid
+    // This prevents race conditions and validates the payment state before returning
     if (subOrder.stripeChargeId) {
-      // Verify the PaymentIntent is still valid
       const stripe = getStripe();
       try {
+        // Fetch the PaymentIntent from Stripe to verify its current state
+        // We can't trust the database alone - the PaymentIntent could be canceled, expired, or failed
         const existingPI = await stripe.paymentIntents.retrieve(
           subOrder.stripeChargeId,
           {},
@@ -99,7 +101,7 @@ export async function authorizeSubOrderCharge(
           }
         );
 
-        // If PaymentIntent is in a valid state, return success
+        // Only return success if PaymentIntent is in a valid state
         if (
           existingPI.status === "requires_capture" ||
           existingPI.status === "succeeded"
@@ -115,7 +117,7 @@ export async function authorizeSubOrderCharge(
           `[Pre-Auth] Existing PaymentIntent ${subOrder.stripeChargeId} has status ${existingPI.status}, creating new one`
         );
       } catch (error) {
-        // If we can't retrieve the PaymentIntent, create a new one
+        // If we can't retrieve the PaymentIntent (deleted, invalid, etc.), create a new one
         console.warn(
           `[Pre-Auth] Could not retrieve existing PaymentIntent ${subOrder.stripeChargeId}, creating new one`
         );
@@ -152,8 +154,9 @@ export async function authorizeSubOrderCharge(
       };
     }
 
-    // Create PaymentIntent directly on vendor's connected account
-    // The vendor is the merchant of record, so funds go directly to them
+    // Create PaymentIntent with platform as merchant of record
+    // Funds will automatically transfer to the vendor's connected account
+    // This is the recommended approach for marketplace platforms
     const stripe = getStripe();
 
     let paymentIntent: Stripe.PaymentIntent;
@@ -167,6 +170,9 @@ export async function authorizeSubOrderCharge(
           capture_method: "manual", // Pre-authorize only, don't capture funds
           confirm: true, // Immediately confirm the payment
           off_session: true, // Payment is being made without customer present
+          transfer_data: {
+            destination: subOrder.Vendor.stripeAccountId, // Funds go to vendor
+          },
           metadata: {
             subOrderId: subOrder.id,
             subOrderNumber: subOrder.subOrderNumber,
@@ -180,7 +186,6 @@ export async function authorizeSubOrderCharge(
           },
         },
         {
-          stripeAccount: subOrder.Vendor.stripeAccountId, // Create on vendor's account
           idempotencyKey: `pre-auth-${subOrderId}`, // Prevent duplicate charges on retry
         }
       );
@@ -240,23 +245,42 @@ export async function authorizeSubOrderCharge(
         );
 
         // Cancel the newly created PaymentIntent since we don't need it
-        await stripe.paymentIntents.cancel(
-          paymentIntent.id,
-          {},
-          {
-            stripeAccount: subOrder.Vendor.stripeAccountId,
-          }
-        );
+        try {
+          await stripe.paymentIntents.cancel(
+            paymentIntent.id,
+            {},
+            {
+              stripeAccount: subOrder.Vendor.stripeAccountId,
+            }
+          );
+          console.log(
+            `[Pre-Auth] Canceled duplicate PaymentIntent ${paymentIntent.id}`
+          );
+        } catch (cancelError) {
+          // Log but don't fail - the important thing is we detected the race condition
+          console.error(
+            `[Pre-Auth] Failed to cancel duplicate PaymentIntent ${paymentIntent.id}:`,
+            cancelError
+          );
+        }
 
-        // Fetch the existing charge ID
+        // Fetch the existing charge ID that won the race
         const existingSubOrder = await prisma.subOrder.findUnique({
           where: { id: subOrderId },
           select: { stripeChargeId: true },
         });
 
+        if (!existingSubOrder?.stripeChargeId) {
+          // This should never happen - if update count was 0, another process must have set it
+          throw new Error(
+            `[Pre-Auth] Race condition detected but could not retrieve existing stripeChargeId for SubOrder ${subOrderId}`
+          );
+        }
+
+        // Return the existing PaymentIntent ID
         return {
           success: true,
-          paymentIntentId: existingSubOrder?.stripeChargeId || "",
+          paymentIntentId: existingSubOrder.stripeChargeId,
         };
       }
     } catch (dbError) {

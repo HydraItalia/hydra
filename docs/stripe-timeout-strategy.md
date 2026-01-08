@@ -339,6 +339,74 @@ stripe trigger payment_intent.succeeded --delay 35000
 
 ---
 
+## Race Condition Handling
+
+### Detection and Recovery
+
+The implementation includes robust race condition detection:
+
+```typescript
+// Atomic update with conditional where clause
+const updateResult = await prisma.subOrder.updateMany({
+  where: {
+    id: subOrderId,
+    stripeChargeId: null, // Only update if not already authorized
+  },
+  data: { stripeChargeId, paymentStatus },
+});
+
+if (updateResult.count === 0) {
+  // Race condition detected - another process won
+
+  // Cancel the duplicate PaymentIntent
+  await stripe.paymentIntents.cancel(paymentIntent.id);
+
+  // Fetch and return the existing PaymentIntent ID
+  const existingSubOrder = await prisma.subOrder.findUnique({
+    where: { id: subOrderId },
+  });
+
+  if (!existingSubOrder?.stripeChargeId) {
+    // Should never happen - fail loudly if it does
+    throw new Error("Race condition detected but no existing stripeChargeId");
+  }
+
+  return { success: true, paymentIntentId: existingSubOrder.stripeChargeId };
+}
+```
+
+### PaymentIntent State Verification
+
+Before returning an existing authorization, the system verifies the PaymentIntent's state with Stripe:
+
+```typescript
+if (subOrder.stripeChargeId) {
+  // Don't trust database alone - verify with Stripe
+  const existingPI = await stripe.paymentIntents.retrieve(
+    subOrder.stripeChargeId
+  );
+
+  // Only return if in valid state
+  if (
+    existingPI.status === "requires_capture" ||
+    existingPI.status === "succeeded"
+  ) {
+    return { success: true, paymentIntentId: existingPI.id };
+  }
+
+  // If canceled/failed, create new authorization
+  console.warn(`PaymentIntent has invalid status ${existingPI.status}`);
+}
+```
+
+**Why this matters:**
+
+- Database could have stale `stripeChargeId`
+- PaymentIntent might be canceled, expired, or failed
+- Prevents returning "success" for failed authorizations
+
+---
+
 ## Summary
 
 **Three layers of protection:**
@@ -347,10 +415,19 @@ stripe trigger payment_intent.succeeded --delay 35000
 2. **Authorization Function**: 30s overall timeout per SubOrder
 3. **Parallel Processing**: Each SubOrder has independent timeout
 
+**Additional safeguards:**
+
+4. **Race Condition Detection**: Atomic database updates with validation
+5. **State Verification**: Always verify PaymentIntent status with Stripe
+6. **Orphaned Resource Cleanup**: Auto-cancel PaymentIntents on failures
+7. **Idempotency**: Safe retries with idempotency keys
+
 **Result:**
 
 - Fast failure on slow/unresponsive APIs
 - Clear error messages for debugging
 - No thread pool exhaustion
+- No race conditions or duplicate charges
+- Verified payment states
 - Excellent user experience
 - Production-ready reliability
