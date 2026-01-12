@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth";
 import { DeliveryStatus, type Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { startOfDay } from "date-fns";
+import { captureSubOrderPayment } from "@/lib/stripe-auth";
 
 /**
  * Helper function to verify driver authentication and authorization
@@ -238,6 +239,7 @@ export async function markAsInTransit(deliveryId: string) {
 
 /**
  * Update delivery status to DELIVERED
+ * Also captures payment for SubOrders with pre-authorized charges
  */
 export async function markAsDelivered(deliveryId: string, notes?: string) {
   const { driverId } = await requireDriverAuth();
@@ -259,7 +261,13 @@ export async function markAsDelivered(deliveryId: string, notes?: string) {
         },
         include: {
           Order: true,
-          SubOrder: true,
+          SubOrder: {
+            select: {
+              id: true,
+              stripeChargeId: true,
+              paymentStatus: true,
+            },
+          },
         },
       });
 
@@ -277,6 +285,47 @@ export async function markAsDelivered(deliveryId: string, notes?: string) {
 
       return delivery;
     });
+
+    // After delivery is confirmed, capture payment for SubOrder
+    // This happens outside the transaction to avoid blocking delivery confirmation
+    if (updated.SubOrder?.id) {
+      // Only attempt capture if SubOrder has a pre-authorized charge
+      if (
+        updated.SubOrder.stripeChargeId &&
+        updated.SubOrder.paymentStatus === "PROCESSING"
+      ) {
+        console.log(
+          `[Delivery] Capturing payment for SubOrder ${updated.SubOrder.id} after delivery confirmation`
+        );
+
+        // Capture payment asynchronously
+        // We don't want capture failures to block delivery confirmation
+        captureSubOrderPayment(updated.SubOrder.id)
+          .then((result) => {
+            if (result.success) {
+              console.log(
+                `[Delivery] Payment captured successfully for SubOrder ${updated.SubOrder?.id}: ${result.paymentIntentId}`
+              );
+            } else {
+              console.error(
+                `[Delivery] Failed to capture payment for SubOrder ${updated.SubOrder?.id}: ${result.error}`
+              );
+              // TODO: Consider adding notification/alert system for failed captures
+              // For now, log the error for manual reconciliation
+            }
+          })
+          .catch((error) => {
+            console.error(
+              `[Delivery] Unexpected error capturing payment for SubOrder ${updated.SubOrder?.id}:`,
+              error
+            );
+          });
+      } else {
+        console.log(
+          `[Delivery] Skipping payment capture for SubOrder ${updated.SubOrder.id}: no pre-authorized charge or already captured`
+        );
+      }
+    }
 
     revalidatePath("/dashboard/deliveries");
     revalidatePath(`/dashboard/deliveries/${deliveryId}`);
