@@ -40,6 +40,13 @@ export type AuthorizationResult = {
   error?: string;
 };
 
+export type CaptureResult = {
+  success: boolean;
+  paymentIntentId?: string;
+  amountCaptured?: number;
+  error?: string;
+};
+
 /**
  * Pre-authorize a charge for a SubOrder on the vendor's Stripe Connected Account
  *
@@ -343,6 +350,211 @@ export async function authorizeSubOrderCharge(
     return {
       success: false,
       error: "Failed to authorize charge",
+    };
+  }
+}
+
+/**
+ * Capture a previously authorized charge for a SubOrder
+ *
+ * This function should be called after delivery confirmation to actually charge
+ * the customer and transfer funds to the vendor's Stripe account.
+ *
+ * @param subOrderId - The ID of the SubOrder to capture payment for
+ * @returns Result with success status, PaymentIntent ID, and amount captured or error
+ */
+export async function captureSubOrderPayment(
+  subOrderId: string
+): Promise<CaptureResult> {
+  try {
+    // Fetch SubOrder with related data
+    const subOrder = await prisma.subOrder.findUnique({
+      where: { id: subOrderId },
+      include: {
+        Vendor: {
+          select: {
+            id: true,
+            name: true,
+            stripeAccountId: true,
+          },
+        },
+        Order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            Client: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!subOrder) {
+      return {
+        success: false,
+        error: "SubOrder not found",
+      };
+    }
+
+    // Check if SubOrder has a PaymentIntent
+    if (!subOrder.stripeChargeId) {
+      return {
+        success: false,
+        error: "No PaymentIntent found for this SubOrder",
+      };
+    }
+
+    // Check if already captured
+    if (subOrder.paymentStatus === PaymentStatus.SUCCEEDED && subOrder.paidAt) {
+      return {
+        success: true,
+        paymentIntentId: subOrder.stripeChargeId,
+        amountCaptured: subOrder.subTotalCents,
+      };
+    }
+
+    const stripe = getStripe();
+
+    // Retrieve the PaymentIntent to verify it's capturable
+    let paymentIntent: Stripe.PaymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.retrieve(
+        subOrder.stripeChargeId
+      );
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeError) {
+        console.error(
+          `[Capture] Failed to retrieve PaymentIntent ${subOrder.stripeChargeId}:`,
+          error.message
+        );
+      }
+      return {
+        success: false,
+        error: "PaymentIntent not found or invalid",
+      };
+    }
+
+    // Verify PaymentIntent is in capturable state
+    if (paymentIntent.status !== "requires_capture") {
+      // If already succeeded, update database to match
+      if (paymentIntent.status === "succeeded") {
+        await prisma.subOrder.update({
+          where: { id: subOrderId },
+          data: {
+            paymentStatus: PaymentStatus.SUCCEEDED,
+            paidAt: new Date(),
+          },
+        });
+
+        return {
+          success: true,
+          paymentIntentId: paymentIntent.id,
+          amountCaptured: paymentIntent.amount,
+        };
+      }
+
+      return {
+        success: false,
+        error: `PaymentIntent is in ${paymentIntent.status} status and cannot be captured`,
+      };
+    }
+
+    // Capture the PaymentIntent
+    let capturedPaymentIntent: Stripe.PaymentIntent;
+    try {
+      capturedPaymentIntent = await stripe.paymentIntents.capture(
+        subOrder.stripeChargeId,
+        {
+          // Optionally specify amount_to_capture if supporting partial captures
+          // For now, we capture the full amount
+        },
+        {
+          idempotencyKey: `capture-${subOrderId}`, // Prevent duplicate captures on retry
+        }
+      );
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeError) {
+        console.error(
+          `[Capture] Stripe error for SubOrder ${subOrderId}:`,
+          error.message
+        );
+
+        // Handle specific Stripe errors
+        const safeCodeMessages: Record<string, string> = {
+          resource_missing: "PaymentIntent not found",
+          charge_already_captured: "Payment has already been captured",
+          charge_expired_for_capture: "Payment authorization has expired",
+          insufficient_funds: "Insufficient funds to capture",
+        };
+
+        const message =
+          safeCodeMessages[error.code ?? ""] || "Failed to capture payment";
+
+        return {
+          success: false,
+          error: message,
+        };
+      }
+
+      throw error; // Re-throw for outer catch
+    }
+
+    // Verify capture succeeded
+    if (capturedPaymentIntent.status !== "succeeded") {
+      return {
+        success: false,
+        error: `Capture completed but PaymentIntent status is ${capturedPaymentIntent.status}`,
+      };
+    }
+
+    // Update SubOrder with captured status
+    try {
+      await prisma.subOrder.update({
+        where: { id: subOrderId },
+        data: {
+          paymentStatus: PaymentStatus.SUCCEEDED,
+          paidAt: new Date(),
+        },
+      });
+    } catch (dbError) {
+      // Payment was captured in Stripe but DB update failed
+      // Log for manual reconciliation
+      console.error(
+        `[Capture] CRITICAL: Payment captured in Stripe (${capturedPaymentIntent.id}) but database update failed for SubOrder ${subOrderId}`,
+        dbError
+      );
+
+      // Still return success since funds were captured
+      // Operations team will need to reconcile manually
+      return {
+        success: true,
+        paymentIntentId: capturedPaymentIntent.id,
+        amountCaptured: capturedPaymentIntent.amount_received,
+      };
+    }
+
+    return {
+      success: true,
+      paymentIntentId: capturedPaymentIntent.id,
+      amountCaptured: capturedPaymentIntent.amount_received,
+    };
+  } catch (error) {
+    console.error("Capture payment error:", error);
+
+    if (error instanceof Stripe.errors.StripeError) {
+      return {
+        success: false,
+        error: "Failed to capture payment",
+      };
+    }
+
+    return {
+      success: false,
+      error: "Failed to capture payment",
     };
   }
 }

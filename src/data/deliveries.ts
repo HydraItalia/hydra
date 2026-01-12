@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth";
 import { DeliveryStatus, type Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { startOfDay } from "date-fns";
+import { captureSubOrderPayment } from "@/lib/stripe-auth";
 
 /**
  * Helper function to verify driver authentication and authorization
@@ -238,6 +239,7 @@ export async function markAsInTransit(deliveryId: string) {
 
 /**
  * Update delivery status to DELIVERED
+ * Also captures payment for SubOrders with pre-authorized charges
  */
 export async function markAsDelivered(deliveryId: string, notes?: string) {
   const { driverId } = await requireDriverAuth();
@@ -259,7 +261,13 @@ export async function markAsDelivered(deliveryId: string, notes?: string) {
         },
         include: {
           Order: true,
-          SubOrder: true,
+          SubOrder: {
+            select: {
+              id: true,
+              stripeChargeId: true,
+              paymentStatus: true,
+            },
+          },
         },
       });
 
@@ -277,6 +285,60 @@ export async function markAsDelivered(deliveryId: string, notes?: string) {
 
       return delivery;
     });
+
+    // After delivery is confirmed, capture payment for SubOrder
+    // IMPORTANT: This is synchronous (awaited) to ensure capture completes
+    // before the function terminates in serverless environments
+    if (updated.SubOrder?.id) {
+      // Only attempt capture if SubOrder has a pre-authorized charge
+      if (
+        updated.SubOrder.stripeChargeId &&
+        updated.SubOrder.paymentStatus === "PROCESSING"
+      ) {
+        console.log(
+          `[Delivery] Capturing payment for SubOrder ${updated.SubOrder.id} after delivery confirmation`
+        );
+
+        // Capture payment synchronously to prevent silent failures in serverless
+        // This adds ~1-2 seconds to delivery confirmation but ensures reliability
+        try {
+          const result = await captureSubOrderPayment(updated.SubOrder.id);
+
+          if (result.success) {
+            console.log(
+              `[Delivery] Payment captured successfully for SubOrder ${updated.SubOrder.id}: ${result.paymentIntentId}`
+            );
+          } else {
+            // CRITICAL: Delivery confirmed but payment capture failed
+            // This requires immediate attention and manual reconciliation
+            console.error(
+              `[Delivery] CRITICAL: Failed to capture payment for SubOrder ${updated.SubOrder.id}: ${result.error}`
+            );
+            console.error(
+              `[Delivery] ACTION REQUIRED: Manually capture PaymentIntent ${updated.SubOrder.stripeChargeId} for SubOrder ${updated.SubOrder.id}`
+            );
+            // TODO: Send alert via email/Slack/PagerDuty
+            // For now, CRITICAL log prefix ensures monitoring catches this
+          }
+        } catch (error) {
+          // CRITICAL: Unexpected error during capture
+          console.error(
+            `[Delivery] CRITICAL: Unexpected error capturing payment for SubOrder ${updated.SubOrder.id}:`,
+            error
+          );
+          console.error(
+            `[Delivery] ACTION REQUIRED: Investigate and manually capture PaymentIntent ${updated.SubOrder.stripeChargeId}`
+          );
+          // TODO: Send alert via email/Slack/PagerDuty
+        }
+      } else {
+        console.log(
+          `[Delivery] Skipping payment capture for SubOrder ${updated.SubOrder.id}: ` +
+            `stripeChargeId=${updated.SubOrder.stripeChargeId ?? "null"}, ` +
+            `paymentStatus=${updated.SubOrder.paymentStatus}`
+        );
+      }
+    }
 
     revalidatePath("/dashboard/deliveries");
     revalidatePath(`/dashboard/deliveries/${deliveryId}`);
