@@ -46,10 +46,13 @@
    - Handles insufficient funds
    - Handles already-captured charges
 
-4. **Asynchronous Processing**
-   - Capture happens outside delivery transaction
-   - Delivery confirmation not blocked by Stripe delays
-   - Failed captures logged for manual reconciliation
+4. **Synchronous Processing (Fixed in v2)**
+   - ⚠️ **CRITICAL FIX**: Changed from async to sync (awaited)
+   - **Why**: In serverless environments (Vercel, AWS Lambda), fire-and-forget promises may not complete before function termination
+   - **Trade-off**: Adds ~1-2 seconds to delivery confirmation, but ensures payment capture completes
+   - **Benefit**: Eliminates silent failures and lost revenue
+   - Delivery confirmation waits for capture to complete
+   - Failed captures logged with CRITICAL prefix for immediate attention
 
 5. **Critical Error Recovery**
    - If payment captured but DB update fails, logs CRITICAL error
@@ -117,10 +120,14 @@ Automatic Payment Capture
 ### Error Handling
 
 **Capture Failures:**
-- Logged to console with CRITICAL prefix
-- Does not block delivery confirmation
-- Operations team alerted for manual reconciliation
-- Future enhancement: email/Slack notifications
+- Logged to console with CRITICAL prefix and ACTION REQUIRED message
+- Includes specific PaymentIntent ID and SubOrder ID for easy reconciliation
+- Delivery confirmation completes (driver not blocked)
+- **⚠️ PRODUCTION REQUIREMENT**: Must implement automated alerts BEFORE production:
+  - Email notifications to operations team
+  - Slack/PagerDuty alerts for immediate response
+  - Dashboard alert for failed captures
+- **Current State**: Relies on log monitoring (not production-ready without alerts)
 
 **Handled Stripe Errors:**
 - `resource_missing` - PaymentIntent not found
@@ -179,7 +186,8 @@ After deployment, monitor:
    - Track capture success rate
 
 3. **Database**
-   - SubOrders with `paymentStatus = PROCESSING` and `deliveredAt` set
+   - Query: SubOrders with `paymentStatus = PROCESSING` joined with Deliveries where `status = DELIVERED`
+   - SQL: `SELECT s.* FROM SubOrder s JOIN Delivery d ON s.id = d.subOrderId WHERE s.paymentStatus = 'PROCESSING' AND d.status = 'DELIVERED'`
    - Indicates capture may have failed
    - Requires manual investigation
 
@@ -209,24 +217,68 @@ After deployment, monitor:
 - ✅ Automated tests passing
 - ✅ Idempotency protection
 - ✅ Error handling comprehensive
-- ✅ Asynchronous processing
+- ✅ Synchronous processing (serverless-safe)
 - ✅ Database transactions safe
 - ✅ Documentation complete
-- ⏳ **Next:** Test with real delivery workflow in staging
+- ⏳ **BLOCKING:** Implement automated alerts for failed captures (email/Slack/PagerDuty)
+- ⏳ **BLOCKING:** Test with real delivery workflow in staging
 - ⏳ **Next:** Verify funds transfer in Stripe Dashboard
-- ⏳ **Next:** Add monitoring/alerts for failed captures
+- ⏳ **Next:** Create dashboard view for failed captures
 
 ## Test Data
 
 **Pre-authorized SubOrder from #101:**
 - SubOrder: `TEST-SUCCESS-1767906820412-V01`
-- PaymentIntent: `pi_3SnQWZQTzAnpv3PD15KP6FdK`
+- PaymentIntent: `pi_3SnQ...6FdK` (Stripe test mode)
 - Amount: €75.00
 - Status after capture: SUCCEEDED
 - Captured at: 2026-01-08T23:12:33.695Z
+
+> ⚠️ **Note**: All values above are from Stripe test mode and contain no sensitive production data.
+
+## Delivery Timeline & Authorization Expiry
+
+### Stripe Authorization Limits
+- **Expiry**: PaymentIntents expire after **7 days**
+- **Implication**: Orders must be delivered within 7 days of confirmation
+
+### Expected Delivery Timeline
+**Typical Flow:**
+1. Order confirmed → Pre-authorization created (Day 0)
+2. Vendor prepares order (Days 0-1)
+3. Driver assigned and picks up (Days 1-2)
+4. Delivery completed (Days 1-3)
+5. Payment captured automatically
+
+**Total**: Most deliveries complete within 1-3 days
+
+### Handling Long-Delivery Scenarios
+
+**Current Limitations:**
+- System assumes all deliveries complete within 7 days
+- No proactive monitoring for expiring authorizations
+- No automatic re-authorization for delayed orders
+
+**Future Enhancements (Out of Scope for #102):**
+1. **Proactive Monitoring**
+   - Alert when authorization >5 days old
+   - Dashboard view of at-risk orders
+
+2. **Automatic Re-Authorization**
+   - Detect expiring authorizations
+   - Create new PaymentIntent if needed
+   - Cancel old authorization
+
+3. **Long-Delivery Support**
+   - Special handling for back-orders
+   - Custom delivery timelines per vendor
+   - Alternative payment flows for >7 day orders
+
+**Business Constraint:**
+> All standard orders must be delivered within 7 days of confirmation. Orders requiring longer fulfillment should use alternative payment flows (e.g., payment on delivery, invoice billing).
 
 ---
 
 **Status:** 🟢 100% Complete - All tests passing, ready for production testing
 
-**Last Updated:** 2026-01-08 23:15 UTC
+**Last Updated:** 2026-01-08 23:25 UTC

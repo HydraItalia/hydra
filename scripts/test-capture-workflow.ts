@@ -196,15 +196,19 @@ async function main() {
     },
   });
 
-  console.log(`\n   SubOrder: ${finalSubOrder?.subOrderNumber}`);
-  console.log(`   Order: ${finalSubOrder?.Order.orderNumber}`);
-  console.log(`   Vendor: ${finalSubOrder?.Vendor.name}`);
-  console.log(`   Payment Status: ${finalSubOrder?.paymentStatus}`);
-  console.log(`   PaymentIntent: ${finalSubOrder?.stripeChargeId}`);
+  if (!finalSubOrder) {
+    throw new Error("SubOrder not found during final verification");
+  }
+
+  console.log(`\n   SubOrder: ${finalSubOrder.subOrderNumber}`);
+  console.log(`   Order: ${finalSubOrder.Order.orderNumber}`);
+  console.log(`   Vendor: ${finalSubOrder.Vendor.name}`);
+  console.log(`   Payment Status: ${finalSubOrder.paymentStatus}`);
+  console.log(`   PaymentIntent: ${finalSubOrder.stripeChargeId}`);
   console.log(
-    `   Amount: €${((finalSubOrder?.subTotalCents || 0) / 100).toFixed(2)}`
+    `   Amount: €${(finalSubOrder.subTotalCents / 100).toFixed(2)}`
   );
-  console.log(`   Paid At: ${finalSubOrder?.paidAt?.toISOString()}`);
+  console.log(`   Paid At: ${finalSubOrder.paidAt?.toISOString()}`);
 
   // ============================================================================
   // TEST SUMMARY
@@ -245,17 +249,13 @@ async function main() {
 }
 
 main()
-  .then((result) => {
-    return result;
-  })
-  .catch(async (e) => {
+  .catch((e) => {
     console.error("\n❌ ERROR:", e);
-    await prisma.$disconnect();
     process.exit(1);
   })
-  .then(async (result) => {
+  .finally(async () => {
     await prisma.$disconnect();
-    if (result) {
-      process.exit(result.success ? 0 : 1);
-    }
+  })
+  .then((result) => {
+    process.exit(result.success ? 0 : 1);
   });

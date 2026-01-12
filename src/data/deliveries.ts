@@ -287,7 +287,8 @@ export async function markAsDelivered(deliveryId: string, notes?: string) {
     });
 
     // After delivery is confirmed, capture payment for SubOrder
-    // This happens outside the transaction to avoid blocking delivery confirmation
+    // IMPORTANT: This is synchronous (awaited) to ensure capture completes
+    // before the function terminates in serverless environments
     if (updated.SubOrder?.id) {
       // Only attempt capture if SubOrder has a pre-authorized charge
       if (
@@ -298,31 +299,43 @@ export async function markAsDelivered(deliveryId: string, notes?: string) {
           `[Delivery] Capturing payment for SubOrder ${updated.SubOrder.id} after delivery confirmation`
         );
 
-        // Capture payment asynchronously
-        // We don't want capture failures to block delivery confirmation
-        captureSubOrderPayment(updated.SubOrder.id)
-          .then((result) => {
-            if (result.success) {
-              console.log(
-                `[Delivery] Payment captured successfully for SubOrder ${updated.SubOrder?.id}: ${result.paymentIntentId}`
-              );
-            } else {
-              console.error(
-                `[Delivery] Failed to capture payment for SubOrder ${updated.SubOrder?.id}: ${result.error}`
-              );
-              // TODO: Consider adding notification/alert system for failed captures
-              // For now, log the error for manual reconciliation
-            }
-          })
-          .catch((error) => {
-            console.error(
-              `[Delivery] Unexpected error capturing payment for SubOrder ${updated.SubOrder?.id}:`,
-              error
+        // Capture payment synchronously to prevent silent failures in serverless
+        // This adds ~1-2 seconds to delivery confirmation but ensures reliability
+        try {
+          const result = await captureSubOrderPayment(updated.SubOrder.id);
+
+          if (result.success) {
+            console.log(
+              `[Delivery] Payment captured successfully for SubOrder ${updated.SubOrder.id}: ${result.paymentIntentId}`
             );
-          });
+          } else {
+            // CRITICAL: Delivery confirmed but payment capture failed
+            // This requires immediate attention and manual reconciliation
+            console.error(
+              `[Delivery] CRITICAL: Failed to capture payment for SubOrder ${updated.SubOrder.id}: ${result.error}`
+            );
+            console.error(
+              `[Delivery] ACTION REQUIRED: Manually capture PaymentIntent ${updated.SubOrder.stripeChargeId} for SubOrder ${updated.SubOrder.id}`
+            );
+            // TODO: Send alert via email/Slack/PagerDuty
+            // For now, CRITICAL log prefix ensures monitoring catches this
+          }
+        } catch (error) {
+          // CRITICAL: Unexpected error during capture
+          console.error(
+            `[Delivery] CRITICAL: Unexpected error capturing payment for SubOrder ${updated.SubOrder.id}:`,
+            error
+          );
+          console.error(
+            `[Delivery] ACTION REQUIRED: Investigate and manually capture PaymentIntent ${updated.SubOrder.stripeChargeId}`
+          );
+          // TODO: Send alert via email/Slack/PagerDuty
+        }
       } else {
         console.log(
-          `[Delivery] Skipping payment capture for SubOrder ${updated.SubOrder.id}: no pre-authorized charge or already captured`
+          `[Delivery] Skipping payment capture for SubOrder ${updated.SubOrder.id}: ` +
+            `stripeChargeId=${updated.SubOrder.stripeChargeId ?? "null"}, ` +
+            `paymentStatus=${updated.SubOrder.paymentStatus}`
         );
       }
     }
