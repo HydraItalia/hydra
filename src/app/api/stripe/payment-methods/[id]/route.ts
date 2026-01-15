@@ -186,8 +186,15 @@ export async function GET(
       );
     }
 
+    // TEMPORARY DEBUG: Return error details for production troubleshooting
     return NextResponse.json(
-      { error: "Failed to retrieve payment method" },
+      {
+        error: "Failed to retrieve payment method",
+        debug: {
+          name: error instanceof Error ? error.name : 'unknown',
+          message: error instanceof Error ? error.message : String(error),
+        }
+      },
       { status: 500 }
     );
   }
