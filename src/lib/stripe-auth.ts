@@ -100,12 +100,10 @@ export async function authorizeSubOrderCharge(
       try {
         // Fetch the PaymentIntent from Stripe to verify its current state
         // We can't trust the database alone - the PaymentIntent could be canceled, expired, or failed
+        // PaymentIntents are created on the platform account (with transfer_data.destination)
+        // so we retrieve from platform account - no stripeAccount header needed
         const existingPI = await stripe.paymentIntents.retrieve(
-          subOrder.stripeChargeId,
-          {},
-          {
-            stripeAccount: subOrder.Vendor.stripeAccountId || undefined,
-          }
+          subOrder.stripeChargeId
         );
 
         // Only return success if PaymentIntent is in a valid state
@@ -252,14 +250,9 @@ export async function authorizeSubOrderCharge(
         );
 
         // Cancel the newly created PaymentIntent since we don't need it
+        // PaymentIntent is on platform account - no stripeAccount header needed
         try {
-          await stripe.paymentIntents.cancel(
-            paymentIntent.id,
-            {},
-            {
-              stripeAccount: subOrder.Vendor.stripeAccountId,
-            }
-          );
+          await stripe.paymentIntents.cancel(paymentIntent.id);
           console.log(
             `[Pre-Auth] Canceled duplicate PaymentIntent ${paymentIntent.id}`
           );
@@ -298,14 +291,9 @@ export async function authorizeSubOrderCharge(
       );
 
       // Attempt to cancel the PaymentIntent to prevent orphaned charges
+      // PaymentIntent is on platform account - no stripeAccount header needed
       try {
-        await stripe.paymentIntents.cancel(
-          paymentIntent.id,
-          {},
-          {
-            stripeAccount: subOrder.Vendor.stripeAccountId,
-          }
-        );
+        await stripe.paymentIntents.cancel(paymentIntent.id);
         console.log(
           `[Pre-Auth] Canceled orphaned PaymentIntent ${paymentIntent.id}`
         );
