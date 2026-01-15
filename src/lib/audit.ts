@@ -78,6 +78,16 @@ export const AuditAction = {
   // Shift actions (admin oversight)
   SHIFT_CREATED_BY_ADMIN: "SHIFT_CREATED_BY_ADMIN",
   SHIFT_CLOSED_BY_ADMIN: "SHIFT_CLOSED_BY_ADMIN",
+
+  // Payment actions (Issue #104)
+  PAYMENT_AUTHORIZATION_FAILED: "PAYMENT_AUTHORIZATION_FAILED",
+  PAYMENT_AUTHORIZATION_SUCCEEDED: "PAYMENT_AUTHORIZATION_SUCCEEDED",
+  PAYMENT_CAPTURE_FAILED: "PAYMENT_CAPTURE_FAILED",
+  PAYMENT_CAPTURE_SUCCEEDED: "PAYMENT_CAPTURE_SUCCEEDED",
+  PAYMENT_RETRY_ATTEMPTED: "PAYMENT_RETRY_ATTEMPTED",
+  PAYMENT_RETRY_SCHEDULED: "PAYMENT_RETRY_SCHEDULED",
+  PAYMENT_MARKED_REQUIRES_UPDATE: "PAYMENT_MARKED_REQUIRES_UPDATE",
+  PAYMENT_MANUAL_RETRY: "PAYMENT_MANUAL_RETRY",
 } as const;
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction];
@@ -250,6 +260,45 @@ export async function getAuditLogs(
     },
     take: limit,
   });
+}
+
+/**
+ * Log a system action (for cron jobs and automated processes)
+ * Does NOT require a current user - uses null as actor
+ *
+ * @param params - Same as logAction but without user context
+ * @returns Promise<void>
+ */
+export async function logSystemAction({
+  entityType,
+  entityId,
+  action,
+  diff,
+}: {
+  entityType: string;
+  entityId: string;
+  action: AuditActionType;
+  diff?: Record<string, any> | null;
+}): Promise<void> {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        id: createId(),
+        actorUserId: null, // System action - no user
+        entityType,
+        entityId,
+        action,
+        diff: diff ? (diff as Prisma.InputJsonValue) : Prisma.JsonNull,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to create system audit log:", {
+      entityType,
+      entityId,
+      action,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
 }
 
 /**

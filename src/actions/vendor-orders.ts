@@ -9,7 +9,7 @@
 
 import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { SubOrderStatus, DeliveryStatus } from "@prisma/client";
+import { SubOrderStatus, DeliveryStatus, PaymentStatus } from "@prisma/client";
 
 // Type for SubOrder list items
 export type VendorSubOrderListItem = {
@@ -40,6 +40,9 @@ export type VendorSubOrderDetail = {
   canceledAt: Date | null;
   vendorNotes: string | null;
   createdAt: Date;
+  // Payment status (Issue #104)
+  paymentStatus: PaymentStatus | null;
+  requiresClientUpdate: boolean;
   Order: {
     orderNumber: string;
     clientName: string;
@@ -222,6 +225,9 @@ export async function getVendorOrderDetail(
       canceledAt: subOrder.canceledAt,
       vendorNotes: subOrder.vendorNotes,
       createdAt: subOrder.createdAt,
+      // Payment status (Issue #104)
+      paymentStatus: subOrder.paymentStatus,
+      requiresClientUpdate: subOrder.requiresClientUpdate,
       Order: {
         orderNumber: subOrder.Order.orderNumber,
         clientName: subOrder.Order.Client.name,

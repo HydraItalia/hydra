@@ -339,6 +339,15 @@ model SubOrder {
   paidAt         DateTime?
   paymentStatus  PaymentStatus?
 
+  // Payment failure tracking (Issue #104)
+  paymentAttemptCount      Int       @default(0)
+  lastPaymentAttemptAt     DateTime?
+  nextPaymentRetryAt       DateTime?
+  paymentLastErrorCode     String?   // Stripe error code (sanitized, no PII)
+  paymentLastErrorMessage  String?   // User-safe error message
+  authorizationExpiresAt   DateTime? // 7 days from authorization
+  requiresClientUpdate     Boolean   @default(false) // Flag for manual intervention
+
   // Fee tracking (accounting separation - Phase 11)
   // NOTE: Fees not deducted automatically until legal approval
   hydraFeeCents   Int?   // Calculated Hydra platform fee in cents
@@ -366,6 +375,7 @@ model SubOrder {
   @@index([vendorId])
   @@index([status])
   @@index([vendorId, status])
+  @@index([paymentStatus, nextPaymentRetryAt]) // For payment retry cron job
 }
 
 model OrderItem {

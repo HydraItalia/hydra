@@ -8,6 +8,11 @@
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@prisma/client";
 import Stripe from "stripe";
+import {
+  classifyStripeError,
+  calculateNextRetryAt,
+  calculateAuthorizationExpiresAt,
+} from "@/lib/stripe-errors";
 
 let stripeInstance: Stripe | null = null;
 
@@ -38,6 +43,9 @@ export type AuthorizationResult = {
   success: boolean;
   paymentIntentId?: string;
   error?: string;
+  errorCode?: string;
+  isTransient?: boolean;
+  requiresClientUpdate?: boolean;
 };
 
 export type CaptureResult = {
@@ -45,6 +53,9 @@ export type CaptureResult = {
   paymentIntentId?: string;
   amountCaptured?: number;
   error?: string;
+  errorCode?: string;
+  isTransient?: boolean;
+  isExpiredAuthorization?: boolean;
 };
 
 /**
@@ -240,6 +251,18 @@ export async function authorizeSubOrderCharge(
         data: {
           stripeChargeId: paymentIntent.id,
           paymentStatus,
+          // Set authorization expiration (7 days from now)
+          authorizationExpiresAt:
+            paymentStatus === PaymentStatus.PROCESSING
+              ? calculateAuthorizationExpiresAt()
+              : null,
+          // Clear any previous error state on successful authorization
+          paymentLastErrorCode: null,
+          paymentLastErrorMessage: null,
+          nextPaymentRetryAt: null,
+          requiresClientUpdate: false,
+          // Update attempt tracking
+          lastPaymentAttemptAt: new Date(),
         },
       });
 
@@ -314,30 +337,53 @@ export async function authorizeSubOrderCharge(
   } catch (error) {
     console.error("Authorize charge error:", error);
 
-    // Handle Stripe errors
-    if (error instanceof Stripe.errors.StripeError) {
-      // Map Stripe error codes to user-friendly messages
-      const safeCodeMessages: Record<string, string> = {
-        resource_missing: "Payment resource not found",
-        payment_method_not_available:
-          "Payment method is not available for this transaction",
-        card_declined: "Card was declined",
-        insufficient_funds: "Insufficient funds",
-        invalid_account: "Invalid Stripe account",
-      };
+    // Classify the error
+    const classification = classifyStripeError(error);
 
-      const message =
-        safeCodeMessages[error.code ?? ""] || "Failed to authorize charge";
+    // Persist failure state to database
+    try {
+      // Fetch current attempt count
+      const currentSubOrder = await prisma.subOrder.findUnique({
+        where: { id: subOrderId },
+        select: { paymentAttemptCount: true },
+      });
 
-      return {
-        success: false,
-        error: message,
-      };
+      const newAttemptCount = (currentSubOrder?.paymentAttemptCount || 0) + 1;
+      const nextRetryAt =
+        classification.kind === "transient"
+          ? calculateNextRetryAt(newAttemptCount)
+          : null;
+
+      await prisma.subOrder.update({
+        where: { id: subOrderId },
+        data: {
+          paymentStatus: PaymentStatus.FAILED,
+          paymentAttemptCount: newAttemptCount,
+          lastPaymentAttemptAt: new Date(),
+          paymentLastErrorCode: classification.code,
+          paymentLastErrorMessage: classification.safeMessage,
+          nextPaymentRetryAt: nextRetryAt,
+          requiresClientUpdate: classification.requiresClientUpdate,
+        },
+      });
+
+      console.log(
+        `[Pre-Auth] Persisted failure state for SubOrder ${subOrderId}: ${classification.code} (${classification.kind})`
+      );
+    } catch (dbError) {
+      // Log but don't fail - the Stripe error is the primary concern
+      console.error(
+        `[Pre-Auth] Failed to persist error state for SubOrder ${subOrderId}:`,
+        dbError
+      );
     }
 
     return {
       success: false,
-      error: "Failed to authorize charge",
+      error: classification.safeMessage,
+      errorCode: classification.code,
+      isTransient: classification.kind === "transient",
+      requiresClientUpdate: classification.requiresClientUpdate,
     };
   }
 }
@@ -471,20 +517,48 @@ export async function captureSubOrderPayment(
           error.message
         );
 
-        // Handle specific Stripe errors
-        const safeCodeMessages: Record<string, string> = {
-          resource_missing: "PaymentIntent not found",
-          charge_already_captured: "Payment has already been captured",
-          charge_expired_for_capture: "Payment authorization has expired",
-          insufficient_funds: "Insufficient funds to capture",
-        };
+        // Classify the error for proper handling
+        const classification = classifyStripeError(error);
 
-        const message =
-          safeCodeMessages[error.code ?? ""] || "Failed to capture payment";
+        // Persist failure state
+        try {
+          const currentSubOrder = await prisma.subOrder.findUnique({
+            where: { id: subOrderId },
+            select: { paymentAttemptCount: true },
+          });
+
+          const newAttemptCount =
+            (currentSubOrder?.paymentAttemptCount || 0) + 1;
+          const nextRetryAt =
+            classification.kind === "transient"
+              ? calculateNextRetryAt(newAttemptCount)
+              : null;
+
+          await prisma.subOrder.update({
+            where: { id: subOrderId },
+            data: {
+              paymentStatus: PaymentStatus.FAILED,
+              paymentAttemptCount: newAttemptCount,
+              lastPaymentAttemptAt: new Date(),
+              paymentLastErrorCode: classification.code,
+              paymentLastErrorMessage: classification.safeMessage,
+              nextPaymentRetryAt: nextRetryAt,
+              requiresClientUpdate: classification.requiresClientUpdate,
+            },
+          });
+        } catch (dbError) {
+          console.error(
+            `[Capture] Failed to persist error state for SubOrder ${subOrderId}:`,
+            dbError
+          );
+        }
 
         return {
           success: false,
-          error: message,
+          error: classification.safeMessage,
+          errorCode: classification.code,
+          isTransient: classification.kind === "transient",
+          isExpiredAuthorization: classification.isExpiredAuthorization,
         };
       }
 
@@ -506,6 +580,12 @@ export async function captureSubOrderPayment(
         data: {
           paymentStatus: PaymentStatus.SUCCEEDED,
           paidAt: new Date(),
+          // Clear any error state on successful capture
+          paymentLastErrorCode: null,
+          paymentLastErrorMessage: null,
+          nextPaymentRetryAt: null,
+          requiresClientUpdate: false,
+          lastPaymentAttemptAt: new Date(),
         },
       });
     } catch (dbError) {
@@ -533,16 +613,53 @@ export async function captureSubOrderPayment(
   } catch (error) {
     console.error("Capture payment error:", error);
 
-    if (error instanceof Stripe.errors.StripeError) {
-      return {
-        success: false,
-        error: "Failed to capture payment",
-      };
+    // Classify the error
+    const classification = classifyStripeError(error);
+
+    // Persist failure state to database
+    try {
+      // Fetch current attempt count
+      const currentSubOrder = await prisma.subOrder.findUnique({
+        where: { id: subOrderId },
+        select: { paymentAttemptCount: true },
+      });
+
+      const newAttemptCount = (currentSubOrder?.paymentAttemptCount || 0) + 1;
+      const nextRetryAt =
+        classification.kind === "transient"
+          ? calculateNextRetryAt(newAttemptCount)
+          : null;
+
+      await prisma.subOrder.update({
+        where: { id: subOrderId },
+        data: {
+          paymentStatus: PaymentStatus.FAILED,
+          paymentAttemptCount: newAttemptCount,
+          lastPaymentAttemptAt: new Date(),
+          paymentLastErrorCode: classification.code,
+          paymentLastErrorMessage: classification.safeMessage,
+          nextPaymentRetryAt: nextRetryAt,
+          requiresClientUpdate: classification.requiresClientUpdate,
+        },
+      });
+
+      console.log(
+        `[Capture] Persisted failure state for SubOrder ${subOrderId}: ${classification.code} (${classification.kind})`
+      );
+    } catch (dbError) {
+      // Log but don't fail - the Stripe error is the primary concern
+      console.error(
+        `[Capture] Failed to persist error state for SubOrder ${subOrderId}:`,
+        dbError
+      );
     }
 
     return {
       success: false,
-      error: "Failed to capture payment",
+      error: classification.safeMessage,
+      errorCode: classification.code,
+      isTransient: classification.kind === "transient",
+      isExpiredAuthorization: classification.isExpiredAuthorization,
     };
   }
 }

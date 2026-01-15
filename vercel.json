@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/jobs/payment-retry",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
