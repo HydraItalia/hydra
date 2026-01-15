@@ -42,7 +42,15 @@ export async function GET(
     // Check authentication
     const user = await currentUser();
 
+    // Debug logging for production troubleshooting
+    console.log("[PaymentMethod GET] Auth check:", {
+      hasUser: !!user,
+      role: user?.role,
+      clientId: user?.clientId,
+    });
+
     if (!user) {
+      console.log("[PaymentMethod GET] Returning 401 - no user session");
       return NextResponse.json(
         { error: "Unauthorized - authentication required" },
         { status: 401 }
