@@ -72,18 +72,25 @@ export async function GET(
     if (user.role === "CLIENT") {
       // For CLIENT users, get their client record
       if (!user.clientId) {
+        console.log("[PaymentMethod GET] No clientId on user");
         return NextResponse.json(
           { error: "Client not found" },
           { status: 404 }
         );
       }
 
+      console.log("[PaymentMethod GET] Fetching client:", user.clientId);
       const client = await prisma.client.findUnique({
         where: { id: user.clientId },
         select: { stripeCustomerId: true },
       });
+      console.log("[PaymentMethod GET] Client result:", {
+        found: !!client,
+        stripeCustomerId: client?.stripeCustomerId
+      });
 
       if (!client || !client.stripeCustomerId) {
+        console.log("[PaymentMethod GET] No client or stripeCustomerId - returning 404");
         return NextResponse.json(
           { error: "Payment method not found" },
           { status: 404 }
@@ -109,14 +116,24 @@ export async function GET(
     }
 
     // Retrieve payment method from Stripe
+    console.log("[PaymentMethod GET] Calling Stripe for:", paymentMethodId);
     const stripe = getStripe();
     const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    console.log("[PaymentMethod GET] Stripe result:", {
+      id: paymentMethod.id,
+      customer: paymentMethod.customer,
+      type: paymentMethod.type
+    });
 
     // CRITICAL: Verify ownership (unless admin)
     if (
       userStripeCustomerId &&
       paymentMethod.customer !== userStripeCustomerId
     ) {
+      console.log("[PaymentMethod GET] Ownership check FAILED:", {
+        expected: userStripeCustomerId,
+        actual: paymentMethod.customer
+      });
       return NextResponse.json(
         { error: "Payment method not found" },
         { status: 404 }
@@ -132,6 +149,7 @@ export async function GET(
     }
 
     // Return safe, displayable information only
+    console.log("[PaymentMethod GET] SUCCESS - returning card details");
     return NextResponse.json({
       brand: paymentMethod.card.brand,
       last4: paymentMethod.card.last4,
@@ -139,7 +157,7 @@ export async function GET(
       expYear: paymentMethod.card.exp_year,
     });
   } catch (error) {
-    console.error("Payment Method API error:", error);
+    console.error("[PaymentMethod GET] CATCH ERROR:", error);
 
     // Return sanitized error messages
     if (error instanceof Stripe.errors.StripeError) {
