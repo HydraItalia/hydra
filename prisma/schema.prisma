@@ -339,6 +339,11 @@ model SubOrder {
   paidAt         DateTime?
   paymentStatus  PaymentStatus?
 
+  // Fee tracking (accounting separation - Phase 11)
+  // NOTE: Fees not deducted automatically until legal approval
+  hydraFeeCents   Int?   // Calculated Hydra platform fee in cents
+  hydraFeePercent Float? // Fee percentage applied (e.g., 0.05 for 5%)
+
   // Fulfillment timestamps
   confirmedAt DateTime?
   readyAt     DateTime?
