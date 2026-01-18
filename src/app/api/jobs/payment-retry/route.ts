@@ -2,10 +2,15 @@
  * Payment Retry Cron Job (Issue #104)
  *
  * Finds SubOrders eligible for payment retry and processes them.
- * Protected by CRON_SECRET environment variable.
  *
- * Vercel Cron configuration: see vercel.json
- * Runs every 5 minutes to process failed payments.
+ * Auth methods (accepts any):
+ * - Authorization: Bearer CRON_SECRET (for manual runs)
+ * - User-Agent containing "vercel-cron/1.0" (Vercel Cron)
+ *
+ * Query params:
+ * - ?dryRun=1 - Returns eligible SubOrders without processing
+ *
+ * Vercel Cron: runs daily on Hobby, every 5 min on Pro (see vercel.json)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -25,22 +30,36 @@ import { logSystemAction, AuditAction } from "@/lib/audit";
  * Validate cron job authorization
  *
  * Supports:
- * 1. Vercel Cron (Pro/Enterprise) - automatically sends Authorization header with CRON_SECRET
- * 2. Manual testing - same Authorization header format
+ * 1. Authorization: Bearer CRON_SECRET header (manual runs, Pro cron)
+ * 2. User-Agent containing "vercel-cron/1.0" (Vercel Cron trigger)
  * 3. Development fallback - if no CRON_SECRET configured, allow in dev only
  */
 function isAuthorized(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
+  const userAgent = request.headers.get("user-agent") || "";
 
-  // Primary auth: CRON_SECRET via Authorization header
-  // Vercel Cron (Pro/Enterprise) sends this automatically when CRON_SECRET is set
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+  // Check for Vercel Cron User-Agent
+  const isVercelCron = userAgent.includes("vercel-cron/1.0");
+
+  // If CRON_SECRET is set, accept either Bearer token OR Vercel Cron UA
+  if (cronSecret) {
+    if (authHeader === `Bearer ${cronSecret}`) {
+      return true;
+    }
+    if (isVercelCron) {
+      return true;
+    }
+    return false;
+  }
+
+  // No CRON_SECRET set: accept Vercel Cron UA
+  if (isVercelCron) {
     return true;
   }
 
   // Development fallback: allow if no CRON_SECRET configured (dev only)
-  if (!cronSecret && process.env.NODE_ENV === "development") {
+  if (process.env.NODE_ENV === "development") {
     console.warn("[Payment Retry] CRON_SECRET not set, allowing in dev mode");
     return true;
   }
@@ -56,7 +75,12 @@ export async function GET(request: NextRequest) {
   }
 
   const startTime = Date.now();
-  console.log("[Payment Retry] Starting payment retry job...");
+  const { searchParams } = new URL(request.url);
+  const isDryRun = searchParams.get("dryRun") === "1";
+
+  console.log(
+    `[Payment Retry] Starting payment retry job...${isDryRun ? " (DRY RUN)" : ""}`
+  );
 
   try {
     // Find SubOrders eligible for retry:
@@ -81,6 +105,9 @@ export async function GET(request: NextRequest) {
         stripeChargeId: true,
         paymentAttemptCount: true,
         authorizationExpiresAt: true,
+        paymentLastErrorCode: true,
+        paymentLastErrorMessage: true,
+        nextPaymentRetryAt: true,
         Order: {
           select: {
             id: true,
@@ -104,6 +131,31 @@ export async function GET(request: NextRequest) {
     console.log(
       `[Payment Retry] Found ${eligibleSubOrders.length} SubOrders eligible for retry`
     );
+
+    // Dry run mode: return eligible SubOrders without processing
+    if (isDryRun) {
+      const duration = Date.now() - startTime;
+      return NextResponse.json({
+        success: true,
+        dryRun: true,
+        eligible: eligibleSubOrders.length,
+        duration: `${duration}ms`,
+        subOrders: eligibleSubOrders.map((so) => ({
+          subOrderId: so.id,
+          subOrderNumber: so.subOrderNumber,
+          orderNumber: so.Order.orderNumber,
+          vendorName: so.Vendor.name,
+          attemptCount: so.paymentAttemptCount,
+          lastErrorCode: so.paymentLastErrorCode,
+          lastErrorMessage: so.paymentLastErrorMessage,
+          nextRetryAt: so.nextPaymentRetryAt,
+          hasStripeCharge: !!so.stripeChargeId,
+          authExpired: isAuthorizationExpired(so.authorizationExpiresAt),
+          orderCanceled: so.Order.status === "CANCELED",
+          action: !so.stripeChargeId ? "authorize" : "capture",
+        })),
+      });
+    }
 
     const results: Array<{
       subOrderId: string;
