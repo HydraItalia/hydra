@@ -340,17 +340,17 @@ model SubOrder {
   paymentStatus  PaymentStatus?
 
   // Payment failure tracking (Issue #104)
-  paymentAttemptCount      Int       @default(0)
-  lastPaymentAttemptAt     DateTime?
-  nextPaymentRetryAt       DateTime?
-  paymentLastErrorCode     String?   // Stripe error code (sanitized, no PII)
-  paymentLastErrorMessage  String?   // User-safe error message
-  authorizationExpiresAt   DateTime? // 7 days from authorization
-  requiresClientUpdate     Boolean   @default(false) // Flag for manual intervention
+  paymentAttemptCount     Int       @default(0)
+  lastPaymentAttemptAt    DateTime?
+  nextPaymentRetryAt      DateTime?
+  paymentLastErrorCode    String? // Stripe error code (sanitized, no PII)
+  paymentLastErrorMessage String? // User-safe error message
+  authorizationExpiresAt  DateTime? // 7 days from authorization
+  requiresClientUpdate    Boolean   @default(false) // Flag for manual intervention
 
   // Fee tracking (accounting separation - Phase 11)
   // NOTE: Fees not deducted automatically until legal approval
-  hydraFeeCents   Int?   // Calculated Hydra platform fee in cents
+  hydraFeeCents   Int? // Calculated Hydra platform fee in cents
   hydraFeePercent Float? // Fee percentage applied (e.g., 0.05 for 5%)
 
   // Fulfillment timestamps
@@ -400,33 +400,73 @@ model OrderItem {
 }
 
 model Product {
-  id              String          @id
-  categoryId      String
-  name            String
-  description     String?
-  unit            ProductUnit     @default(PIECE)
-  imageUrl        String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  deletedAt       DateTime?
+  id          String      @id
+  categoryId  String
+  name        String
+  description String?
+  unit        ProductUnit @default(PIECE)
+  imageUrl    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  // Tax profile override (N1.1) - nullable means inherit from category
+  taxProfileId String?
+
   ProductCategory ProductCategory @relation(fields: [categoryId], references: [id])
   VendorProduct   VendorProduct[]
+  TaxProfile      TaxProfile?     @relation(fields: [taxProfileId], references: [id])
 
   @@index([categoryId])
   @@index([name])
+  @@index([taxProfileId])
 }
 
 model ProductCategory {
-  id            String        @id
-  groupId       String
-  name          String
-  slug          String        @unique
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id        String   @id
+  groupId   String
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Category tree support (N1.1)
+  parentId String? // Self-ref for subcategories (null = top-level)
+
+  // Tax profile (N1.1)
+  taxProfileId String? // FK to TaxProfile
+
   Product       Product[]
   CategoryGroup CategoryGroup @relation(fields: [groupId], references: [id])
 
+  // Category tree relations
+  Parent   ProductCategory?  @relation("CategoryTree", fields: [parentId], references: [id])
+  Children ProductCategory[] @relation("CategoryTree")
+
+  // Tax profile relation
+  TaxProfile TaxProfile? @relation(fields: [taxProfileId], references: [id])
+
   @@index([groupId])
+  @@index([parentId])
+  @@index([taxProfileId])
+}
+
+// Tax profile for Italian VAT rates (N1.1)
+model TaxProfile {
+  id          String  @id @default(cuid())
+  name        String  @unique // "standard_22", "reduced_10", "super_reduced_4", "exempt_0"
+  vatRateBps  Int // Basis points: 2200 = 22.00%, 1000 = 10.00%, 400 = 4.00%, 0 = 0.00%
+  description String?
+  isDefault   Boolean @default(false) // One profile can be the fallback default
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  ProductCategory ProductCategory[]
+  Product         Product[]
+
+  @@index([vatRateBps])
 }
 
 model Session {
