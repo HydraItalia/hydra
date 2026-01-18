@@ -87,6 +87,8 @@ export type OrderDetail = {
     subOrderNumber: string;
     status: string;
     subTotalCents: number;
+    paymentStatus: string | null;
+    requiresClientUpdate: boolean;
     Vendor: {
       name: string;
     };
@@ -99,6 +101,9 @@ export type OrderDetail = {
       lineTotalCents: number;
     }[];
   }[];
+  // Computed payment status fields
+  hasPaymentFailure?: boolean;
+  anyRequiresClientUpdate?: boolean;
 };
 
 /**
@@ -223,6 +228,8 @@ export async function fetchOrderById(orderId: string): Promise<OrderDetail> {
           subOrderNumber: true,
           status: true,
           subTotalCents: true,
+          paymentStatus: true,
+          requiresClientUpdate: true,
           Vendor: {
             select: {
               name: true,
@@ -254,9 +261,17 @@ export async function fetchOrderById(orderId: string): Promise<OrderDetail> {
     throw new Error("Order not found");
   }
 
+  // Compute payment status aggregates
+  const hasPaymentFailure =
+    order.SubOrder?.some((sub) => sub.paymentStatus === "FAILED") ?? false;
+  const anyRequiresClientUpdate =
+    order.SubOrder?.some((sub) => sub.requiresClientUpdate) ?? false;
+
   return {
     ...order,
     createdAt: order.createdAt.toISOString(),
+    hasPaymentFailure,
+    anyRequiresClientUpdate,
   };
 }
 
@@ -482,6 +497,11 @@ export type AdminOrderDetail = {
     status: string;
     subTotalCents: number;
     itemCount: number;
+    // Payment status (Issue #104)
+    paymentStatus: string | null;
+    requiresClientUpdate: boolean;
+    paymentLastErrorCode: string | null;
+    paymentLastErrorMessage: string | null;
     delivery: {
       id: string;
       status: string;
@@ -573,6 +593,11 @@ export async function fetchAdminOrderDetail(
           subOrderNumber: true,
           status: true,
           subTotalCents: true,
+          // Payment status (Issue #104)
+          paymentStatus: true,
+          requiresClientUpdate: true,
+          paymentLastErrorCode: true,
+          paymentLastErrorMessage: true,
           Vendor: {
             select: {
               name: true,
@@ -689,6 +714,11 @@ export async function fetchAdminOrderDetail(
       status: subOrder.status,
       subTotalCents: subOrder.subTotalCents,
       itemCount: subOrder._count.OrderItem,
+      // Payment status (Issue #104)
+      paymentStatus: subOrder.paymentStatus,
+      requiresClientUpdate: subOrder.requiresClientUpdate,
+      paymentLastErrorCode: subOrder.paymentLastErrorCode,
+      paymentLastErrorMessage: subOrder.paymentLastErrorMessage,
       delivery: subOrder.Delivery
         ? {
             id: subOrder.Delivery.id,

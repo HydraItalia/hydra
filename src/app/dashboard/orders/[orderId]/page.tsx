@@ -33,7 +33,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { ArrowLeft, ShoppingCart, MapPin } from "lucide-react";
+import { ArrowLeft, ShoppingCart, MapPin, AlertTriangle } from "lucide-react";
+import { PaymentFailureBanner } from "@/components/payment/payment-failure-banner";
 
 type PageProps = {
   params: Promise<{
@@ -133,6 +134,13 @@ async function ClientOrderDetailView({ orderId }: { orderId: string }) {
           </Link>
         </Button>
       </div>
+
+      {/* Payment Failure Banner */}
+      <PaymentFailureBanner
+        hasPaymentFailure={order.hasPaymentFailure ?? false}
+        requiresClientUpdate={order.anyRequiresClientUpdate}
+        variant="client"
+      />
 
       {/* Order Details Card */}
       <Card>
@@ -272,6 +280,13 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
         </div>
         <OrderStatusBadge status={subOrder.status} />
       </div>
+
+      {/* Payment Failure Banner */}
+      <PaymentFailureBanner
+        hasPaymentFailure={subOrder.paymentStatus === "FAILED"}
+        requiresClientUpdate={subOrder.requiresClientUpdate}
+        variant="vendor"
+      />
 
       {/* Order Summary */}
       <div className="grid gap-6 md:grid-cols-2">
@@ -518,7 +533,15 @@ async function AdminOrderDetailView({ orderId }: { orderId: string }) {
                         </CardTitle>
                         <CardDescription>{subOrder.vendorName}</CardDescription>
                       </div>
-                      <Badge>{subOrder.status}</Badge>
+                      <div className="flex gap-2">
+                        <Badge>{subOrder.status}</Badge>
+                        {subOrder.paymentStatus === "FAILED" && (
+                          <Badge variant="destructive" className="text-xs">
+                            <AlertTriangle className="mr-1 h-3 w-3" />
+                            Payment Failed
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -532,6 +555,32 @@ async function AdminOrderDetailView({ orderId }: { orderId: string }) {
                         {formatCurrency(subOrder.subTotalCents)}
                       </span>
                     </div>
+                    {/* Payment Status (Issue #104) */}
+                    {subOrder.paymentStatus === "FAILED" && (
+                      <>
+                        <Separator />
+                        <div className="text-sm">
+                          <div className="text-muted-foreground mb-1">
+                            Payment Error
+                          </div>
+                          <div className="font-mono text-xs text-destructive">
+                            {subOrder.paymentLastErrorCode || "unknown"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {subOrder.paymentLastErrorMessage ||
+                              "No details available"}
+                          </div>
+                          {subOrder.requiresClientUpdate && (
+                            <Badge
+                              variant="outline"
+                              className="mt-2 text-xs text-yellow-600"
+                            >
+                              Client needs to update payment method
+                            </Badge>
+                          )}
+                        </div>
+                      </>
+                    )}
                     <Separator />
                     <div>
                       <div className="text-sm text-muted-foreground mb-2">

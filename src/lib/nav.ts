@@ -14,6 +14,7 @@ import {
   Settings,
   UserCog,
   CreditCard,
+  AlertCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -68,6 +69,11 @@ export function getNavItems(role: Role): NavItem[] {
           icon: Truck,
         },
         {
+          label: "Failed Payments",
+          href: "/dashboard/payments/failed",
+          icon: AlertCircle,
+        },
+        {
           label: "Shifts",
           href: "/dashboard/shifts",
           icon: ClipboardList,
@@ -115,6 +121,11 @@ export function getNavItems(role: Role): NavItem[] {
           label: "Deliveries",
           href: "/dashboard/deliveries",
           icon: Truck,
+        },
+        {
+          label: "Failed Payments",
+          href: "/dashboard/payments/failed",
+          icon: AlertCircle,
         },
         {
           label: "Shifts",
