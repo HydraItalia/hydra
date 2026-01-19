@@ -334,6 +334,11 @@ model SubOrder {
   subOrderNumber String         @unique
   subTotalCents  Int
 
+  // VAT snapshot totals (N1.2) - captured at order time, nullable for historical orders
+  netTotalCents   Int? // Sum of all line items net amounts
+  vatTotalCents   Int? // Sum of all line items VAT amounts
+  grossTotalCents Int? // Sum of all line items gross amounts
+
   // Payment tracking (Phase 11)
   stripeChargeId String?
   paidAt         DateTime?
@@ -379,24 +384,34 @@ model SubOrder {
 }
 
 model OrderItem {
-  id              String        @id
+  id              String   @id
   orderId         String
   vendorProductId String
   qty             Int
   unitPriceCents  Int
   lineTotalCents  Int
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   productName     String
   vendorName      String
   subOrderId      String?
-  Order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  VendorProduct   VendorProduct @relation(fields: [vendorProductId], references: [id])
-  SubOrder        SubOrder?     @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+
+  // VAT snapshot fields (N1.2) - captured at order time, nullable for historical orders
+  taxProfileId   String? // FK to TaxProfile at time of order
+  vatRateBps     Int? // VAT rate in basis points (e.g., 2200 = 22%)
+  vatAmountCents Int? // Calculated VAT amount for this line
+  netCents       Int? // Net amount (before VAT)
+  grossCents     Int? // Gross amount (after VAT)
+
+  Order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  VendorProduct VendorProduct @relation(fields: [vendorProductId], references: [id])
+  SubOrder      SubOrder?     @relation(fields: [subOrderId], references: [id], onDelete: Cascade)
+  TaxProfile    TaxProfile?   @relation(fields: [taxProfileId], references: [id])
 
   @@index([orderId])
   @@index([vendorProductId])
   @@index([subOrderId])
+  @@index([taxProfileId])
 }
 
 model Product {
@@ -465,6 +480,7 @@ model TaxProfile {
   // Relations
   ProductCategory ProductCategory[]
   Product         Product[]
+  OrderItem       OrderItem[]
 
   @@index([vatRateBps])
 }
@@ -523,6 +539,9 @@ model Vendor {
   stripeAccountId String? @unique // Stripe Connect account ID for receiving payments
   chargesEnabled  Boolean @default(false) // Whether the vendor can accept charges
   payoutsEnabled  Boolean @default(false) // Whether the vendor can receive payouts
+
+  // VAT pricing mode (N1.2)
+  priceIncludesVat Boolean @default(false) // false = NET pricing (add VAT), true = GROSS pricing (VAT included)
 
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
