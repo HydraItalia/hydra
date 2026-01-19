@@ -356,7 +356,8 @@ model SubOrder {
   // Fee tracking (accounting separation - Phase 11)
   // NOTE: Fees not deducted automatically until legal approval
   hydraFeeCents   Int? // Calculated Hydra platform fee in cents
-  hydraFeePercent Float? // Fee percentage applied (e.g., 0.05 for 5%)
+  hydraFeeBps     Int? // Fee rate in basis points (e.g., 500 = 5.00%)
+  hydraFeePercent Float? // Fee percentage applied (e.g., 0.05 for 5%) - backward compat
 
   // Fulfillment timestamps
   confirmedAt DateTime?

@@ -10,6 +10,11 @@ import {
   computeVatFromNet,
   getEffectiveTaxProfile,
 } from "@/lib/vat";
+import {
+  parseHydraFeeBps,
+  computeHydraFeeCents,
+  bpsToPercent,
+} from "@/lib/fees";
 
 /**
  * Calculate line total for an order item
@@ -215,6 +220,10 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
       grossCents: number | null;
     }> = [];
 
+    // Compute Hydra platform fee rate (constant for all vendors) (N2.1)
+    const hydraFeeBps = parseHydraFeeBps(process.env.HYDRA_FEE_BPS);
+    const hydraFeePercent = bpsToPercent(hydraFeeBps);
+
     for (const [vendorId, items] of itemsByVendor.entries()) {
       // Get vendor's priceIncludesVat setting from first item
       const priceIncludesVat = items[0].VendorProduct.Vendor.priceIncludesVat;
@@ -309,6 +318,9 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
         );
       }
 
+      // Compute Hydra platform fee for this suborder (N2.1)
+      const hydraFeeCents = computeHydraFeeCents(grossTotalCents, hydraFeeBps);
+
       const subOrderNumber = `${orderNumber}-V${String(vendorSeq).padStart(
         2,
         "0",
@@ -326,6 +338,10 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
           netTotalCents,
           vatTotalCents,
           grossTotalCents,
+          // Hydra platform fee (N2.1)
+          hydraFeeBps,
+          hydraFeeCents,
+          hydraFeePercent,
         },
       });
 

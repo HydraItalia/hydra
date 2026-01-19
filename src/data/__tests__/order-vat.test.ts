@@ -1,11 +1,12 @@
 /**
- * Integration tests for order creation with VAT snapshotting (N1.3)
+ * Integration tests for order creation with VAT snapshotting (N1.3) and Hydra fees (N2.1)
  *
  * Tests the createOrderFromCart function to verify:
  * - OrderItems have VAT snapshot fields populated
  * - SubOrder has VAT totals populated
  * - The invariant net + vat = gross holds
  * - Both priceIncludesVat=false (NET) and priceIncludesVat=true (GROSS) work correctly
+ * - SubOrder has Hydra platform fee fields populated (N2.1)
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -663,5 +664,306 @@ describe("createOrderFromCart with VAT", () => {
     expect(subOrder2!.netTotalCents + subOrder2!.vatTotalCents).toBe(
       subOrder2!.grossTotalCents,
     );
+  });
+
+  /**
+   * Test case: Hydra platform fee (N2.1)
+   *
+   * Verifies that SubOrders have fee fields populated:
+   * - hydraFeeBps: Fee rate in basis points
+   * - hydraFeeCents: Computed fee amount
+   * - hydraFeePercent: Fee as decimal (for backward compat)
+   */
+  describe("Hydra platform fee (N2.1)", () => {
+    it("should populate fee fields with default 5% rate", async () => {
+      // Clear any HYDRA_FEE_BPS env var to use default
+      delete process.env.HYDRA_FEE_BPS;
+
+      vi.mocked(currentUser).mockResolvedValue(mockClientUser);
+      vi.mocked(recalcCartPricesForUser).mockResolvedValue([]);
+
+      // Mock cart with items - NET pricing vendor, 10% VAT
+      vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+        id: "cart-123",
+        clientId: "client-123",
+        status: "ACTIVE",
+        CartItem: [
+          {
+            id: "cartitem-1",
+            vendorProductId: "vp-1",
+            qty: 1,
+            unitPriceCents: 10000, // €100.00 net
+            VendorProduct: {
+              Product: {
+                id: "prod-1",
+                name: "Test Product",
+                taxProfileId: "tp-reduced-10",
+                TaxProfile: {
+                  id: "tp-reduced-10",
+                  vatRateBps: 1000, // 10%
+                },
+                ProductCategory: null,
+              },
+              Vendor: {
+                id: "vendor-1",
+                name: "Test Vendor",
+                priceIncludesVat: false, // NET pricing
+              },
+            },
+          },
+        ],
+      } as any);
+
+      let capturedSubOrder: any = null;
+
+      vi.mocked(prisma.$transaction).mockImplementation(
+        async (callback: any) => {
+          const tx = {
+            order: {
+              findFirst: vi.fn().mockResolvedValue(null),
+              create: vi.fn().mockResolvedValue({ id: "order-fee-test" }),
+            },
+            subOrder: {
+              create: vi.fn().mockImplementation(({ data }) => {
+                capturedSubOrder = data;
+                return Promise.resolve({
+                  id: data.id,
+                  vendorId: data.vendorId,
+                });
+              }),
+            },
+            orderItem: {
+              createMany: vi.fn().mockResolvedValue({ count: 1 }),
+            },
+            cartItem: {
+              deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+            },
+          };
+
+          return callback(tx);
+        },
+      );
+
+      await createOrderFromCart();
+
+      // Verify fee fields
+      // grossTotalCents = 10000 + 1000 (10% VAT) = 11000
+      // hydraFeeCents = 11000 * 500 / 10000 = 550
+      expect(capturedSubOrder.hydraFeeBps).toBe(500);
+      expect(capturedSubOrder.hydraFeeCents).toBe(550);
+      expect(capturedSubOrder.hydraFeePercent).toBe(0.05);
+
+      // Verify fee math: feeCents === Math.round(grossTotalCents * feeBps / 10000)
+      const expectedFee = Math.round(
+        (capturedSubOrder.grossTotalCents * capturedSubOrder.hydraFeeBps) /
+          10000,
+      );
+      expect(capturedSubOrder.hydraFeeCents).toBe(expectedFee);
+    });
+
+    it("should use HYDRA_FEE_BPS env var when set", async () => {
+      // Set custom fee rate
+      process.env.HYDRA_FEE_BPS = "250"; // 2.5%
+
+      vi.mocked(currentUser).mockResolvedValue(mockClientUser);
+      vi.mocked(recalcCartPricesForUser).mockResolvedValue([]);
+
+      vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+        id: "cart-123",
+        clientId: "client-123",
+        status: "ACTIVE",
+        CartItem: [
+          {
+            id: "cartitem-1",
+            vendorProductId: "vp-1",
+            qty: 1,
+            unitPriceCents: 10000, // €100.00
+            VendorProduct: {
+              Product: {
+                id: "prod-1",
+                name: "Test Product",
+                taxProfileId: "tp-exempt-0",
+                TaxProfile: {
+                  id: "tp-exempt-0",
+                  vatRateBps: 0, // No VAT
+                },
+                ProductCategory: null,
+              },
+              Vendor: {
+                id: "vendor-1",
+                name: "Test Vendor",
+                priceIncludesVat: false,
+              },
+            },
+          },
+        ],
+      } as any);
+
+      let capturedSubOrder: any = null;
+
+      vi.mocked(prisma.$transaction).mockImplementation(
+        async (callback: any) => {
+          const tx = {
+            order: {
+              findFirst: vi.fn().mockResolvedValue(null),
+              create: vi.fn().mockResolvedValue({ id: "order-custom-fee" }),
+            },
+            subOrder: {
+              create: vi.fn().mockImplementation(({ data }) => {
+                capturedSubOrder = data;
+                return Promise.resolve({
+                  id: data.id,
+                  vendorId: data.vendorId,
+                });
+              }),
+            },
+            orderItem: {
+              createMany: vi.fn().mockResolvedValue({ count: 1 }),
+            },
+            cartItem: {
+              deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+            },
+          };
+
+          return callback(tx);
+        },
+      );
+
+      await createOrderFromCart();
+
+      // grossTotalCents = 10000 (no VAT)
+      // hydraFeeCents = 10000 * 250 / 10000 = 250
+      expect(capturedSubOrder.hydraFeeBps).toBe(250);
+      expect(capturedSubOrder.hydraFeeCents).toBe(250);
+      expect(capturedSubOrder.hydraFeePercent).toBe(0.025);
+
+      // Clean up
+      delete process.env.HYDRA_FEE_BPS;
+    });
+
+    it("should populate fee fields for multiple SubOrders", async () => {
+      delete process.env.HYDRA_FEE_BPS; // Use default 5%
+
+      vi.mocked(currentUser).mockResolvedValue(mockClientUser);
+      vi.mocked(recalcCartPricesForUser).mockResolvedValue([]);
+
+      // Two items from different vendors
+      vi.mocked(prisma.cart.findFirst).mockResolvedValue({
+        id: "cart-123",
+        clientId: "client-123",
+        status: "ACTIVE",
+        CartItem: [
+          {
+            id: "cartitem-1",
+            vendorProductId: "vp-1",
+            qty: 1,
+            unitPriceCents: 1000, // €10.00 net
+            VendorProduct: {
+              Product: {
+                id: "prod-1",
+                name: "Product A",
+                taxProfileId: "tp-reduced-10",
+                TaxProfile: {
+                  id: "tp-reduced-10",
+                  vatRateBps: 1000, // 10%
+                },
+                ProductCategory: null,
+              },
+              Vendor: {
+                id: "vendor-1",
+                name: "Vendor One",
+                priceIncludesVat: false,
+              },
+            },
+          },
+          {
+            id: "cartitem-2",
+            vendorProductId: "vp-2",
+            qty: 1,
+            unitPriceCents: 2000, // €20.00 net
+            VendorProduct: {
+              Product: {
+                id: "prod-2",
+                name: "Product B",
+                taxProfileId: "tp-standard-22",
+                TaxProfile: {
+                  id: "tp-standard-22",
+                  vatRateBps: 2200, // 22%
+                },
+                ProductCategory: null,
+              },
+              Vendor: {
+                id: "vendor-2",
+                name: "Vendor Two",
+                priceIncludesVat: false,
+              },
+            },
+          },
+        ],
+      } as any);
+
+      const capturedSubOrders: any[] = [];
+
+      vi.mocked(prisma.$transaction).mockImplementation(
+        async (callback: any) => {
+          const tx = {
+            order: {
+              findFirst: vi.fn().mockResolvedValue(null),
+              create: vi.fn().mockResolvedValue({ id: "order-multi-fee" }),
+            },
+            subOrder: {
+              create: vi.fn().mockImplementation(({ data }) => {
+                capturedSubOrders.push(data);
+                return Promise.resolve({
+                  id: data.id,
+                  vendorId: data.vendorId,
+                });
+              }),
+            },
+            orderItem: {
+              createMany: vi.fn().mockResolvedValue({ count: 2 }),
+            },
+            cartItem: {
+              deleteMany: vi.fn().mockResolvedValue({ count: 2 }),
+            },
+          };
+
+          return callback(tx);
+        },
+      );
+
+      await createOrderFromCart();
+
+      // Should create 2 SubOrders, both with fee fields
+      expect(capturedSubOrders).toHaveLength(2);
+
+      for (const subOrder of capturedSubOrders) {
+        // All SubOrders should have fee fields populated
+        expect(subOrder.hydraFeeBps).toBe(500);
+        expect(subOrder.hydraFeePercent).toBe(0.05);
+        expect(subOrder.hydraFeeCents).toBeDefined();
+        expect(subOrder.hydraFeeCents).toBeGreaterThanOrEqual(0);
+
+        // Verify fee math for each SubOrder
+        const expectedFee = Math.round(
+          (subOrder.grossTotalCents * subOrder.hydraFeeBps) / 10000,
+        );
+        expect(subOrder.hydraFeeCents).toBe(expectedFee);
+      }
+
+      // Vendor 1: gross = 1000 + 100 = 1100, fee = 1100 * 500 / 10000 = 55
+      const subOrder1 = capturedSubOrders.find(
+        (s) => s.vendorId === "vendor-1",
+      );
+      expect(subOrder1!.grossTotalCents).toBe(1100);
+      expect(subOrder1!.hydraFeeCents).toBe(55);
+
+      // Vendor 2: gross = 2000 + 440 = 2440, fee = 2440 * 500 / 10000 = 122
+      const subOrder2 = capturedSubOrders.find(
+        (s) => s.vendorId === "vendor-2",
+      );
+      expect(subOrder2!.grossTotalCents).toBe(2440);
+      expect(subOrder2!.hydraFeeCents).toBe(122);
+    });
   });
 });
