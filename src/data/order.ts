@@ -1,12 +1,15 @@
 "use server";
 
 import { randomInt } from "crypto";
+import { createId } from "@paralleldrive/cuid2";
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
 import { recalcCartPricesForUser } from "@/data/cart-recalc";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { createId } = require("@paralleldrive/cuid2");
+import {
+  computeVatFromGross,
+  computeVatFromNet,
+  getEffectiveTaxProfile,
+} from "@/lib/vat";
 
 /**
  * Calculate line total for an order item
@@ -14,7 +17,7 @@ const { createId } = require("@paralleldrive/cuid2");
  */
 function calculateLineTotal(
   unitPriceCents: number | null,
-  qty: number
+  qty: number,
 ): number {
   return (unitPriceCents ?? 0) * qty;
 }
@@ -68,7 +71,7 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
   // 2. Recalculate cart prices to ensure accuracy
   await recalcCartPricesForUser();
 
-  // 3. Load cart with items (include vendorId for grouping)
+  // 3. Load cart with items (include vendorId for grouping + VAT relations)
   const cart = await prisma.cart.findFirst({
     where: {
       clientId,
@@ -81,13 +84,33 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
             include: {
               Product: {
                 select: {
+                  id: true,
                   name: true,
+                  taxProfileId: true,
+                  TaxProfile: {
+                    select: {
+                      id: true,
+                      vatRateBps: true,
+                    },
+                  },
+                  ProductCategory: {
+                    select: {
+                      taxProfileId: true,
+                      TaxProfile: {
+                        select: {
+                          id: true,
+                          vatRateBps: true,
+                        },
+                      },
+                    },
+                  },
                 },
               },
               Vendor: {
                 select: {
                   name: true,
                   id: true,
+                  priceIncludesVat: true,
                 },
               },
             },
@@ -107,7 +130,7 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
     const priceCents = item.unitPriceCents ?? 0;
     if (priceCents === 0) {
       console.warn(
-        `Cart item ${item.id} has null or zero price, treating as 0`
+        `Cart item ${item.id} has null or zero price, treating as 0`,
       );
     }
     return sum + calculateLineTotal(item.unitPriceCents, item.qty);
@@ -170,19 +193,125 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
       },
     });
 
-    // Create SubOrders (one per vendor)
+    // Create SubOrders (one per vendor) with VAT computation
     const subOrders: Array<{ id: string; vendorId: string }> = [];
     let vendorSeq = 1;
 
+    // Accumulate all order items data for bulk insert
+    const allOrderItemsData: Array<{
+      id: string;
+      orderId: string;
+      subOrderId: string;
+      vendorProductId: string;
+      qty: number;
+      unitPriceCents: number;
+      lineTotalCents: number;
+      productName: string;
+      vendorName: string;
+      taxProfileId: string | null;
+      vatRateBps: number | null;
+      vatAmountCents: number | null;
+      netCents: number | null;
+      grossCents: number | null;
+    }> = [];
+
     for (const [vendorId, items] of itemsByVendor.entries()) {
-      const subTotalCents = items.reduce(
-        (sum, item) => sum + calculateLineTotal(item.unitPriceCents, item.qty),
-        0
+      // Get vendor's priceIncludesVat setting from first item
+      const priceIncludesVat = items[0].VendorProduct.Vendor.priceIncludesVat;
+
+      // Prepare order items with VAT computation for this vendor
+      const vendorOrderItems: Array<{
+        id: string;
+        vendorProductId: string;
+        qty: number;
+        unitPriceCents: number;
+        lineTotalCents: number;
+        productName: string;
+        vendorName: string;
+        taxProfileId: string;
+        vatRateBps: number;
+        vatAmountCents: number;
+        netCents: number;
+        grossCents: number;
+      }> = [];
+
+      for (const item of items) {
+        const lineTotalCents = calculateLineTotal(
+          item.unitPriceCents,
+          item.qty,
+        );
+        const product = item.VendorProduct.Product;
+
+        // Resolve effective tax profile
+        const taxProfile = await getEffectiveTaxProfile({
+          product: {
+            taxProfileId: product.taxProfileId,
+            TaxProfile: product.TaxProfile,
+            ProductCategory: product.ProductCategory,
+          },
+        });
+
+        // Compute VAT based on vendor's pricing mode
+        let vatComputation;
+        if (priceIncludesVat) {
+          // GROSS pricing: lineTotalCents is gross (VAT-inclusive)
+          vatComputation = computeVatFromGross(
+            lineTotalCents,
+            taxProfile.vatRateBps,
+          );
+        } else {
+          // NET pricing: lineTotalCents is net (VAT-exclusive)
+          vatComputation = computeVatFromNet(
+            lineTotalCents,
+            taxProfile.vatRateBps,
+          );
+        }
+
+        vendorOrderItems.push({
+          id: createId(),
+          vendorProductId: item.vendorProductId,
+          qty: item.qty,
+          unitPriceCents: item.unitPriceCents ?? 0,
+          lineTotalCents,
+          productName: product.name,
+          vendorName: item.VendorProduct.Vendor.name,
+          taxProfileId: taxProfile.taxProfileId,
+          vatRateBps: taxProfile.vatRateBps,
+          vatAmountCents: vatComputation.vatCents,
+          netCents: vatComputation.netCents,
+          grossCents: vatComputation.grossCents,
+        });
+      }
+
+      // Compute SubOrder VAT totals
+      const subTotalCents = vendorOrderItems.reduce(
+        (sum, item) => sum + item.lineTotalCents,
+        0,
       );
+      const netTotalCents = vendorOrderItems.reduce(
+        (sum, item) => sum + item.netCents,
+        0,
+      );
+      const vatTotalCents = vendorOrderItems.reduce(
+        (sum, item) => sum + item.vatAmountCents,
+        0,
+      );
+      const grossTotalCents = vendorOrderItems.reduce(
+        (sum, item) => sum + item.grossCents,
+        0,
+      );
+
+      // Verify invariant: net + vat = gross
+      if (netTotalCents + vatTotalCents !== grossTotalCents) {
+        throw new Error(
+          `SubOrder VAT invariant violated for vendor ${vendorId}: ` +
+            `${netTotalCents} + ${vatTotalCents} !== ${grossTotalCents}`,
+        );
+      }
 
       const subOrderNumber = `${orderNumber}-V${String(vendorSeq).padStart(
         2,
-        "0"
+        "0",
       )}`;
 
       const subOrder = await tx.subOrder.create({
@@ -193,34 +322,29 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
           status: "SUBMITTED",
           subOrderNumber,
           subTotalCents,
+          // VAT snapshot totals (N1.3)
+          netTotalCents,
+          vatTotalCents,
+          grossTotalCents,
         },
       });
+
+      // Add order items with subOrderId
+      for (const orderItem of vendorOrderItems) {
+        allOrderItemsData.push({
+          ...orderItem,
+          orderId: order.id,
+          subOrderId: subOrder.id,
+        });
+      }
 
       subOrders.push({ id: subOrder.id, vendorId });
       vendorSeq++;
     }
 
-    // Create OrderItems linked to SubOrders
-    const orderItemsData = [];
-    for (const subOrder of subOrders) {
-      const items = itemsByVendor.get(subOrder.vendorId)!;
-      for (const item of items) {
-        orderItemsData.push({
-          id: createId(),
-          orderId: order.id,
-          subOrderId: subOrder.id, // Link to SubOrder
-          vendorProductId: item.vendorProductId,
-          qty: item.qty,
-          unitPriceCents: item.unitPriceCents ?? 0,
-          lineTotalCents: calculateLineTotal(item.unitPriceCents, item.qty),
-          productName: item.VendorProduct.Product.name,
-          vendorName: item.VendorProduct.Vendor.name,
-        });
-      }
-    }
-
+    // Bulk insert all OrderItems with VAT snapshot fields
     await tx.orderItem.createMany({
-      data: orderItemsData,
+      data: allOrderItemsData,
     });
 
     // Clear the cart by deleting all cart items
