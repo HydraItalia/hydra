@@ -11,7 +11,7 @@ import {
 } from "@/actions/admin-fee-report";
 import { Loader2 } from "lucide-react";
 
-export default function AdminFeeReportPage() {
+export default function FeeReportPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -80,7 +80,7 @@ export default function AdminFeeReportPage() {
         router.push(`?${params.toString()}`);
       });
     },
-    [router, searchParams]
+    [router, searchParams],
   );
 
   // Handle CSV export
@@ -127,7 +127,10 @@ export default function AdminFeeReportPage() {
         </p>
       </div>
 
-      <FeeReportFilters onExportCsv={handleExportCsv} isExporting={isExporting} />
+      <FeeReportFilters
+        onExportCsv={handleExportCsv}
+        isExporting={isExporting}
+      />
 
       {loading || isPending ? (
         <div className="flex items-center justify-center py-12">
