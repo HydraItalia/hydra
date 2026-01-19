@@ -44,6 +44,8 @@ export function FeeReportFilters({
       const result = await getVendorsForFeeReport();
       if (result.success) {
         setVendors(result.data);
+      } else {
+        console.error("Failed to load vendors:", result.error);
       }
       setVendorsLoading(false);
     }
@@ -129,6 +131,7 @@ export function FeeReportFilters({
             onChange={handleStartDateChange}
             disabled={isPending}
             className="w-[160px]"
+            max={currentEndDate || undefined}
           />
         </div>
 
@@ -142,6 +145,7 @@ export function FeeReportFilters({
             onChange={handleEndDateChange}
             disabled={isPending}
             className="w-[160px]"
+            min={currentStartDate || undefined}
           />
         </div>
 

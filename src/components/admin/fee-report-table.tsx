@@ -26,7 +26,7 @@ interface FeeReportTableProps {
   onPageChange: (page: number) => void;
 }
 
-function formatDate(date: Date): string {
+function formatDate(date: Date | string): string {
   return new Date(date).toLocaleDateString("it-IT", {
     year: "numeric",
     month: "2-digit",

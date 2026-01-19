@@ -96,12 +96,18 @@ export async function getFeeReport(
     // Date range filters (inclusive)
     if (filters.startDate) {
       const startDate = new Date(filters.startDate);
+      if (isNaN(startDate.getTime())) {
+        return { success: false, error: "Invalid startDate format" };
+      }
       startDate.setHours(0, 0, 0, 0);
       where.paidAt = { ...where.paidAt, gte: startDate };
     }
 
     if (filters.endDate) {
       const endDate = new Date(filters.endDate);
+      if (isNaN(endDate.getTime())) {
+        return { success: false, error: "Invalid endDate format" };
+      }
       endDate.setHours(23, 59, 59, 999); // End of day
       where.paidAt = { ...where.paidAt, lte: endDate };
     }
@@ -307,12 +313,18 @@ export async function exportFeeReportCsv(
 
     if (filters.startDate) {
       const startDate = new Date(filters.startDate);
+      if (isNaN(startDate.getTime())) {
+        return { success: false, error: "Invalid startDate format" };
+      }
       startDate.setHours(0, 0, 0, 0);
       where.paidAt = { ...where.paidAt, gte: startDate };
     }
 
     if (filters.endDate) {
       const endDate = new Date(filters.endDate);
+      if (isNaN(endDate.getTime())) {
+        return { success: false, error: "Invalid endDate format" };
+      }
       endDate.setHours(23, 59, 59, 999);
       where.paidAt = { ...where.paidAt, lte: endDate };
     }

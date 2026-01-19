@@ -26,33 +26,49 @@ export default function AdminFeeReportPage() {
   const vendorId = searchParams.get("vendorId") || undefined;
   const startDate = searchParams.get("startDate") || undefined;
   const endDate = searchParams.get("endDate") || undefined;
-  const page = parseInt(searchParams.get("page") || "1", 10);
+  const parsedPage = parseInt(searchParams.get("page") || "1", 10);
+  const page = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
 
   // Fetch data when filters change
   useEffect(() => {
+    let isCancelled = false;
+
     async function fetchData() {
       setLoading(true);
       setError(null);
 
-      const result = await getFeeReport({
-        vendorId,
-        startDate,
-        endDate,
-        page,
-        pageSize: 50,
-      });
+      try {
+        const result = await getFeeReport({
+          vendorId,
+          startDate,
+          endDate,
+          page,
+          pageSize: 50,
+        });
 
-      if (result.success) {
-        setData(result.data);
-      } else {
-        setError(result.error);
+        if (isCancelled) return;
+
+        if (result.success) {
+          setData(result.data);
+        } else {
+          setError(result.error);
+          setData(null);
+        }
+      } catch (err) {
+        if (isCancelled) return;
+        console.error("Failed to fetch fee report:", err);
+        setError("An unexpected error occurred");
         setData(null);
+      } finally {
+        if (!isCancelled) setLoading(false);
       }
-
-      setLoading(false);
     }
 
     fetchData();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [vendorId, startDate, endDate, page]);
 
   // Handle page change
