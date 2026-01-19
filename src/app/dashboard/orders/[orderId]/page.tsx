@@ -10,6 +10,7 @@ import { getVendorOrderDetail } from "@/actions/vendor-orders";
 import { OrderStatusBadge } from "@/components/vendor-orders/order-status-badge";
 import { OrderItemsTable } from "@/components/vendor-orders/order-items-table";
 import { StatusActionButtons } from "@/components/vendor-orders/status-action-buttons";
+import { OrderFinancialSummary } from "@/components/vendor-orders/order-financial-summary";
 import { OrderDetailActions } from "@/components/admin/order-detail-actions";
 import { OrderTimeline } from "@/components/admin/order-timeline";
 import { OrderNotesEditor } from "@/components/admin/order-notes-editor";
@@ -350,6 +351,14 @@ async function VendorOrderDetailView({ orderId }: { orderId: string }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Financial Breakdown (N2.2) */}
+      <OrderFinancialSummary
+        grossTotalCents={subOrder.grossTotalCents}
+        vatTotalCents={subOrder.vatTotalCents}
+        netTotalCents={subOrder.netTotalCents}
+        hydraFeeCents={subOrder.hydraFeeCents}
+      />
 
       {/* Order Items */}
       <Card>

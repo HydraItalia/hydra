@@ -43,6 +43,14 @@ export type VendorSubOrderDetail = {
   // Payment status (Issue #104)
   paymentStatus: PaymentStatus | null;
   requiresClientUpdate: boolean;
+  // VAT snapshot totals (N1.3) - nullable for historical orders
+  netTotalCents: number | null;
+  vatTotalCents: number | null;
+  grossTotalCents: number | null;
+  // Hydra platform fee (N2.1) - nullable for historical orders
+  hydraFeeCents: number | null;
+  hydraFeeBps: number | null;
+  hydraFeePercent: number | null;
   Order: {
     orderNumber: string;
     clientName: string;
@@ -74,7 +82,7 @@ type ActionResult<T> = {
  * Replaces the old getVendorOrders function
  */
 export async function getVendorOrders(
-  statusFilter?: SubOrderStatus
+  statusFilter?: SubOrderStatus,
 ): Promise<ActionResult<VendorSubOrderListItem[]>> {
   try {
     const user = await currentUser();
@@ -157,7 +165,7 @@ export async function getVendorOrders(
  * Updated to work with SubOrders
  */
 export async function getVendorOrderDetail(
-  subOrderId: string
+  subOrderId: string,
 ): Promise<ActionResult<VendorSubOrderDetail>> {
   try {
     const user = await currentUser();
@@ -228,6 +236,14 @@ export async function getVendorOrderDetail(
       // Payment status (Issue #104)
       paymentStatus: subOrder.paymentStatus,
       requiresClientUpdate: subOrder.requiresClientUpdate,
+      // VAT snapshot totals (N1.3)
+      netTotalCents: subOrder.netTotalCents,
+      vatTotalCents: subOrder.vatTotalCents,
+      grossTotalCents: subOrder.grossTotalCents,
+      // Hydra platform fee (N2.1)
+      hydraFeeCents: subOrder.hydraFeeCents,
+      hydraFeeBps: subOrder.hydraFeeBps,
+      hydraFeePercent: subOrder.hydraFeePercent,
       Order: {
         orderNumber: subOrder.Order.orderNumber,
         clientName: subOrder.Order.Client.name,
@@ -259,7 +275,7 @@ export async function getVendorOrderDetail(
  */
 export async function updateVendorOrderStatus(
   _orderId: string,
-  _newStatus: SubOrderStatus
+  _newStatus: SubOrderStatus,
 ): Promise<ActionResult<{ message: string }>> {
   return {
     success: false,
