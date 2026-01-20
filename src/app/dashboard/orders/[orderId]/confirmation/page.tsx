@@ -23,6 +23,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { VatBreakdown } from "@/components/checkout/vat-breakdown";
 
 type PageProps = {
   params: Promise<{
@@ -41,7 +42,7 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
     redirect("/signin?callbackUrl=/dashboard/orders");
   }
 
-  // 2. Load order with items
+  // 2. Load order with items and SubOrders (for VAT breakdown)
   const order = await prisma.order.findUnique({
     where: {
       id: orderId,
@@ -64,6 +65,26 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
                   name: true,
                 },
               },
+            },
+          },
+        },
+      },
+      SubOrder: {
+        select: {
+          id: true,
+          vendorId: true,
+          netTotalCents: true,
+          vatTotalCents: true,
+          grossTotalCents: true,
+          Vendor: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          _count: {
+            select: {
+              OrderItem: true,
             },
           },
         },
@@ -100,6 +121,41 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
       DELIVERED: "bg-purple-500",
       CANCELED: "bg-red-500",
     }[order.status] || "bg-gray-500";
+
+  // Compute VAT breakdown from SubOrders
+  const hasVatData = order.SubOrder.some(
+    (so) =>
+      so.netTotalCents !== null &&
+      so.vatTotalCents !== null &&
+      so.grossTotalCents !== null
+  );
+
+  const vatVendors = hasVatData
+    ? order.SubOrder.filter(
+        (so) =>
+          so.netTotalCents !== null &&
+          so.vatTotalCents !== null &&
+          so.grossTotalCents !== null
+      ).map((so) => ({
+        vendorId: so.vendorId,
+        vendorName: so.Vendor.name,
+        itemCount: so._count.OrderItem,
+        netTotalCents: so.netTotalCents!,
+        vatTotalCents: so.vatTotalCents!,
+        grossTotalCents: so.grossTotalCents!,
+      }))
+    : [];
+
+  const vatTotals = hasVatData
+    ? {
+        netTotalCents: vatVendors.reduce((sum, v) => sum + v.netTotalCents, 0),
+        vatTotalCents: vatVendors.reduce((sum, v) => sum + v.vatTotalCents, 0),
+        grossTotalCents: vatVendors.reduce(
+          (sum, v) => sum + v.grossTotalCents,
+          0
+        ),
+      }
+    : null;
 
   return (
     <div className="space-y-6">
@@ -201,18 +257,30 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
 
           <Separator />
 
-          {/* Order Summary */}
-          <div className="flex justify-end">
-            <div className="w-full max-w-sm space-y-3">
-              <div className="flex items-center justify-between text-lg font-bold">
-                <span>Order Total</span>
-                <span>{formatCurrency(order.totalCents)}</span>
+          {/* Order Summary with VAT Breakdown */}
+          {hasVatData && vatTotals ? (
+            <div className="flex justify-end">
+              <div className="w-full max-w-md">
+                <VatBreakdown
+                  vendors={vatVendors}
+                  totals={vatTotals}
+                  isFinalized
+                />
               </div>
-              <p className="text-xs text-muted-foreground text-right">
-                Prices locked in at time of order confirmation
-              </p>
             </div>
-          </div>
+          ) : (
+            <div className="flex justify-end">
+              <div className="w-full max-w-sm space-y-3">
+                <div className="flex items-center justify-between text-lg font-bold">
+                  <span>Order Total</span>
+                  <span>{formatCurrency(order.totalCents)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground text-right">
+                  Prices locked in at time of order confirmation
+                </p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -319,7 +319,7 @@ export async function createOrderFromCart(): Promise<{ orderId: string }> {
       }
 
       // Compute Hydra platform fee for this suborder (N2.1)
-      const hydraFeeCents = computeHydraFeeCents(grossTotalCents, hydraFeeBps);
+      const hydraFeeCents = computeHydraFeeCents(netTotalCents, hydraFeeBps);
 
       const subOrderNumber = `${orderNumber}-V${String(vendorSeq).padStart(
         2,
