@@ -123,12 +123,15 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
     }[order.status] || "bg-gray-500";
 
   // Compute VAT breakdown from SubOrders
-  const hasVatData = order.SubOrder.some(
-    (so) =>
-      so.netTotalCents !== null &&
-      so.vatTotalCents !== null &&
-      so.grossTotalCents !== null
-  );
+  // Only show VAT breakdown if ALL SubOrders have complete VAT data
+  const hasVatData =
+    order.SubOrder.length > 0 &&
+    order.SubOrder.every(
+      (so) =>
+        so.netTotalCents !== null &&
+        so.vatTotalCents !== null &&
+        so.grossTotalCents !== null
+    );
 
   const vatVendors = hasVatData
     ? order.SubOrder.filter(

@@ -66,19 +66,23 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
   // VAT preview state
   const [vatPreview, setVatPreview] = useState<CheckoutVatPreview | null>(null);
   const [vatLoading, setVatLoading] = useState(true);
+  const [vatError, setVatError] = useState(false);
 
-  // Fetch VAT preview on mount
+  // Fetch VAT preview on mount and when cart changes
   useEffect(() => {
     async function fetchVatPreview() {
       setVatLoading(true);
+      setVatError(false);
       const result = await getCheckoutVatPreview();
       if (result.success) {
         setVatPreview(result.data);
+      } else {
+        setVatError(true);
       }
       setVatLoading(false);
     }
     fetchVatPreview();
-  }, []);
+  }, [cart.id]);
 
   // Calculate totals (fallback if VAT preview not loaded)
   const subtotalCents = cart.CartItem.reduce((sum, item) => {
@@ -275,6 +279,12 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
                 <CardTitle>Order Summary</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {vatError && (
+                  <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>VAT breakdown unavailable</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-medium">

@@ -19,6 +19,7 @@ import {
 export interface VendorVatBreakdown {
   vendorId: string;
   vendorName: string;
+  /** Number of distinct cart line items (not sum of quantities) */
   itemCount: number;
   netTotalCents: number;
   vatTotalCents: number;
@@ -138,6 +139,12 @@ export async function getCheckoutVatPreview(): Promise<CheckoutVatPreviewResult>
       let vendorGross = 0;
 
       for (const item of items) {
+        // Warn if price is missing (data integrity issue)
+        if (item.unitPriceCents === null || item.unitPriceCents === undefined) {
+          console.warn(
+            `Cart item ${item.id} has null unitPriceCents, treating as 0`
+          );
+        }
         const lineTotalCents = (item.unitPriceCents ?? 0) * item.qty;
         const product = item.VendorProduct.Product;
 

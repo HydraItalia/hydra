@@ -217,28 +217,27 @@ async function ClientOrderDetailView({ orderId }: { orderId: string }) {
           {/* Order Summary with VAT Breakdown (N2.4) */}
           {(() => {
             // Compute VAT breakdown from SubOrders
-            const hasVatData = order.SubOrder?.some(
-              (so) =>
-                so.netTotalCents !== null &&
-                so.vatTotalCents !== null &&
-                so.grossTotalCents !== null
-            );
+            // Filter to SubOrders with complete VAT data, then check if all have it
+            const vatVendors = (order.SubOrder ?? [])
+              .filter(
+                (so) =>
+                  so.netTotalCents !== null &&
+                  so.vatTotalCents !== null &&
+                  so.grossTotalCents !== null
+              )
+              .map((so) => ({
+                vendorId: so.vendorId,
+                vendorName: so.Vendor.name,
+                itemCount: so._count.OrderItem,
+                netTotalCents: so.netTotalCents!,
+                vatTotalCents: so.vatTotalCents!,
+                grossTotalCents: so.grossTotalCents!,
+              }));
 
-            const vatVendors = hasVatData
-              ? order.SubOrder!.filter(
-                  (so) =>
-                    so.netTotalCents !== null &&
-                    so.vatTotalCents !== null &&
-                    so.grossTotalCents !== null
-                ).map((so) => ({
-                  vendorId: so.vendorId,
-                  vendorName: so.Vendor.name,
-                  itemCount: so._count.OrderItem,
-                  netTotalCents: so.netTotalCents!,
-                  vatTotalCents: so.vatTotalCents!,
-                  grossTotalCents: so.grossTotalCents!,
-                }))
-              : [];
+            // Only show VAT breakdown if ALL SubOrders have complete VAT data
+            const hasVatData =
+              vatVendors.length > 0 &&
+              vatVendors.length === (order.SubOrder?.length ?? 0);
 
             const vatTotals = hasVatData
               ? {

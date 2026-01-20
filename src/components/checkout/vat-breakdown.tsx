@@ -23,11 +23,11 @@ interface VendorBreakdown {
 interface VatBreakdownProps {
   /** Per-vendor VAT breakdown (for multi-vendor orders) */
   vendors: VendorBreakdown[];
-  /** Overall totals */
+  /** Overall totals (nullable for graceful handling of missing data) */
   totals: {
-    netTotalCents: number;
-    vatTotalCents: number;
-    grossTotalCents: number;
+    netTotalCents: number | null;
+    vatTotalCents: number | null;
+    grossTotalCents: number | null;
   };
   /** Effective VAT percentage for display (display-only) */
   effectiveVatPercent?: number | null;
@@ -66,11 +66,6 @@ export function VatBreakdown({
 }: VatBreakdownProps) {
   const hasMultipleVendors = vendors.length > 1;
 
-  // Compute effective VAT % if not provided
-  const displayVatPercent =
-    effectiveVatPercent ??
-    computeDisplayVatPercent(totals.netTotalCents, totals.vatTotalCents);
-
   // Check if we have valid data
   const hasValidData =
     totals.netTotalCents !== null &&
@@ -81,13 +76,22 @@ export function VatBreakdown({
     return null;
   }
 
+  // After validation, we know these are not null
+  const netCents = totals.netTotalCents!;
+  const vatCents = totals.vatTotalCents!;
+  const grossCents = totals.grossTotalCents!;
+
+  // Compute effective VAT % if not provided
+  const displayVatPercent =
+    effectiveVatPercent ?? computeDisplayVatPercent(netCents, vatCents);
+
   if (compact) {
     return (
       <div className="space-y-3">
         {/* Imponibile (Net) */}
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">Imponibile</span>
-          <span>{formatCurrency(totals.netTotalCents)}</span>
+          <span>{formatCurrency(netCents)}</span>
         </div>
 
         {/* IVA */}
@@ -95,7 +99,7 @@ export function VatBreakdown({
           <span className="text-muted-foreground">
             IVA{displayVatPercent !== null ? ` (${displayVatPercent}%)` : ""}
           </span>
-          <span>{formatCurrency(totals.vatTotalCents)}</span>
+          <span>{formatCurrency(vatCents)}</span>
         </div>
 
         <Separator />
@@ -103,7 +107,7 @@ export function VatBreakdown({
         {/* Totale (Gross) */}
         <div className="flex items-center justify-between text-lg font-bold">
           <span>Totale</span>
-          <span>{formatCurrency(totals.grossTotalCents)}</span>
+          <span>{formatCurrency(grossCents)}</span>
         </div>
       </div>
     );
@@ -139,7 +143,7 @@ export function VatBreakdown({
                   >
                     <div className="font-medium text-sm">
                       {vendor.vendorName}
-                      {vendor.itemCount && (
+                      {vendor.itemCount != null && vendor.itemCount > 0 && (
                         <span className="text-muted-foreground font-normal ml-2">
                           ({vendor.itemCount}{" "}
                           {vendor.itemCount === 1 ? "articolo" : "articoli"})
@@ -189,9 +193,7 @@ export function VatBreakdown({
           {/* Imponibile (Net) */}
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Imponibile</span>
-            <span className="font-medium">
-              {formatCurrency(totals.netTotalCents)}
-            </span>
+            <span className="font-medium">{formatCurrency(netCents)}</span>
           </div>
 
           {/* IVA */}
@@ -199,9 +201,7 @@ export function VatBreakdown({
             <span className="text-muted-foreground">
               IVA{displayVatPercent !== null ? ` (${displayVatPercent}%)` : ""}
             </span>
-            <span className="font-medium">
-              {formatCurrency(totals.vatTotalCents)}
-            </span>
+            <span className="font-medium">{formatCurrency(vatCents)}</span>
           </div>
 
           <Separator />
@@ -209,7 +209,7 @@ export function VatBreakdown({
           {/* Totale (Gross) */}
           <div className="flex items-center justify-between text-lg font-bold">
             <span>Totale</span>
-            <span>{formatCurrency(totals.grossTotalCents)}</span>
+            <span>{formatCurrency(grossCents)}</span>
           </div>
         </div>
       </CardContent>
