@@ -89,6 +89,11 @@ export type OrderDetail = {
     subTotalCents: number;
     paymentStatus: string | null;
     requiresClientUpdate: boolean;
+    // VAT snapshot fields (N2.4)
+    vendorId: string;
+    netTotalCents: number | null;
+    vatTotalCents: number | null;
+    grossTotalCents: number | null;
     Vendor: {
       name: string;
     };
@@ -100,6 +105,9 @@ export type OrderDetail = {
       unitPriceCents: number;
       lineTotalCents: number;
     }[];
+    _count: {
+      OrderItem: number;
+    };
   }[];
   // Computed payment status fields
   hasPaymentFailure?: boolean;
@@ -230,6 +238,11 @@ export async function fetchOrderById(orderId: string): Promise<OrderDetail> {
           subTotalCents: true,
           paymentStatus: true,
           requiresClientUpdate: true,
+          // VAT snapshot fields (N2.4)
+          vendorId: true,
+          netTotalCents: true,
+          vatTotalCents: true,
+          grossTotalCents: true,
           Vendor: {
             select: {
               name: true,
@@ -246,6 +259,11 @@ export async function fetchOrderById(orderId: string): Promise<OrderDetail> {
             },
             orderBy: {
               createdAt: "asc",
+            },
+          },
+          _count: {
+            select: {
+              OrderItem: true,
             },
           },
         },

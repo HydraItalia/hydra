@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { ArrowLeft, ShoppingCart, MapPin, AlertTriangle } from "lucide-react";
 import { PaymentFailureBanner } from "@/components/payment/payment-failure-banner";
+import { VatBreakdown } from "@/components/checkout/vat-breakdown";
 
 type PageProps = {
   params: Promise<{
@@ -213,18 +214,77 @@ async function ClientOrderDetailView({ orderId }: { orderId: string }) {
 
           <Separator />
 
-          {/* Order Summary */}
-          <div className="flex justify-end">
-            <div className="w-full max-w-sm space-y-3">
-              <div className="flex items-center justify-between text-lg font-bold">
-                <span>Grand Total</span>
-                <span>{formatCurrency(order.totalCents)}</span>
+          {/* Order Summary with VAT Breakdown (N2.4) */}
+          {(() => {
+            // Compute VAT breakdown from SubOrders
+            // Filter to SubOrders with complete VAT data, then check if all have it
+            const vatVendors = (order.SubOrder ?? [])
+              .filter(
+                (so) =>
+                  so.netTotalCents !== null &&
+                  so.vatTotalCents !== null &&
+                  so.grossTotalCents !== null
+              )
+              .map((so) => ({
+                vendorId: so.vendorId,
+                vendorName: so.Vendor.name,
+                itemCount: so._count.OrderItem,
+                netTotalCents: so.netTotalCents!,
+                vatTotalCents: so.vatTotalCents!,
+                grossTotalCents: so.grossTotalCents!,
+              }));
+
+            // Only show VAT breakdown if ALL SubOrders have complete VAT data
+            const hasVatData =
+              vatVendors.length > 0 &&
+              vatVendors.length === (order.SubOrder?.length ?? 0);
+
+            const vatTotals = hasVatData
+              ? {
+                  netTotalCents: vatVendors.reduce(
+                    (sum, v) => sum + v.netTotalCents,
+                    0
+                  ),
+                  vatTotalCents: vatVendors.reduce(
+                    (sum, v) => sum + v.vatTotalCents,
+                    0
+                  ),
+                  grossTotalCents: vatVendors.reduce(
+                    (sum, v) => sum + v.grossTotalCents,
+                    0
+                  ),
+                }
+              : null;
+
+            if (hasVatData && vatTotals) {
+              return (
+                <div className="flex justify-end">
+                  <div className="w-full max-w-md">
+                    <VatBreakdown
+                      vendors={vatVendors}
+                      totals={vatTotals}
+                      isFinalized
+                    />
+                  </div>
+                </div>
+              );
+            }
+
+            // Fallback for old orders without VAT data
+            return (
+              <div className="flex justify-end">
+                <div className="w-full max-w-sm space-y-3">
+                  <div className="flex items-center justify-between text-lg font-bold">
+                    <span>Grand Total</span>
+                    <span>{formatCurrency(order.totalCents)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground text-right">
+                    All prices are final and locked in at time of order submission
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground text-right">
-                All prices are final and locked in at time of order submission
-              </p>
-            </div>
-          </div>
+            );
+          })()}
         </CardContent>
       </Card>
 

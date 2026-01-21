@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   CheckCircle,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,11 @@ import {
   validateCartForCurrentUser,
   type CartValidationIssue,
 } from "@/data/cart-validation";
+import {
+  getCheckoutVatPreview,
+  type CheckoutVatPreview,
+} from "@/actions/checkout-preview";
+import { VatBreakdown } from "@/components/checkout/vat-breakdown";
 
 type CheckoutPageProps = {
   cart: Awaited<ReturnType<typeof import("@/data/cart").getCart>>;
@@ -57,12 +63,33 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
   >([]);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
 
-  // Calculate totals
+  // VAT preview state
+  const [vatPreview, setVatPreview] = useState<CheckoutVatPreview | null>(null);
+  const [vatLoading, setVatLoading] = useState(true);
+  const [vatError, setVatError] = useState(false);
+
+  // Fetch VAT preview on mount and when cart changes
+  useEffect(() => {
+    async function fetchVatPreview() {
+      setVatLoading(true);
+      setVatError(false);
+      const result = await getCheckoutVatPreview();
+      if (result.success) {
+        setVatPreview(result.data);
+      } else {
+        setVatError(true);
+      }
+      setVatLoading(false);
+    }
+    fetchVatPreview();
+  }, [cart.id]);
+
+  // Calculate totals (fallback if VAT preview not loaded)
   const subtotalCents = cart.CartItem.reduce((sum, item) => {
     return sum + (item.unitPriceCents ?? 0) * item.qty;
   }, 0);
 
-  const totalCents = subtotalCents;
+  const totalCents = vatPreview?.totals.grossTotalCents ?? subtotalCents;
 
   // Helper function to map validation codes to user-friendly titles
   const getValidationTitle = (code: string): string => {
@@ -229,46 +256,77 @@ export function CheckoutPage({ cart }: CheckoutPageProps) {
           </CardContent>
         </Card>
 
-        {/* Order Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Order Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span className="font-medium">
-                {formatCurrency(subtotalCents)}
-              </span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between text-lg font-bold">
-              <span>Total</span>
-              <span>{formatCurrency(totalCents)}</span>
-            </div>
-            <div className="pt-4 space-y-2 text-xs text-muted-foreground">
-              <p>• Prices are based on your current vendor agreements</p>
-              <p>• Your cart will be cleared after order confirmation</p>
-              <p>
-                • You&apos;ll receive an order confirmation with your order
-                number
-              </p>
-            </div>
-          </CardContent>
-          <CardFooter className="flex-col gap-2">
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handleConfirmOrder}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Processing..." : "Confirm Order"}
-            </Button>
-            <Button asChild variant="outline" className="w-full">
-              <Link href="/dashboard/cart">Back to Cart</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+        {/* Order Summary with VAT Breakdown */}
+        <div className="space-y-4">
+          {vatLoading ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Order Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ) : vatPreview ? (
+            <VatBreakdown
+              vendors={vatPreview.vendors}
+              totals={vatPreview.totals}
+              effectiveVatPercent={vatPreview.effectiveVatPercent}
+            />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Order Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {vatError && (
+                  <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>VAT breakdown unavailable</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="font-medium">
+                    {formatCurrency(subtotalCents)}
+                  </span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between text-lg font-bold">
+                  <span>Total</span>
+                  <span>{formatCurrency(totalCents)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Action buttons */}
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <p>• Prices are based on your current vendor agreements</p>
+                <p>• Your cart will be cleared after order confirmation</p>
+                <p>
+                  • You&apos;ll receive an order confirmation with your order
+                  number
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleConfirmOrder}
+                  disabled={isSubmitting || vatLoading}
+                >
+                  {isSubmitting ? "Processing..." : "Confirm Order"}
+                </Button>
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/dashboard/cart">Back to Cart</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Validation Issues Dialog */}
