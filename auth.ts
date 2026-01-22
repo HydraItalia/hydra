@@ -10,8 +10,9 @@ import { isDemoModeEnabled, DEMO_USERS } from "@/lib/demo-mode";
  * NextAuth Configuration for Hydra
  *
  * Email Authentication:
- * - AUTH_EMAIL_DEV_MODE not set or "true" (default): Magic links are logged to terminal only
- * - AUTH_EMAIL_DEV_MODE="false" (case-insensitive): Magic links are logged AND sent via EMAIL_SERVER
+ * - Production: Magic links are always sent via EMAIL_SERVER
+ * - Development (default): Magic links are logged to terminal only
+ * - Development with AUTH_EMAIL_DEV_MODE="false": Magic links are sent via EMAIL_SERVER
  *
  * Demo Mode (when ENABLE_DEMO_MODE="true"):
  * - Adds Credentials provider for one-click demo user signin
@@ -89,12 +90,12 @@ export const {
       server: process.env.EMAIL_SERVER || "smtp://localhost:25",
       from: process.env.EMAIL_FROM || "hydra@localhost.dev",
       sendVerificationRequest: async ({ identifier: email, url, provider }) => {
-        // Check if dev mode is enabled
-        // Defaults to true if not set or if NODE_ENV is development
-        // Only when explicitly set to "false" (case-insensitive) will emails be sent
+        // Check if dev mode is enabled (non-production only)
+        // Defaults to true if not set or if explicitly "true"
+        // Only when explicitly set to "false" (case-insensitive) will emails be sent in dev
         const isDevMode =
-          process.env.AUTH_EMAIL_DEV_MODE?.toLowerCase() !== "false" ||
-          process.env.NODE_ENV === "development";
+          process.env.NODE_ENV !== "production" &&
+          process.env.AUTH_EMAIL_DEV_MODE?.toLowerCase() !== "false";
 
         // Always log the magic link in development for debugging
         if (isDevMode) {
