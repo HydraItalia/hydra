@@ -11,11 +11,7 @@ import { Loader2 } from 'lucide-react'
 export default function SignInPage() {
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [loadingButton, setLoadingButton] = useState<string | null>(null)
   const [emailSent, setEmailSent] = useState(false)
-
-  const isDev = process.env.NODE_ENV !== 'production' &&
-                process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === '1'
 
   async function handleEmailSignIn(e: React.FormEvent) {
     e.preventDefault()
@@ -39,28 +35,6 @@ export default function SignInPage() {
     }
   }
 
-  async function handleDevLogin(userEmail: string, buttonId: string) {
-    console.log('Login clicked:', buttonId)
-    setIsLoading(true)
-    setLoadingButton(buttonId)
-    console.log('Loading state set:', { isLoading: true, loadingButton: buttonId })
-
-    try {
-      // Show spinner for at least 500ms so users see feedback
-      await Promise.all([
-        signIn('email', {
-          email: userEmail,
-          redirect: true,
-          callbackUrl: '/dashboard',
-        }),
-        new Promise(resolve => setTimeout(resolve, 500))
-      ])
-    } catch (error) {
-      console.error('Dev login error:', error)
-      setIsLoading(false)
-      setLoadingButton(null)
-    }
-  }
 
   if (emailSent) {
     return (
@@ -124,98 +98,6 @@ export default function SignInPage() {
           </CardContent>
         </Card>
 
-        {isDev && (
-          <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-600">
-            <CardHeader>
-              <CardTitle className="text-sm">Dev Mode - Quick Login</CardTitle>
-              <CardDescription className="text-xs">
-                These shortcuts are only available in development
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDevLogin('admin@hydra.local', 'admin')}
-                  disabled={isLoading}
-                >
-                  {loadingButton === 'admin' ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    'Admin'
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDevLogin('andrea@hydra.local', 'agent')}
-                  disabled={isLoading}
-                >
-                  {loadingButton === 'agent' ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    'Agent (Andrea)'
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDevLogin('vendor.freezco@hydra.local', 'vendor')}
-                  disabled={isLoading}
-                >
-                  {loadingButton === 'vendor' ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    'Vendor'
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDevLogin('client.demo@hydra.local', 'client')}
-                  disabled={isLoading}
-                >
-                  {loadingButton === 'client' ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    'Client'
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDevLogin('driver.marco@hydra.local', 'driver')}
-                  disabled={isLoading}
-                >
-                  {loadingButton === 'driver' ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    'Driver'
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-2">
-                Note: You&apos;ll still need to click the magic link in the console/email
-              </p>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   )

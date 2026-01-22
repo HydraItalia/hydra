@@ -65,7 +65,6 @@ If successful, you'll see migration files created and applied.
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` | Show dev login shortcuts | Not set (disabled) |
 | `NODE_ENV` | Environment mode | `development` |
 
 ---
@@ -470,7 +469,6 @@ Add these variables:
 - ✅ DO use different `AUTH_SECRET` for production
 - ✅ DO use production SMTP (not Mailtrap)
 - ✅ DO use your actual domain for `NEXTAUTH_URL`
-- ❌ DO NOT set `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` in production
 - ❌ DO NOT use the same database for dev and production
 
 ### 3. Run Production Migrations
@@ -504,61 +502,6 @@ Or use a custom build script in `package.json`:
 1. **Check build logs** for migration success
 2. **Visit your production URL**
 3. **Test authentication** with a real email
-4. **Verify no demo login buttons** appear
-
----
-
-## Demo Login Configuration
-
-Demo login shortcuts allow quick authentication during development.
-
-### Enabling Demo Login
-
-In `.env.local`:
-
-```env
-NEXT_PUBLIC_ENABLE_DEMO_LOGIN="1"
-```
-
-This shows buttons on the signin page:
-- Admin
-- Agent (Andrea)
-- Vendor
-- Client
-
-### Disabling Demo Login
-
-**For production, you MUST disable demo logins:**
-
-1. **Remove from Vercel environment variables**
-   - Do not set `NEXT_PUBLIC_ENABLE_DEMO_LOGIN`
-
-2. **Or explicitly disable:**
-   ```env
-   NEXT_PUBLIC_ENABLE_DEMO_LOGIN="0"
-   ```
-
-### How It Works
-
-The signin page checks:
-
-```typescript
-const isDev = process.env.NODE_ENV !== 'production' &&
-              process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === '1'
-```
-
-Demo login buttons only appear when **both**:
-- Environment is not production
-- Feature flag is explicitly enabled
-
-### Security Note
-
-⚠️ **Never enable demo logins in production!**
-
-Demo logins use real user accounts from your seed data. If enabled in production:
-- Anyone can log in as admin
-- All data is accessible
-- Major security vulnerability
 
 ---
 
@@ -605,14 +548,6 @@ npx prisma generate
 3. Check spam folder
 4. Review email provider logs
 
-### "Demo login buttons not showing"
-
-**Check:**
-1. `NEXT_PUBLIC_ENABLE_DEMO_LOGIN="1"` is set in `.env.local`
-2. Server is running in development mode
-3. Hard refresh browser (Cmd+Shift+R)
-4. Clear Next.js cache: `rm -rf .next`
-
 ### "Migration failed"
 
 **Common causes:**
@@ -649,7 +584,6 @@ Use this checklist to verify your setup:
 - [ ] `NEXTAUTH_URL` set to `http://localhost:3000`
 - [ ] `EMAIL_SERVER` configured (Mailtrap or other)
 - [ ] `EMAIL_FROM` set to valid email
-- [ ] `NEXT_PUBLIC_ENABLE_DEMO_LOGIN="1"` set
 - [ ] `STRIPE_SECRET_KEY` set with test key (`sk_test_...`)
 - [ ] `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` set with test key (`pk_test_...`)
 - [ ] `STRIPE_WEBHOOK_SECRET` set (from Stripe CLI or dashboard)
@@ -667,10 +601,8 @@ Use this checklist to verify your setup:
 - [ ] `STRIPE_SECRET_KEY` set with **live** key (`sk_live_...`)
 - [ ] `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` set with **live** key (`pk_live_...`)
 - [ ] `STRIPE_WEBHOOK_SECRET` set (from production webhook endpoint)
-- [ ] `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` **NOT SET** or set to "0"
 - [ ] Migrations deployed successfully
 - [ ] Test authentication with real email
-- [ ] Demo login buttons **NOT VISIBLE**
 - [ ] Stripe webhooks configured and tested
 
 ---

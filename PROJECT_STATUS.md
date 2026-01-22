@@ -208,7 +208,6 @@ hydra/
 - ✅ Pricing logic (19 tests) - BASE/DISCOUNT/OVERRIDE modes
 - ✅ Navigation (12 tests) - Role-based nav items
 - ✅ Utilities (6 tests) - Currency formatting, string helpers
-- ✅ Components (7 tests) - RoleGate component
 
 **Test Command**: `pnpm test`
 
@@ -221,7 +220,6 @@ hydra/
 - Database: Neon PostgreSQL (EU Central)
 - Email: Console logging (magic links printed to terminal)
 - Theme: Dark mode by default
-- Dev Login: Enabled (4 quick login buttons)
 
 **Environment Variables** (`.env.local`):
 ```env
@@ -229,7 +227,6 @@ DATABASE_URL="postgresql://neondb_owner:npg_W1exKqThlZB8@..."
 AUTH_SECRET="nWBh+l8FGSpsPY2TCUjFGk17ETGWafkavoo93RR1JRY="
 NEXTAUTH_URL="http://localhost:3000"
 EMAIL_FROM="hydra@localhost.dev"
-NEXT_PUBLIC_ENABLE_DEMO_LOGIN="1"
 ```
 
 **Commands**:
