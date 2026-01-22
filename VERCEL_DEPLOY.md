@@ -34,7 +34,6 @@ Add these variables for **Production** environment:
 - ✅ DO use a **separate Neon database** for production
 - ✅ DO generate a **new AUTH_SECRET** (don't reuse dev secret!)
 - ✅ DO use production SMTP (not Mailtrap)
-- ❌ DO NOT set `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` in production
 - ❌ DO NOT use the same database as development
 
 ---
@@ -110,7 +109,6 @@ This runs migrations automatically on every deployment.
 1. **Visit your production URL**: `https://your-app.vercel.app`
 2. **Navigate to sign-in**: `/signin`
 3. **Verify**:
-   - ✅ Demo login buttons **should NOT appear**
    - ✅ Magic link form is visible
    - ✅ Page loads without errors
 
@@ -171,15 +169,6 @@ In Vercel → Settings → Git:
 3. Check Resend/SendGrid logs
 4. Test SMTP connection locally first
 
-### Demo Login Buttons Still Showing
-
-**Cause**: `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` is set in production
-
-**Fix**:
-1. Go to Vercel → Settings → Environment Variables
-2. **Delete** `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` (don't set it at all)
-3. Redeploy
-
 ### Migration Errors on Deploy
 
 **Cause**: Migrations not in Git or database out of sync
@@ -216,7 +205,6 @@ Before going live, verify:
 - [ ] `NEXTAUTH_URL` matches your production domain
 - [ ] `EMAIL_SERVER` uses production SMTP
 - [ ] `EMAIL_FROM` uses verified domain
-- [ ] `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` is **NOT SET**
 
 ### Database
 - [ ] Production database is separate from dev
@@ -226,7 +214,6 @@ Before going live, verify:
 
 ### Application
 - [ ] Build completes without errors
-- [ ] Demo login buttons **NOT VISIBLE** on signin page
 - [ ] Magic link emails arrive successfully
 - [ ] Authentication flow works end-to-end
 - [ ] Dashboard loads after authentication
@@ -237,7 +224,6 @@ Before going live, verify:
 - [ ] AUTH_SECRET never shared
 - [ ] Database credentials secure
 - [ ] SMTP credentials secure
-- [ ] Demo logins disabled
 
 ---
 
