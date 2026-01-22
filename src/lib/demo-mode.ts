@@ -2,6 +2,10 @@
  * Demo Mode Utilities
  *
  * Provides utilities for checking and managing demo mode state
+ *
+ * SECURITY: Demo mode is NEVER enabled in production, regardless of env vars.
+ * This prevents accidental exposure of the demo Credentials provider which
+ * bypasses email verification.
  */
 
 export type DemoUser = {
@@ -11,12 +15,37 @@ export type DemoUser = {
   description: string;
 };
 
+const isProduction = process.env.NODE_ENV === "production";
+const envWantsDemo = process.env.ENABLE_DEMO_MODE?.toLowerCase() === "true";
+
+// Log warning if demo mode is attempted in production
+if (isProduction && envWantsDemo) {
+  console.error(
+    "\n" +
+      "╔═══════════════════════════════════════════════════════════════════════╗\n" +
+      "║  ⚠️  SECURITY WARNING: ENABLE_DEMO_MODE=true in production!           ║\n" +
+      "║                                                                       ║\n" +
+      "║  Demo mode has been DISABLED to protect your application.             ║\n" +
+      "║  Demo mode bypasses email verification and must never run in prod.    ║\n" +
+      "║                                                                       ║\n" +
+      "║  Remove ENABLE_DEMO_MODE from your production environment variables.  ║\n" +
+      "╚═══════════════════════════════════════════════════════════════════════╝\n"
+  );
+}
+
 /**
  * Check if demo mode is enabled
  * Demo mode allows one-click signin for testing and demos
+ *
+ * IMPORTANT: Always returns false in production, regardless of env var.
+ * This is a security measure to prevent demo mode from ever running in prod.
  */
 export function isDemoModeEnabled(): boolean {
-  return process.env.ENABLE_DEMO_MODE?.toLowerCase() === "true";
+  // SECURITY: Never enable demo mode in production
+  if (isProduction) {
+    return false;
+  }
+  return envWantsDemo;
 }
 
 /**
