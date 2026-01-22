@@ -10,8 +10,9 @@ import { isDemoModeEnabled, DEMO_USERS } from "@/lib/demo-mode";
  * NextAuth Configuration for Hydra
  *
  * Email Authentication:
- * - AUTH_EMAIL_DEV_MODE not set or "true" (default): Magic links are logged to terminal only
- * - AUTH_EMAIL_DEV_MODE="false" (case-insensitive): Magic links are logged AND sent via EMAIL_SERVER
+ * - Production: Magic links are always sent via EMAIL_SERVER
+ * - Development (default): Magic links are logged to terminal only
+ * - Development with AUTH_EMAIL_DEV_MODE="false": Magic links are sent via EMAIL_SERVER
  *
  * Demo Mode (when ENABLE_DEMO_MODE="true"):
  * - Adds Credentials provider for one-click demo user signin
