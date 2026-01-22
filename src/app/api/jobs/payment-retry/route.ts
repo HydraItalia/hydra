@@ -3,14 +3,17 @@
  *
  * Finds SubOrders eligible for payment retry and processes them.
  *
- * Auth methods (accepts any):
- * - Authorization: Bearer CRON_SECRET (for manual runs)
- * - User-Agent containing "vercel-cron/1.0" (Vercel Cron)
+ * Authentication:
+ * - Production: Requires Authorization: Bearer CRON_SECRET header
+ *   (User-Agent is NOT trusted in production - can be spoofed)
+ * - Development: Allows requests without CRON_SECRET for local testing
  *
  * Query params:
  * - ?dryRun=1 - Returns eligible SubOrders without processing
  *
- * Vercel Cron: runs daily on Hobby, every 5 min on Pro (see vercel.json)
+ * Vercel Cron Configuration (vercel.json):
+ * - Set CRON_SECRET in Vercel environment variables
+ * - Configure cron job to include Authorization header with Bearer token
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -29,42 +32,44 @@ import { logSystemAction, AuditAction } from "@/lib/audit";
 /**
  * Validate cron job authorization
  *
- * Supports:
- * 1. Authorization: Bearer CRON_SECRET header (manual runs, Pro cron)
- * 2. User-Agent containing "vercel-cron/1.0" (Vercel Cron trigger)
- * 3. Development fallback - if no CRON_SECRET configured, allow in dev only
+ * SECURITY: In production, CRON_SECRET is REQUIRED. User-Agent can be spoofed
+ * and must not be trusted as the sole authentication method.
+ *
+ * Production behavior:
+ * - CRON_SECRET must be set, otherwise all requests are rejected
+ * - Only accepts Authorization: Bearer CRON_SECRET header
+ * - User-Agent is ignored (can be spoofed)
+ *
+ * Development behavior:
+ * - If CRON_SECRET is set, requires Bearer token
+ * - If CRON_SECRET is not set, allows all requests (for local testing)
  */
 function isAuthorized(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  const userAgent = request.headers.get("user-agent") || "";
+  const isProduction = process.env.NODE_ENV === "production";
 
-  // Check for Vercel Cron User-Agent
-  const isVercelCron = userAgent.includes("vercel-cron/1.0");
+  // Production: CRON_SECRET is required, User-Agent is not trusted
+  if (isProduction) {
+    if (!cronSecret) {
+      console.error(
+        "[Payment Retry] CRITICAL: CRON_SECRET not set in production. " +
+          "All cron requests will be rejected. Set CRON_SECRET in your environment.",
+      );
+      return false;
+    }
+    // Only accept Bearer token in production
+    return authHeader === `Bearer ${cronSecret}`;
+  }
 
-  // If CRON_SECRET is set, accept either Bearer token OR Vercel Cron UA
+  // Development: If CRON_SECRET is set, require it
   if (cronSecret) {
-    if (authHeader === `Bearer ${cronSecret}`) {
-      return true;
-    }
-    if (isVercelCron) {
-      return true;
-    }
-    return false;
+    return authHeader === `Bearer ${cronSecret}`;
   }
 
-  // No CRON_SECRET set: accept Vercel Cron UA
-  if (isVercelCron) {
-    return true;
-  }
-
-  // Development fallback: allow if no CRON_SECRET configured (dev only)
-  if (process.env.NODE_ENV === "development") {
-    console.warn("[Payment Retry] CRON_SECRET not set, allowing in dev mode");
-    return true;
-  }
-
-  return false;
+  // Development fallback: allow all requests for local testing
+  console.warn("[Payment Retry] CRON_SECRET not set, allowing in dev mode");
+  return true;
 }
 
 export async function GET(request: NextRequest) {
@@ -79,7 +84,7 @@ export async function GET(request: NextRequest) {
   const isDryRun = searchParams.get("dryRun") === "1";
 
   console.log(
-    `[Payment Retry] Starting payment retry job...${isDryRun ? " (DRY RUN)" : ""}`
+    `[Payment Retry] Starting payment retry job...${isDryRun ? " (DRY RUN)" : ""}`,
   );
 
   try {
@@ -129,7 +134,7 @@ export async function GET(request: NextRequest) {
     });
 
     console.log(
-      `[Payment Retry] Found ${eligibleSubOrders.length} SubOrders eligible for retry`
+      `[Payment Retry] Found ${eligibleSubOrders.length} SubOrders eligible for retry`,
     );
 
     // Dry run mode: return eligible SubOrders without processing
@@ -169,7 +174,7 @@ export async function GET(request: NextRequest) {
       // Skip if order is canceled
       if (subOrder.Order.status === "CANCELED") {
         console.log(
-          `[Payment Retry] Skipping ${subOrder.subOrderNumber} - order is canceled`
+          `[Payment Retry] Skipping ${subOrder.subOrderNumber} - order is canceled`,
         );
         results.push({
           subOrderId: subOrder.id,
@@ -191,7 +196,7 @@ export async function GET(request: NextRequest) {
         console.log(
           `[Payment Retry] Retrying authorization for ${
             subOrder.subOrderNumber
-          } (attempt ${subOrder.paymentAttemptCount + 1})`
+          } (attempt ${subOrder.paymentAttemptCount + 1})`,
         );
 
         result = await authorizeSubOrderCharge(subOrder.id);
@@ -199,7 +204,7 @@ export async function GET(request: NextRequest) {
         // PaymentIntent exists - check if authorization is expired
         if (isAuthorizationExpired(subOrder.authorizationExpiresAt)) {
           console.log(
-            `[Payment Retry] Authorization expired for ${subOrder.subOrderNumber}, marking as requires client update`
+            `[Payment Retry] Authorization expired for ${subOrder.subOrderNumber}, marking as requires client update`,
           );
 
           // Mark as requiring manual intervention
@@ -240,7 +245,7 @@ export async function GET(request: NextRequest) {
         console.log(
           `[Payment Retry] Retrying capture for ${
             subOrder.subOrderNumber
-          } (attempt ${subOrder.paymentAttemptCount + 1})`
+          } (attempt ${subOrder.paymentAttemptCount + 1})`,
         );
 
         result = await captureSubOrderPayment(subOrder.id);
@@ -271,11 +276,11 @@ export async function GET(request: NextRequest) {
       // Log result
       if (result.success) {
         console.log(
-          `[Payment Retry] SUCCESS: ${action} for ${subOrder.subOrderNumber}`
+          `[Payment Retry] SUCCESS: ${action} for ${subOrder.subOrderNumber}`,
         );
       } else {
         console.log(
-          `[Payment Retry] FAILED: ${action} for ${subOrder.subOrderNumber}: ${result.error}`
+          `[Payment Retry] FAILED: ${action} for ${subOrder.subOrderNumber}: ${result.error}`,
         );
       }
     }
@@ -285,7 +290,7 @@ export async function GET(request: NextRequest) {
     const failureCount = results.filter((r) => !r.success).length;
 
     console.log(
-      `[Payment Retry] Job completed in ${duration}ms. Success: ${successCount}, Failed: ${failureCount}`
+      `[Payment Retry] Job completed in ${duration}ms. Success: ${successCount}, Failed: ${failureCount}`,
     );
 
     return NextResponse.json({
@@ -304,7 +309,7 @@ export async function GET(request: NextRequest) {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
