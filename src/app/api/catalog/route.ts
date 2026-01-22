@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchCatalogPage } from "@/data/catalog";
 import { CategoryGroupType } from "@prisma/client";
+import { currentUser } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  // Require authentication - catalog data should not be publicly accessible
+  const user = await currentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
 
   // Parse query parameters
@@ -31,7 +38,7 @@ export async function GET(req: NextRequest) {
     console.error("Catalog API error:", error);
     return NextResponse.json(
       { error: "Failed to fetch catalog" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
