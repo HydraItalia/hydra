@@ -5,14 +5,19 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { authConfig } from "./auth.config";
 import { prisma } from "@/lib/prisma";
 import { isDemoModeEnabled, DEMO_USERS } from "@/lib/demo-mode";
+import { sendEmailViaResend } from "@/lib/email/resend";
+import { validateEmailEnv } from "@/lib/email/env-check";
+
+// Fail fast in production if email env vars are missing
+validateEmailEnv();
 
 /**
  * NextAuth Configuration for Hydra
  *
  * Email Authentication:
- * - Production: Magic links are always sent via EMAIL_SERVER
+ * - Production: Magic links are sent via Resend HTTP API (RESEND_API_KEY)
  * - Development (default): Magic links are logged to terminal only
- * - Development with AUTH_EMAIL_DEV_MODE="false": Magic links are sent via EMAIL_SERVER
+ * - Development with AUTH_EMAIL_DEV_MODE="false": Magic links are sent via Resend HTTP API
  *
  * Demo Mode (when ENABLE_DEMO_MODE="true"):
  * - Adds Credentials provider for one-click demo user signin
@@ -86,7 +91,9 @@ export const {
       : []),
 
     // Email Provider (magic links)
+    // Uses Resend HTTP API in production (SMTP is unreliable in Vercel serverless).
     EmailProvider({
+      // server is still required by the provider type but unused in our custom sender
       server: process.env.EMAIL_SERVER || "smtp://localhost:25",
       from: process.env.EMAIL_FROM || "hydra@localhost.dev",
       sendVerificationRequest: async ({ identifier: email, url, provider }) => {
@@ -97,28 +104,40 @@ export const {
           process.env.NODE_ENV !== "production" &&
           process.env.AUTH_EMAIL_DEV_MODE?.toLowerCase() !== "false";
 
-        // Always log the magic link in development for debugging
+        // Structured logging for debugging (safe - no secrets)
+        console.log("[auth] sendVerificationRequest invoked", {
+          nodeEnv: process.env.NODE_ENV,
+          authEmailDevMode: process.env.AUTH_EMAIL_DEV_MODE ?? "(unset)",
+          isDevMode,
+          recipientDomain: email.split("@")[1] || "unknown",
+          from: provider.from,
+          hasResendApiKey: !!process.env.RESEND_API_KEY,
+        });
+
+        // Dev mode: log magic link to console and skip sending
         if (isDevMode) {
           console.log("\n📧 Magic Link for", email);
           console.log("🔗 Click here to sign in:", url);
-          console.log("\n");
-        }
-
-        // If dev mode is enabled, only log (don't send email)
-        if (isDevMode) {
+          console.log("[auth] Dev mode active — email NOT sent\n");
           return;
         }
 
-        // Production mode: send actual email
-        const nodemailer = await import("nodemailer");
-        const transport = nodemailer.createTransport(provider.server);
-        await transport.sendMail({
+        // Production / real-send mode: use Resend HTTP API
+        console.log("[auth] Sending magic link email via Resend HTTP API");
+
+        const subject = "Sign in to Hydra";
+        const text = `Sign in to Hydra\n\n${url}\n\n`;
+        const html = `<p>Click the link below to sign in:</p><p><a href="${url}">Sign in to Hydra</a></p>`;
+
+        await sendEmailViaResend({
           to: email,
-          from: provider.from,
-          subject: "Sign in to Hydra",
-          text: `Sign in to Hydra\n\n${url}\n\n`,
-          html: `<p>Click the link below to sign in:</p><p><a href="${url}">Sign in to Hydra</a></p>`,
+          from: provider.from as string,
+          subject,
+          html,
+          text,
         });
+
+        console.log("[auth] Magic link email sent successfully");
       },
     }),
   ],
