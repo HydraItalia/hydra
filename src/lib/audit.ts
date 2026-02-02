@@ -91,6 +91,12 @@ export const AuditAction = {
 
   // Onboarding actions
   ONBOARDING_SUBMITTED: "ONBOARDING_SUBMITTED",
+
+  // User approval actions
+  USER_APPROVED: "USER_APPROVED",
+  USER_REJECTED: "USER_REJECTED",
+  USER_SUSPENDED: "USER_SUSPENDED",
+  USER_REACTIVATED: "USER_REACTIVATED",
 } as const;
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction];
@@ -190,7 +196,7 @@ export async function logBulkActions(
     entityId: string;
     action: AuditActionType;
     diff?: Record<string, any> | null;
-  }>
+  }>,
 ): Promise<void> {
   try {
     const user = await currentUser();
@@ -236,7 +242,7 @@ export async function getAuditLogs(
   options?: {
     limit?: number;
     includeUser?: boolean;
-  }
+  },
 ) {
   const { limit, includeUser = true } = options || {};
 
