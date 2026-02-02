@@ -67,6 +67,7 @@ const mockClientUser = {
   email: "client@test.com",
   name: "Test Client",
   role: "CLIENT" as const,
+  status: "APPROVED" as const,
   vendorId: null,
   clientId: "client-123",
   agentCode: null,
@@ -747,16 +748,15 @@ describe("createOrderFromCart with VAT", () => {
       await createOrderFromCart();
 
       // Verify fee fields
-      // grossTotalCents = 10000 + 1000 (10% VAT) = 11000
-      // hydraFeeCents = 11000 * 500 / 10000 = 550
+      // netTotalCents = 10000 (NET pricing, so lineTotalCents = net)
+      // hydraFeeCents = 10000 * 500 / 10000 = 500
       expect(capturedSubOrder.hydraFeeBps).toBe(500);
-      expect(capturedSubOrder.hydraFeeCents).toBe(550);
+      expect(capturedSubOrder.hydraFeeCents).toBe(500);
       expect(capturedSubOrder.hydraFeePercent).toBe(0.05);
 
-      // Verify fee math: feeCents === Math.round(grossTotalCents * feeBps / 10000)
+      // Verify fee math: feeCents === Math.round(netTotalCents * feeBps / 10000)
       const expectedFee = Math.round(
-        (capturedSubOrder.grossTotalCents * capturedSubOrder.hydraFeeBps) /
-          10000,
+        (capturedSubOrder.netTotalCents * capturedSubOrder.hydraFeeBps) / 10000,
       );
       expect(capturedSubOrder.hydraFeeCents).toBe(expectedFee);
     });
@@ -944,26 +944,26 @@ describe("createOrderFromCart with VAT", () => {
         expect(subOrder.hydraFeeCents).toBeDefined();
         expect(subOrder.hydraFeeCents).toBeGreaterThanOrEqual(0);
 
-        // Verify fee math for each SubOrder
+        // Verify fee math for each SubOrder (fee is on netTotalCents)
         const expectedFee = Math.round(
-          (subOrder.grossTotalCents * subOrder.hydraFeeBps) / 10000,
+          (subOrder.netTotalCents * subOrder.hydraFeeBps) / 10000,
         );
         expect(subOrder.hydraFeeCents).toBe(expectedFee);
       }
 
-      // Vendor 1: gross = 1000 + 100 = 1100, fee = 1100 * 500 / 10000 = 55
+      // Vendor 1: net = 1000, fee = 1000 * 500 / 10000 = 50
       const subOrder1 = capturedSubOrders.find(
         (s) => s.vendorId === "vendor-1",
       );
       expect(subOrder1!.grossTotalCents).toBe(1100);
-      expect(subOrder1!.hydraFeeCents).toBe(55);
+      expect(subOrder1!.hydraFeeCents).toBe(50);
 
-      // Vendor 2: gross = 2000 + 440 = 2440, fee = 2440 * 500 / 10000 = 122
+      // Vendor 2: net = 2000, fee = 2000 * 500 / 10000 = 100
       const subOrder2 = capturedSubOrders.find(
         (s) => s.vendorId === "vendor-2",
       );
       expect(subOrder2!.grossTotalCents).toBe(2440);
-      expect(subOrder2!.hydraFeeCents).toBe(122);
+      expect(subOrder2!.hydraFeeCents).toBe(100);
     });
   });
 });

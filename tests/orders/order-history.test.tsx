@@ -26,6 +26,8 @@ type MockUser = {
   name: string;
   agentCode: string | null;
   vendorId: string | null;
+  driverId: string | null;
+  status: "APPROVED" | "PENDING" | "REJECTED" | "SUSPENDED";
 };
 
 const createMockClientUser = (overrides: Partial<MockUser> = {}): MockUser => ({
@@ -36,9 +38,10 @@ const createMockClientUser = (overrides: Partial<MockUser> = {}): MockUser => ({
   name: "Client",
   agentCode: null,
   vendorId: null,
+  driverId: null,
+  status: "APPROVED",
   ...overrides,
 });
-
 
 describe("Order History - fetchOrdersForClient", () => {
   beforeEach(() => {
@@ -49,7 +52,7 @@ describe("Order History - fetchOrdersForClient", () => {
     vi.mocked(currentUser).mockResolvedValue(null);
 
     await expect(
-      fetchOrdersForClient({ page: 1, pageSize: 20 })
+      fetchOrdersForClient({ page: 1, pageSize: 20 }),
     ).rejects.toThrow("Unauthorized");
   });
 
@@ -60,21 +63,21 @@ describe("Order History - fetchOrdersForClient", () => {
         role: "AGENT",
         clientId: null,
         agentCode: "AGENT1",
-      })
+      }),
     );
 
     await expect(
-      fetchOrdersForClient({ page: 1, pageSize: 20 })
+      fetchOrdersForClient({ page: 1, pageSize: 20 }),
     ).rejects.toThrow("Only CLIENT users can access orders");
   });
 
   it("should throw error when CLIENT user has no clientId", async () => {
     vi.mocked(currentUser).mockResolvedValue(
-      createMockClientUser({ clientId: null })
+      createMockClientUser({ clientId: null }),
     );
 
     await expect(
-      fetchOrdersForClient({ page: 1, pageSize: 20 })
+      fetchOrdersForClient({ page: 1, pageSize: 20 }),
     ).rejects.toThrow("User does not have an associated client");
   });
 
@@ -89,7 +92,7 @@ describe("Order History - fetchOrdersForClient", () => {
         status: "SUBMITTED",
         totalCents: 10000,
         _count: {
-          items: 3,
+          OrderItem: 3,
         },
       },
       {
@@ -99,7 +102,7 @@ describe("Order History - fetchOrdersForClient", () => {
         status: "CONFIRMED",
         totalCents: 25000,
         _count: {
-          items: 5,
+          OrderItem: 5,
         },
       },
     ];
@@ -123,7 +126,7 @@ describe("Order History - fetchOrdersForClient", () => {
         totalCents: true,
         _count: {
           select: {
-            items: true,
+            OrderItem: true,
           },
         },
       },
@@ -181,7 +184,7 @@ describe("Order History - fetchOrdersForClient", () => {
       expect.objectContaining({
         take: 20,
         skip: 20, // page 2 offset
-      })
+      }),
     );
 
     // Verify pagination metadata
@@ -201,7 +204,7 @@ describe("Order History - fetchOrdersForClient", () => {
     expect(prisma.order.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         skip: 0, // Should use page 1
-      })
+      }),
     );
   });
 
@@ -214,13 +217,13 @@ describe("Order History - fetchOrdersForClient", () => {
     // Test minimum
     await fetchOrdersForClient({ page: 1, pageSize: 5 });
     expect(prisma.order.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 10 })
+      expect.objectContaining({ take: 10 }),
     );
 
     // Test maximum
     await fetchOrdersForClient({ page: 1, pageSize: 200 });
     expect(prisma.order.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 100 })
+      expect.objectContaining({ take: 100 }),
     );
   });
 
@@ -255,7 +258,7 @@ describe("Order History - fetchOrdersForClient", () => {
         where: expect.objectContaining({
           clientId: "client1",
         }),
-      })
+      }),
     );
   });
 });
@@ -278,21 +281,21 @@ describe("Order History - fetchOrderById", () => {
         role: "VENDOR",
         vendorId: "vendor1",
         clientId: null,
-      })
+      }),
     );
 
     await expect(fetchOrderById("order1")).rejects.toThrow(
-      "Only CLIENT users can access orders"
+      "Only CLIENT users can access orders",
     );
   });
 
   it("should throw error when CLIENT user has no clientId", async () => {
     vi.mocked(currentUser).mockResolvedValue(
-      createMockClientUser({ clientId: null })
+      createMockClientUser({ clientId: null }),
     );
 
     await expect(fetchOrderById("order1")).rejects.toThrow(
-      "User does not have an associated client"
+      "User does not have an associated client",
     );
   });
 
@@ -302,7 +305,7 @@ describe("Order History - fetchOrderById", () => {
     vi.mocked(prisma.order.findFirst).mockResolvedValue(null);
 
     await expect(fetchOrderById("nonexistent")).rejects.toThrow(
-      "Order not found"
+      "Order not found",
     );
   });
 
@@ -316,7 +319,7 @@ describe("Order History - fetchOrderById", () => {
       status: "SUBMITTED",
       totalCents: 10000,
       clientId: "client1",
-      items: [
+      OrderItem: [
         {
           id: "item1",
           productName: "Pasta",
@@ -334,6 +337,7 @@ describe("Order History - fetchOrderById", () => {
           lineTotalCents: 5000,
         },
       ],
+      SubOrder: [],
     };
 
     vi.mocked(prisma.order.findFirst).mockResolvedValue(mockOrderFromDb as any);
@@ -343,37 +347,41 @@ describe("Order History - fetchOrderById", () => {
     const expectedResult = {
       ...mockOrderFromDb,
       createdAt: "2024-11-14T10:00:00.000Z",
+      hasPaymentFailure: false,
+      anyRequiresClientUpdate: false,
     };
 
     // Verify authorization in query
-    expect(prisma.order.findFirst).toHaveBeenCalledWith({
-      where: {
-        id: "order1",
-        clientId: "client1", // Must match user's clientId
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        orderNumber: true,
-        createdAt: true,
-        status: true,
-        totalCents: true,
-        clientId: true,
-        items: {
-          select: {
-            id: true,
-            productName: true,
-            vendorName: true,
-            qty: true,
-            unitPriceCents: true,
-            lineTotalCents: true,
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
+    expect(prisma.order.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "order1",
+          clientId: "client1", // Must match user's clientId
+          deletedAt: null,
         },
-      },
-    });
+        select: expect.objectContaining({
+          id: true,
+          orderNumber: true,
+          createdAt: true,
+          status: true,
+          totalCents: true,
+          clientId: true,
+          OrderItem: expect.objectContaining({
+            select: {
+              id: true,
+              productName: true,
+              vendorName: true,
+              qty: true,
+              unitPriceCents: true,
+              lineTotalCents: true,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          }),
+        }),
+      }),
+    );
 
     // Verify result
     expect(result).toEqual(expectedResult);
@@ -381,14 +389,14 @@ describe("Order History - fetchOrderById", () => {
 
   it("should enforce authorization - CLIENT cannot view other CLIENT's orders", async () => {
     vi.mocked(currentUser).mockResolvedValue(
-      createMockClientUser({ email: "client1@test.com", name: "Client 1" })
+      createMockClientUser({ email: "client1@test.com", name: "Client 1" }),
     );
 
     // Order belongs to client2, not client1
     vi.mocked(prisma.order.findFirst).mockResolvedValue(null);
 
     await expect(fetchOrderById("order-belongs-to-client2")).rejects.toThrow(
-      "Order not found"
+      "Order not found",
     );
 
     // Verify where clause includes clientId filter
@@ -397,7 +405,7 @@ describe("Order History - fetchOrderById", () => {
         where: expect.objectContaining({
           clientId: "client1", // Only their own orders
         }),
-      })
+      }),
     );
   });
 
@@ -411,7 +419,7 @@ describe("Order History - fetchOrderById", () => {
       status: "DELIVERED",
       totalCents: 15000,
       clientId: "client1",
-      items: [
+      OrderItem: [
         {
           id: "item1",
           productName: "Product A",
@@ -429,6 +437,7 @@ describe("Order History - fetchOrderById", () => {
           lineTotalCents: 9000,
         },
       ],
+      SubOrder: [],
     };
 
     vi.mocked(prisma.order.findFirst).mockResolvedValue(mockOrder as any);
@@ -436,16 +445,16 @@ describe("Order History - fetchOrderById", () => {
     const result = await fetchOrderById("order1");
 
     // Verify item totals are correct
-    expect(result.items[0].lineTotalCents).toBe(6000);
-    expect(result.items[1].lineTotalCents).toBe(9000);
+    expect(result.OrderItem[0].lineTotalCents).toBe(6000);
+    expect(result.OrderItem[1].lineTotalCents).toBe(9000);
     expect(result.totalCents).toBe(15000);
 
     // Verify all item fields are present
-    expect(result.items[0]).toHaveProperty("productName");
-    expect(result.items[0]).toHaveProperty("vendorName");
-    expect(result.items[0]).toHaveProperty("qty");
-    expect(result.items[0]).toHaveProperty("unitPriceCents");
-    expect(result.items[0]).toHaveProperty("lineTotalCents");
+    expect(result.OrderItem[0]).toHaveProperty("productName");
+    expect(result.OrderItem[0]).toHaveProperty("vendorName");
+    expect(result.OrderItem[0]).toHaveProperty("qty");
+    expect(result.OrderItem[0]).toHaveProperty("unitPriceCents");
+    expect(result.OrderItem[0]).toHaveProperty("lineTotalCents");
   });
 
   it("should return items ordered by creation time", async () => {
@@ -458,7 +467,8 @@ describe("Order History - fetchOrderById", () => {
       status: "SUBMITTED",
       totalCents: 10000,
       clientId: "client1",
-      items: [],
+      OrderItem: [],
+      SubOrder: [],
     } as any);
 
     await fetchOrderById("order1");
@@ -467,13 +477,13 @@ describe("Order History - fetchOrderById", () => {
     expect(prisma.order.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         select: expect.objectContaining({
-          items: expect.objectContaining({
+          OrderItem: expect.objectContaining({
             orderBy: {
               createdAt: "asc",
             },
           }),
         }),
-      })
+      }),
     );
   });
 });

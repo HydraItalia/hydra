@@ -26,7 +26,7 @@ describe("validateCartForCurrentUser", () => {
       vi.mocked(currentUser).mockResolvedValue(null);
 
       await expect(validateCartForCurrentUser()).rejects.toThrow(
-        "Unauthorized: User not authenticated"
+        "Unauthorized: User not authenticated",
       );
     });
 
@@ -39,10 +39,12 @@ describe("validateCartForCurrentUser", () => {
         name: "Agent",
         agentCode: "AGENT1",
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       await expect(validateCartForCurrentUser()).rejects.toThrow(
-        "Unauthorized: Only CLIENT users can validate carts for checkout"
+        "Unauthorized: Only CLIENT users can validate carts for checkout",
       );
     });
 
@@ -55,10 +57,12 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       await expect(validateCartForCurrentUser()).rejects.toThrow(
-        "Unauthorized: User does not have an associated client account"
+        "Unauthorized: User does not have an associated client account",
       );
     });
   });
@@ -73,6 +77,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -82,7 +88,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [],
+        CartItem: [],
       } as any);
 
       const result = await validateCartForCurrentUser();
@@ -102,6 +108,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue(null);
@@ -125,6 +133,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -134,7 +144,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -143,14 +153,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: 0,
               isActive: true,
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: {
+              Vendor: {
                 name: "Test Vendor",
               },
             },
@@ -184,6 +194,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -193,7 +205,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -202,14 +214,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: -1,
               isActive: true,
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: {
+              Vendor: {
                 name: "Test Vendor",
               },
             },
@@ -233,6 +245,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -242,7 +256,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -251,14 +265,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: 5,
               isActive: true,
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: {
+              Vendor: {
                 name: "Test Vendor",
               },
             },
@@ -292,6 +306,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -301,7 +317,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -310,14 +326,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: null,
               isActive: true,
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: {
+              Vendor: {
                 name: "Test Vendor",
               },
             },
@@ -340,6 +356,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -349,7 +367,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -358,14 +376,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: 10,
               isActive: true,
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: {
+              Vendor: {
                 name: "Test Vendor",
               },
             },
@@ -390,6 +408,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -399,7 +419,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -408,14 +428,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: 100,
               isActive: true,
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: {
+              Vendor: {
                 name: "Test Vendor",
               },
             },
@@ -431,7 +451,8 @@ describe("validateCartForCurrentUser", () => {
         cartItemId: "item1",
         severity: "error",
         code: "INVALID_QUANTITY",
-        message: "Invalid quantity in cart. Please remove this item and re-add it.",
+        message:
+          "Invalid quantity in cart. Please remove this item and re-add it.",
         quantityRequested: 0,
       });
     });
@@ -445,6 +466,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -454,7 +477,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -463,14 +486,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: 100,
               isActive: true,
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: {
+              Vendor: {
                 name: "Test Vendor",
               },
             },
@@ -496,6 +519,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -505,7 +530,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -514,7 +539,7 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: null,
+            VendorProduct: null,
           },
         ],
       } as any);
@@ -542,6 +567,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -551,7 +578,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -560,14 +587,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: 10,
               isActive: true,
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: null,
+              Vendor: null,
             },
           },
         ],
@@ -599,6 +626,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -608,7 +637,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -617,14 +646,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: 10,
               isActive: false,
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: {
+              Vendor: {
                 name: "Test Vendor",
               },
             },
@@ -660,6 +689,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -669,7 +700,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -678,14 +709,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: 0,
               isActive: true,
-              product: {
+              Product: {
                 name: "Product 1",
               },
-              vendor: {
+              Vendor: {
                 name: "Vendor 1",
               },
             },
@@ -698,14 +729,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 2000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp2",
               stockQty: 5,
               isActive: true,
-              product: {
+              Product: {
                 name: "Product 2",
               },
-              vendor: {
+              Vendor: {
                 name: "Vendor 2",
               },
             },
@@ -730,6 +761,8 @@ describe("validateCartForCurrentUser", () => {
         name: "Client",
         agentCode: null,
         vendorId: null,
+        driverId: null,
+        status: "APPROVED",
       });
 
       vi.mocked(prisma.cart.findFirst).mockResolvedValue({
@@ -739,7 +772,7 @@ describe("validateCartForCurrentUser", () => {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
-        items: [
+        CartItem: [
           {
             id: "item1",
             cartId: "cart1",
@@ -748,14 +781,14 @@ describe("validateCartForCurrentUser", () => {
             unitPriceCents: 1000,
             createdAt: new Date(),
             updatedAt: new Date(),
-            vendorProduct: {
+            VendorProduct: {
               id: "vp1",
               stockQty: 100,
               isActive: false, // Only a warning
-              product: {
+              Product: {
                 name: "Test Product",
               },
-              vendor: {
+              Vendor: {
                 name: "Test Vendor",
               },
             },

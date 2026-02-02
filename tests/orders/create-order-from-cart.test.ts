@@ -25,9 +25,109 @@ vi.mock("@/data/cart-recalc", () => ({
   recalcCartPricesForUser: vi.fn(),
 }));
 
+// Mock VAT helpers to return 0% VAT (simplifies these tests; order-vat.test.ts covers VAT)
+vi.mock("@/lib/vat", () => ({
+  getEffectiveTaxProfile: vi.fn().mockResolvedValue({
+    taxProfileId: "tp-exempt-0",
+    vatRateBps: 0,
+  }),
+  computeVatFromNet: vi.fn((amount: number) => ({
+    netCents: amount,
+    vatCents: 0,
+    grossCents: amount,
+  })),
+  computeVatFromGross: vi.fn((amount: number) => ({
+    netCents: amount,
+    vatCents: 0,
+    grossCents: amount,
+  })),
+}));
+
+// Mock fees helpers to return 0% fee (simplifies these tests; order-vat.test.ts covers fees)
+vi.mock("@/lib/fees", () => ({
+  parseHydraFeeBps: vi.fn().mockReturnValue(0),
+  computeHydraFeeCents: vi.fn().mockReturnValue(0),
+  bpsToPercent: vi.fn().mockReturnValue(0),
+}));
+
+// Mock cuid2 for deterministic IDs
+let idCounter = 0;
+vi.mock("@paralleldrive/cuid2", () => ({
+  createId: vi.fn(() => `test-id-${++idCounter}`),
+}));
+
+/** Helper to create a mock cart item with full PascalCase Prisma relations */
+function mockCartItem(overrides: {
+  id: string;
+  vendorProductId: string;
+  qty: number;
+  unitPriceCents: number | null;
+  productName: string;
+  vendorId: string;
+  vendorName: string;
+}) {
+  return {
+    id: overrides.id,
+    cartId: "cart1",
+    vendorProductId: overrides.vendorProductId,
+    qty: overrides.qty,
+    unitPriceCents: overrides.unitPriceCents,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    VendorProduct: {
+      id: overrides.vendorProductId,
+      Product: {
+        id: `prod-${overrides.vendorProductId}`,
+        name: overrides.productName,
+        taxProfileId: null,
+        TaxProfile: null,
+        ProductCategory: null,
+      },
+      Vendor: {
+        id: overrides.vendorId,
+        name: overrides.vendorName,
+        priceIncludesVat: false,
+      },
+    },
+  };
+}
+
+/** Helper to create a mock transaction with subOrder support */
+function mockTransaction(
+  mockOrderCreate: ReturnType<typeof vi.fn>,
+  extras?: {
+    mockOrderItemCreateMany?: ReturnType<typeof vi.fn>;
+    mockCartItemDeleteMany?: ReturnType<typeof vi.fn>;
+  },
+) {
+  return async (callback: any) => {
+    const tx = {
+      order: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: mockOrderCreate,
+      },
+      subOrder: {
+        create: vi
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve({ id: data.id, vendorId: data.vendorId }),
+          ),
+      },
+      orderItem: {
+        createMany: extras?.mockOrderItemCreateMany ?? vi.fn(),
+      },
+      cartItem: {
+        deleteMany: extras?.mockCartItemDeleteMany ?? vi.fn(),
+      },
+    };
+    return callback(tx);
+  };
+}
+
 describe("createOrderFromCart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    idCounter = 0;
   });
 
   it("should throw error when user is not authenticated", async () => {
@@ -45,10 +145,12 @@ describe("createOrderFromCart", () => {
       name: "Agent",
       agentCode: "AGENT1",
       vendorId: null,
+      driverId: null,
+      status: "APPROVED",
     });
 
     await expect(createOrderFromCart()).rejects.toThrow(
-      "Only CLIENT users can create orders"
+      "Only CLIENT users can create orders",
     );
   });
 
@@ -61,10 +163,12 @@ describe("createOrderFromCart", () => {
       name: "Client",
       agentCode: null,
       vendorId: null,
+      driverId: null,
+      status: "APPROVED",
     });
 
     await expect(createOrderFromCart()).rejects.toThrow(
-      "User does not have an associated client"
+      "User does not have an associated client",
     );
   });
 
@@ -77,11 +181,12 @@ describe("createOrderFromCart", () => {
       name: "Client",
       agentCode: null,
       vendorId: null,
+      driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(recalcCartPricesForUser).mockResolvedValue([]);
 
-    // Mock empty cart
     vi.mocked(prisma.cart.findFirst).mockResolvedValue({
       id: "cart1",
       clientId: "client1",
@@ -89,7 +194,7 @@ describe("createOrderFromCart", () => {
       status: "ACTIVE",
       createdAt: new Date(),
       updatedAt: new Date(),
-      items: [],
+      CartItem: [],
     } as any);
 
     await expect(createOrderFromCart()).rejects.toThrow("Cart is empty");
@@ -104,11 +209,12 @@ describe("createOrderFromCart", () => {
       name: "Client",
       agentCode: null,
       vendorId: null,
+      driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(recalcCartPricesForUser).mockResolvedValue([]);
 
-    // Mock no cart
     vi.mocked(prisma.cart.findFirst).mockResolvedValue(null);
 
     await expect(createOrderFromCart()).rejects.toThrow("Cart is empty");
@@ -123,11 +229,12 @@ describe("createOrderFromCart", () => {
       name: "Client",
       agentCode: null,
       vendorId: null,
+      driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(recalcCartPricesForUser).mockResolvedValue([]);
 
-    // Mock cart with items
     vi.mocked(prisma.cart.findFirst).mockResolvedValue({
       id: "cart1",
       clientId: "client1",
@@ -135,43 +242,25 @@ describe("createOrderFromCart", () => {
       status: "ACTIVE",
       createdAt: new Date(),
       updatedAt: new Date(),
-      items: [
-        {
+      CartItem: [
+        mockCartItem({
           id: "item1",
-          cartId: "cart1",
           vendorProductId: "vp1",
           qty: 2,
           unitPriceCents: 1000,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          vendorProduct: {
-            id: "vp1",
-            product: {
-              name: "Product 1",
-            },
-            vendor: {
-              name: "Vendor 1",
-            },
-          },
-        },
-        {
+          productName: "Product 1",
+          vendorId: "vendor1",
+          vendorName: "Vendor 1",
+        }),
+        mockCartItem({
           id: "item2",
-          cartId: "cart1",
           vendorProductId: "vp2",
           qty: 3,
           unitPriceCents: 1500,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          vendorProduct: {
-            id: "vp2",
-            product: {
-              name: "Product 2",
-            },
-            vendor: {
-              name: "Vendor 2",
-            },
-          },
-        },
+          productName: "Product 2",
+          vendorId: "vendor2",
+          vendorName: "Vendor 2",
+        }),
       ],
     } as any);
 
@@ -181,7 +270,7 @@ describe("createOrderFromCart", () => {
       submitterUserId: "user1",
       orderNumber: "HYD-20241114-1234",
       status: "SUBMITTED",
-      totalCents: 6500, // 2*1000 + 3*1500
+      totalCents: 6500,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -189,27 +278,16 @@ describe("createOrderFromCart", () => {
     const mockOrderItemCreateMany = vi.fn();
     const mockCartItemDeleteMany = vi.fn();
 
-    // Mock transaction
-    vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
-      // Mock findFirst to return no existing order number
-      const tx = {
-        order: {
-          findFirst: vi.fn().mockResolvedValue(null),
-          create: mockOrderCreate,
-        },
-        orderItem: {
-          createMany: mockOrderItemCreateMany,
-        },
-        cartItem: {
-          deleteMany: mockCartItemDeleteMany,
-        },
-      };
-      return callback(tx);
-    });
+    vi.mocked(prisma.$transaction).mockImplementation(
+      mockTransaction(mockOrderCreate, {
+        mockOrderItemCreateMany,
+        mockCartItemDeleteMany,
+      }),
+    );
 
     const result = await createOrderFromCart();
 
-    // Verify order was created
+    // Verify order was created with correct total
     expect(mockOrderCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         clientId: "client1",
@@ -220,10 +298,10 @@ describe("createOrderFromCart", () => {
       }),
     });
 
-    // Verify order items were created
+    // Verify order items were created (now includes VAT snapshot fields)
     expect(mockOrderItemCreateMany).toHaveBeenCalledWith({
-      data: [
-        {
+      data: expect.arrayContaining([
+        expect.objectContaining({
           orderId: "order1",
           vendorProductId: "vp1",
           qty: 2,
@@ -231,8 +309,8 @@ describe("createOrderFromCart", () => {
           lineTotalCents: 2000,
           productName: "Product 1",
           vendorName: "Vendor 1",
-        },
-        {
+        }),
+        expect.objectContaining({
           orderId: "order1",
           vendorProductId: "vp2",
           qty: 3,
@@ -240,8 +318,8 @@ describe("createOrderFromCart", () => {
           lineTotalCents: 4500,
           productName: "Product 2",
           vendorName: "Vendor 2",
-        },
-      ],
+        }),
+      ]),
     });
 
     // Verify cart was cleared
@@ -267,11 +345,12 @@ describe("createOrderFromCart", () => {
       name: "Client",
       agentCode: null,
       vendorId: null,
+      driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(recalcCartPricesForUser).mockResolvedValue([]);
 
-    // Mock cart with various quantities and prices
     vi.mocked(prisma.cart.findFirst).mockResolvedValue({
       id: "cart1",
       clientId: "client1",
@@ -279,49 +358,34 @@ describe("createOrderFromCart", () => {
       status: "ACTIVE",
       createdAt: new Date(),
       updatedAt: new Date(),
-      items: [
-        {
+      CartItem: [
+        mockCartItem({
           id: "item1",
-          cartId: "cart1",
           vendorProductId: "vp1",
           qty: 5,
           unitPriceCents: 250,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          vendorProduct: {
-            id: "vp1",
-            product: { name: "Product 1" },
-            vendor: { name: "Vendor 1" },
-          },
-        },
-        {
+          productName: "Product 1",
+          vendorId: "vendor1",
+          vendorName: "Vendor 1",
+        }),
+        mockCartItem({
           id: "item2",
-          cartId: "cart1",
           vendorProductId: "vp2",
           qty: 10,
           unitPriceCents: 500,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          vendorProduct: {
-            id: "vp2",
-            product: { name: "Product 2" },
-            vendor: { name: "Vendor 2" },
-          },
-        },
-        {
+          productName: "Product 2",
+          vendorId: "vendor2",
+          vendorName: "Vendor 2",
+        }),
+        mockCartItem({
           id: "item3",
-          cartId: "cart1",
           vendorProductId: "vp3",
           qty: 1,
           unitPriceCents: 7500,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          vendorProduct: {
-            id: "vp3",
-            product: { name: "Product 3" },
-            vendor: { name: "Vendor 3" },
-          },
-        },
+          productName: "Product 3",
+          vendorId: "vendor3",
+          vendorName: "Vendor 3",
+        }),
       ],
     } as any);
 
@@ -331,27 +395,14 @@ describe("createOrderFromCart", () => {
       submitterUserId: "user1",
       orderNumber: "HYD-20241114-5678",
       status: "SUBMITTED",
-      totalCents: 13750, // 5*250 + 10*500 + 1*7500
+      totalCents: 13750,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    // Mock transaction
-    vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
-      const tx = {
-        order: {
-          findFirst: vi.fn().mockResolvedValue(null),
-          create: mockOrderCreate,
-        },
-        orderItem: {
-          createMany: vi.fn(),
-        },
-        cartItem: {
-          deleteMany: vi.fn(),
-        },
-      };
-      return callback(tx);
-    });
+    vi.mocked(prisma.$transaction).mockImplementation(
+      mockTransaction(mockOrderCreate),
+    );
 
     await createOrderFromCart();
 
@@ -372,11 +423,12 @@ describe("createOrderFromCart", () => {
       name: "Client",
       agentCode: null,
       vendorId: null,
+      driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(recalcCartPricesForUser).mockResolvedValue([]);
 
-    // Mock cart with null price (should treat as 0)
     vi.mocked(prisma.cart.findFirst).mockResolvedValue({
       id: "cart1",
       clientId: "client1",
@@ -384,35 +436,25 @@ describe("createOrderFromCart", () => {
       status: "ACTIVE",
       createdAt: new Date(),
       updatedAt: new Date(),
-      items: [
-        {
+      CartItem: [
+        mockCartItem({
           id: "item1",
-          cartId: "cart1",
           vendorProductId: "vp1",
           qty: 2,
-          unitPriceCents: null, // Null price
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          vendorProduct: {
-            id: "vp1",
-            product: { name: "Product 1" },
-            vendor: { name: "Vendor 1" },
-          },
-        },
-        {
+          unitPriceCents: null as any,
+          productName: "Product 1",
+          vendorId: "vendor1",
+          vendorName: "Vendor 1",
+        }),
+        mockCartItem({
           id: "item2",
-          cartId: "cart1",
           vendorProductId: "vp2",
           qty: 3,
           unitPriceCents: 1000,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          vendorProduct: {
-            id: "vp2",
-            product: { name: "Product 2" },
-            vendor: { name: "Vendor 2" },
-          },
-        },
+          productName: "Product 2",
+          vendorId: "vendor2",
+          vendorName: "Vendor 2",
+        }),
       ],
     } as any);
 
@@ -422,29 +464,16 @@ describe("createOrderFromCart", () => {
       submitterUserId: "user1",
       orderNumber: "HYD-20241114-9999",
       status: "SUBMITTED",
-      totalCents: 3000, // 0 + 3*1000
+      totalCents: 3000,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
     const mockOrderItemCreateMany = vi.fn();
 
-    // Mock transaction
-    vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
-      const tx = {
-        order: {
-          findFirst: vi.fn().mockResolvedValue(null),
-          create: mockOrderCreate,
-        },
-        orderItem: {
-          createMany: mockOrderItemCreateMany,
-        },
-        cartItem: {
-          deleteMany: vi.fn(),
-        },
-      };
-      return callback(tx);
-    });
+    vi.mocked(prisma.$transaction).mockImplementation(
+      mockTransaction(mockOrderCreate, { mockOrderItemCreateMany }),
+    );
 
     await createOrderFromCart();
 
@@ -475,6 +504,8 @@ describe("createOrderFromCart", () => {
       name: "Client",
       agentCode: null,
       vendorId: null,
+      driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(recalcCartPricesForUser).mockResolvedValue([
@@ -492,21 +523,16 @@ describe("createOrderFromCart", () => {
       status: "ACTIVE",
       createdAt: new Date(),
       updatedAt: new Date(),
-      items: [
-        {
+      CartItem: [
+        mockCartItem({
           id: "item1",
-          cartId: "cart1",
           vendorProductId: "vp1",
           qty: 2,
-          unitPriceCents: 900, // After recalc
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          vendorProduct: {
-            id: "vp1",
-            product: { name: "Product 1" },
-            vendor: { name: "Vendor 1" },
-          },
-        },
+          unitPriceCents: 900,
+          productName: "Product 1",
+          vendorId: "vendor1",
+          vendorName: "Vendor 1",
+        }),
       ],
     } as any);
 
@@ -516,21 +542,9 @@ describe("createOrderFromCart", () => {
       totalCents: 1800,
     });
 
-    vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => {
-      const tx = {
-        order: {
-          findFirst: vi.fn().mockResolvedValue(null),
-          create: mockOrderCreate,
-        },
-        orderItem: {
-          createMany: vi.fn(),
-        },
-        cartItem: {
-          deleteMany: vi.fn(),
-        },
-      };
-      return callback(tx);
-    });
+    vi.mocked(prisma.$transaction).mockImplementation(
+      mockTransaction(mockOrderCreate),
+    );
 
     await createOrderFromCart();
 
