@@ -28,15 +28,27 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isOnSignIn = nextUrl.pathname.startsWith("/signin");
+      const pathname = nextUrl.pathname;
 
-      if (isOnSignIn) {
+      // Public routes — always accessible
+      if (pathname === "/" || pathname.startsWith("/api/auth")) {
+        return true;
+      }
+
+      // Signin page — redirect authenticated users to dashboard
+      if (pathname.startsWith("/signin")) {
         if (isLoggedIn)
           return Response.redirect(new URL("/dashboard", nextUrl));
         return true;
       }
 
-      return isLoggedIn || nextUrl.pathname === "/";
+      // /onboarding and /pending — require authentication only (status gating in middleware)
+      if (pathname.startsWith("/onboarding") || pathname.startsWith("/pending")) {
+        return isLoggedIn;
+      }
+
+      // Everything else requires authentication
+      return isLoggedIn;
     },
   },
   providers: [], // Add providers with an empty array for now

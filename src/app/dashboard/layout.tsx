@@ -23,6 +23,11 @@ export default async function DashboardLayout({
     redirect("/signin");
   }
 
+  // Defense-in-depth: middleware handles this, but double-check status
+  if (!user.status || user.status !== "APPROVED") {
+    redirect(user.status === "PENDING" ? "/pending" : "/onboarding");
+  }
+
   // Fetch cart for CLIENT users
   let initialCart: Awaited<ReturnType<typeof getCart>> | undefined;
   if (user.role === "CLIENT" && user.clientId) {
