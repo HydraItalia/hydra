@@ -50,6 +50,19 @@ model AgentVendor {
   @@index([vendorId])
 }
 
+model VendorUser {
+  vendorId  String
+  userId    String
+  role      VendorUserRole
+  createdAt DateTime @default(now())
+  Vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([vendorId, userId])
+  @@index([vendorId])
+  @@index([userId])
+}
+
 model Agreement {
   id                 String    @id
   clientId           String
@@ -517,6 +530,7 @@ model User {
   AgentClient                           AgentClient[]
   AgentVendor                           AgentVendor[]
   AuditLog                              AuditLog[]
+  VendorUser                            VendorUser[]
   Cart                                  Cart[]
   Order_Order_assignedAgentUserIdToUser Order[]       @relation("Order_assignedAgentUserIdToUser")
   Order_Order_submitterUserIdToUser     Order[]       @relation("Order_submitterUserIdToUser")
@@ -555,6 +569,7 @@ model Vendor {
   AgentVendor   AgentVendor[]
   Agreement     Agreement[]
   User          User?
+  VendorUser    VendorUser[]
   VendorProduct VendorProduct[]
   SubOrder      SubOrder[]
 
@@ -670,6 +685,12 @@ enum UserStatus {
   APPROVED
   REJECTED
   SUSPENDED
+}
+
+enum VendorUserRole {
+  OWNER
+  STAFF
+  AGENT
 }
 
 enum SubOrderStatus {
