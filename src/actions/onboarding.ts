@@ -265,3 +265,96 @@ export async function submitClientOnboarding(
     };
   }
 }
+
+// ─── Driver Onboarding ────────────────────────────────────────────────────────
+
+const driverOnboardingSchema = z.object({
+  fullName: z.string().min(1, "Full name is required").max(255),
+  phone: z.string().min(1, "Phone number is required").max(50),
+  region: z.string().max(100).optional(),
+  vehicleInfo: z.string().max(500).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export type DriverOnboardingInput = z.infer<typeof driverOnboardingSchema>;
+
+export async function submitDriverOnboarding(
+  data: DriverOnboardingInput,
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const userId = session.user.id;
+
+    // Idempotency check
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true, role: true, onboardingData: true },
+    });
+
+    if (!existingUser) {
+      return { success: false, error: "User not found" };
+    }
+
+    if (existingUser.onboardingData !== null) {
+      return { success: false, error: "Onboarding already submitted" };
+    }
+
+    // Validate input
+    const validation = driverOnboardingSchema.safeParse(data);
+    if (!validation.success) {
+      return {
+        success: false,
+        error: validation.error.errors[0]?.message || "Invalid input",
+      };
+    }
+
+    const validated = validation.data;
+
+    // Create Driver + update User in a transaction
+    await prisma.$transaction(async (tx) => {
+      const driverId = createId();
+
+      // Create Driver record
+      await tx.driver.create({
+        data: {
+          id: driverId,
+          name: validated.fullName,
+          phone: validated.phone || null,
+        },
+      });
+
+      // Update User
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          role: "DRIVER",
+          status: "PENDING",
+          driverId,
+          onboardingData: validated as any,
+        },
+      });
+    });
+
+    await logAction({
+      entityType: "User",
+      entityId: userId,
+      action: AuditAction.ONBOARDING_SUBMITTED,
+      diff: { role: "DRIVER", fullName: validated.fullName },
+    });
+
+    revalidatePath("/pending");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Driver onboarding error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to submit onboarding",
+    };
+  }
+}
