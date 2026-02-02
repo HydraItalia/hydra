@@ -15,6 +15,7 @@ import {
   UserCog,
   CreditCard,
   AlertCircle,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -52,6 +53,11 @@ export function getNavItems(role: Role): NavItem[] {
           label: "Agents",
           href: "/dashboard/agents",
           icon: UserCog,
+        },
+        {
+          label: "Approvals",
+          href: "/dashboard/approvals",
+          icon: ShieldCheck,
         },
         {
           label: "Catalog",
