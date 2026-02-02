@@ -1,6 +1,7 @@
 import {
   PrismaClient,
   Role,
+  UserStatus,
   CategoryGroupType,
   ProductUnit,
   PriceMode,
@@ -280,6 +281,17 @@ async function main() {
       email: "admin@hydra.local",
       name: "Admin User",
       role: Role.ADMIN,
+      status: UserStatus.APPROVED,
+    },
+  });
+
+  const brennanGodUser = await prisma.user.create({
+    data: {
+      id: createId(),
+      email: "brennanlazzara@gmail.com",
+      name: "Brennan Lazzara",
+      role: Role.ADMIN,
+      status: UserStatus.APPROVED,
     },
   });
 
@@ -289,6 +301,7 @@ async function main() {
       email: "andrea@hydra.local",
       name: "Andrea",
       role: Role.AGENT,
+      status: UserStatus.APPROVED,
       agentCode: "ANDREA",
     },
   });
@@ -299,6 +312,7 @@ async function main() {
       email: "manuele@hydra.local",
       name: "Manuele",
       role: Role.AGENT,
+      status: UserStatus.APPROVED,
       agentCode: "MANUELE",
     },
   });
@@ -330,6 +344,7 @@ async function main() {
         email: "vendor.whitedog@hydra.local",
         name: "White Dog Manager",
         role: Role.VENDOR,
+        status: UserStatus.APPROVED,
         vendorId: whiteDog.id,
       },
     });
@@ -342,6 +357,7 @@ async function main() {
         email: "vendor.plustik@hydra.local",
         name: "Plustik Manager",
         role: Role.VENDOR,
+        status: UserStatus.APPROVED,
         vendorId: plustik.id,
       },
     });
@@ -354,6 +370,7 @@ async function main() {
         email: "vendor.generalbeverage@hydra.local",
         name: "General Beverage Manager",
         role: Role.VENDOR,
+        status: UserStatus.APPROVED,
         vendorId: generalBeverage.id,
       },
     });
@@ -366,6 +383,7 @@ async function main() {
         email: "vendor.cdfish@hydra.local",
         name: "CD Fish Manager",
         role: Role.VENDOR,
+        status: UserStatus.APPROVED,
         vendorId: cdFish.id,
       },
     });
@@ -440,7 +458,7 @@ async function main() {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(clientDemoEmail)) {
     throw new Error(
-      `Invalid HYDRA_DEMO_CLIENT_EMAIL: "${clientDemoEmail}". Must be a valid email address format (e.g., user@example.com).`
+      `Invalid HYDRA_DEMO_CLIENT_EMAIL: "${clientDemoEmail}". Must be a valid email address format (e.g., user@example.com).`,
     );
   }
 
@@ -450,6 +468,7 @@ async function main() {
       email: clientDemoEmail,
       name: "Demo Restaurant Manager",
       role: Role.CLIENT,
+      status: UserStatus.APPROVED,
       clientId: demoRistorante.id,
     },
   });
@@ -589,7 +608,7 @@ async function main() {
       const price = item.applyDiscount
         ? Math.round(
             item.vp.basePriceCents *
-              (item.vp.Vendor.name.includes("White Dog") ? 0.95 : 0.9)
+              (item.vp.Vendor.name.includes("White Dog") ? 0.95 : 0.9),
           )
         : item.vp.basePriceCents;
       return sum + price * item.qty;
@@ -616,7 +635,7 @@ async function main() {
       const unitPrice = item.applyDiscount
         ? Math.round(
             item.vp.basePriceCents *
-              (item.vp.Vendor.name.includes("White Dog") ? 0.95 : 0.9)
+              (item.vp.Vendor.name.includes("White Dog") ? 0.95 : 0.9),
           )
         : item.vp.basePriceCents;
 
@@ -665,6 +684,7 @@ async function main() {
       email: "driver.marco@hydra.local",
       name: "Marco Rossi",
       role: Role.DRIVER,
+      status: UserStatus.APPROVED,
       driverId: marcoDriver.id,
     },
   });
@@ -675,6 +695,7 @@ async function main() {
       email: "driver.giulia@hydra.local",
       name: "Giulia Bianchi",
       role: Role.DRIVER,
+      status: UserStatus.APPROVED,
       driverId: giuliaDriver.id,
     },
   });
@@ -868,7 +889,7 @@ async function main() {
       7, // Start at 7 AM
       30,
       0,
-      0
+      0,
     );
 
     const marcoShift = await prisma.driverShift.create({
@@ -899,9 +920,7 @@ async function main() {
 
   const userCount = await prisma.user.count();
 
-  console.log(
-    `- Users: ${userCount}`
-  );
+  console.log(`- Users: ${userCount}`);
   console.log(`- Vendors: ${vendorCount} (Real vendors from CSV)`);
   console.log(`- Clients: 5 (with addresses for map links)`);
   console.log(`- Drivers: 2`);
@@ -919,12 +938,12 @@ async function main() {
   console.log("- admin@hydra.local (ADMIN)");
   console.log("- andrea@hydra.local (AGENT - manages White Dog, CD Fish)");
   console.log(
-    "- manuele@hydra.local (AGENT - manages General Beverage, Plustik)"
+    "- manuele@hydra.local (AGENT - manages General Beverage, Plustik)",
   );
   console.log("- vendor.whitedog@hydra.local (VENDOR - White Dog S.r.l.)");
   console.log("- vendor.cdfish@hydra.local (VENDOR - CD Fish S.r.l.)");
   console.log(
-    "- vendor.generalbeverage@hydra.local (VENDOR - General Beverage Distributor)"
+    "- vendor.generalbeverage@hydra.local (VENDOR - General Beverage Distributor)",
   );
   console.log("- vendor.plustik@hydra.local (VENDOR - Plustik Service S.r.l.)");
   console.log(`- ${clientDemoEmail} (CLIENT - Demo Ristorante)`);
