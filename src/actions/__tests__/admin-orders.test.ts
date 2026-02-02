@@ -33,6 +33,10 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+vi.mock("@/lib/stripe-auth", () => ({
+  authorizeSubOrderCharge: vi.fn(),
+}));
+
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/audit";
@@ -54,12 +58,14 @@ describe("updateOrderStatus", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     // Mock order fetch
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       id: "order-456",
       status: "SUBMITTED",
+      SubOrder: [],
     } as any);
 
     // Mock order update
@@ -74,6 +80,13 @@ describe("updateOrderStatus", () => {
       select: {
         id: true,
         status: true,
+        SubOrder: {
+          select: {
+            id: true,
+            subOrderNumber: true,
+            stripeChargeId: true,
+          },
+        },
       },
     });
     expect(prisma.order.updateMany).toHaveBeenCalledWith({
@@ -99,12 +112,14 @@ describe("updateOrderStatus", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     // Mock order with SUBMITTED status
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       id: "order-456",
       status: "SUBMITTED",
+      SubOrder: [],
     } as any);
 
     // Try to transition to DELIVERED (invalid from SUBMITTED)
@@ -128,6 +143,7 @@ describe("updateOrderStatus", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     // Mock order not found
@@ -150,11 +166,12 @@ describe("updateOrderStatus", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     // Mock database error
     vi.mocked(prisma.order.findUnique).mockRejectedValue(
-      new Error("Database connection failed")
+      new Error("Database connection failed"),
     );
 
     const consoleErrorSpy = vi
@@ -169,7 +186,7 @@ describe("updateOrderStatus", () => {
     });
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "Error updating order status:",
-      expect.any(Error)
+      expect.any(Error),
     );
 
     consoleErrorSpy.mockRestore();
@@ -185,6 +202,7 @@ describe("updateOrderStatus", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(prisma.order.updateMany).mockResolvedValue({ count: 1 } as any);
@@ -206,6 +224,7 @@ describe("updateOrderStatus", () => {
       vi.mocked(prisma.order.findUnique).mockResolvedValue({
         id: "order-123",
         status: from,
+        SubOrder: [],
       } as any);
 
       const result = await updateOrderStatus("order-123", to);
@@ -226,12 +245,14 @@ describe("updateOrderStatus", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     // Test DELIVERED (terminal state)
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       id: "order-123",
       status: "DELIVERED",
+      SubOrder: [],
     } as any);
 
     const result1 = await updateOrderStatus("order-123", "SUBMITTED");
@@ -241,6 +262,7 @@ describe("updateOrderStatus", () => {
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       id: "order-123",
       status: "CANCELED",
+      SubOrder: [],
     } as any);
 
     const result2 = await updateOrderStatus("order-123", "SUBMITTED");
@@ -257,12 +279,14 @@ describe("updateOrderStatus", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     // Order is in SUBMITTED state when fetched
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       id: "order-456",
       status: "SUBMITTED",
+      SubOrder: [],
     } as any);
 
     // But status changed concurrently, so updateMany affects 0 rows
@@ -293,11 +317,13 @@ describe("cancelOrder", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       id: "order-456",
       status: "SUBMITTED",
+      SubOrder: [],
     } as any);
 
     vi.mocked(prisma.order.updateMany).mockResolvedValue({ count: 1 } as any);
@@ -332,11 +358,13 @@ describe("cancelOrder", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       id: "order-456",
       status: "CONFIRMED",
+      SubOrder: [],
     } as any);
 
     vi.mocked(prisma.order.updateMany).mockResolvedValue({ count: 1 } as any);
@@ -366,11 +394,13 @@ describe("cancelOrder", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       id: "order-456",
       status: "CANCELED",
+      SubOrder: [],
     } as any);
 
     const result = await cancelOrder("order-456");
@@ -393,11 +423,13 @@ describe("cancelOrder", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       id: "order-456",
       status: "DELIVERED",
+      SubOrder: [],
     } as any);
 
     const result = await cancelOrder("order-456");
@@ -420,6 +452,7 @@ describe("cancelOrder", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(prisma.order.findUnique).mockResolvedValue(null);
@@ -441,10 +474,11 @@ describe("cancelOrder", () => {
       clientId: null,
       agentCode: null,
       driverId: null,
+      status: "APPROVED",
     });
 
     vi.mocked(prisma.order.findUnique).mockRejectedValue(
-      new Error("Database error")
+      new Error("Database error"),
     );
 
     const consoleErrorSpy = vi
@@ -459,7 +493,7 @@ describe("cancelOrder", () => {
     });
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       "Error canceling order:",
-      expect.any(Error)
+      expect.any(Error),
     );
 
     consoleErrorSpy.mockRestore();

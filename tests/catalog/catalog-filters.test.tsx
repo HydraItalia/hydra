@@ -27,14 +27,14 @@ describe("CatalogFilters", () => {
     vi.clearAllMocks();
     // Reset search params by creating a new instance
     Object.keys(mockSearchParams).forEach((key) =>
-      mockSearchParams.delete(key)
+      mockSearchParams.delete(key),
     );
     (useRouter as ReturnType<typeof vi.fn>).mockReturnValue({
       replace: mockReplace,
       refresh: vi.fn(),
     });
     (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue(
-      mockSearchParams
+      mockSearchParams,
     );
   });
 
@@ -43,10 +43,10 @@ describe("CatalogFilters", () => {
 
     expect(screen.getByLabelText("Search products")).toBeInTheDocument();
     expect(
-      screen.getByText("Products supplied by multiple trusted vendors")
+      screen.getByText("Products supplied by multiple trusted vendors"),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Show in-stock products only")
+      screen.getByLabelText("Show in-stock products only"),
     ).toBeInTheDocument();
   });
 
@@ -64,10 +64,10 @@ describe("CatalogFilters", () => {
     await waitFor(
       () => {
         expect(mockReplace).toHaveBeenCalledWith(
-          expect.stringContaining("q=pasta")
+          expect.stringContaining("q=pasta"),
         );
       },
-      { timeout: 500 }
+      { timeout: 500 },
     );
   });
 
@@ -77,6 +77,12 @@ describe("CatalogFilters", () => {
       ...defaultProps,
       initial: { ...defaultProps.initial, q: "pasta" },
     };
+
+    // Sync mock searchParams with initial props so useEffect doesn't override state
+    const searchParamsWithQ = new URLSearchParams("q=pasta");
+    (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue(
+      searchParamsWithQ,
+    );
 
     render(<CatalogFilters {...propsWithSearch} />);
 
@@ -89,7 +95,7 @@ describe("CatalogFilters", () => {
           mockReplace.mock.calls[mockReplace.mock.calls.length - 1];
         expect(lastCall[0]).not.toContain("q=");
       },
-      { timeout: 500 }
+      { timeout: 500 },
     );
   });
 
@@ -101,7 +107,7 @@ describe("CatalogFilters", () => {
     await user.click(checkbox);
 
     expect(mockReplace).toHaveBeenCalledWith(
-      expect.stringContaining("inStock=1")
+      expect.stringContaining("inStock=1"),
     );
   });
 
@@ -111,6 +117,11 @@ describe("CatalogFilters", () => {
       ...defaultProps,
       initial: { ...defaultProps.initial, inStock: true },
     };
+
+    const searchParamsWithInStock = new URLSearchParams("inStock=1");
+    (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue(
+      searchParamsWithInStock,
+    );
 
     render(<CatalogFilters {...propsWithInStock} />);
 
@@ -132,6 +143,11 @@ describe("CatalogFilters", () => {
       },
     };
 
+    const searchParamsWithFilters = new URLSearchParams("q=pasta&inStock=1");
+    (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue(
+      searchParamsWithFilters,
+    );
+
     render(<CatalogFilters {...propsWithFilters} />);
 
     expect(screen.getByText(/Search: pasta/)).toBeInTheDocument();
@@ -149,6 +165,11 @@ describe("CatalogFilters", () => {
         inStock: true,
       },
     };
+
+    const searchParamsWithFilters = new URLSearchParams("q=pasta&inStock=1");
+    (useSearchParams as ReturnType<typeof vi.fn>).mockReturnValue(
+      searchParamsWithFilters,
+    );
 
     render(<CatalogFilters {...propsWithFilters} />);
 
