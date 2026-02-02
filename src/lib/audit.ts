@@ -88,6 +88,9 @@ export const AuditAction = {
   PAYMENT_RETRY_SCHEDULED: "PAYMENT_RETRY_SCHEDULED",
   PAYMENT_MARKED_REQUIRES_UPDATE: "PAYMENT_MARKED_REQUIRES_UPDATE",
   PAYMENT_MANUAL_RETRY: "PAYMENT_MANUAL_RETRY",
+
+  // Onboarding actions
+  ONBOARDING_SUBMITTED: "ONBOARDING_SUBMITTED",
 } as const;
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction];
