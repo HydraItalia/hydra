@@ -358,3 +358,122 @@ export async function submitDriverOnboarding(
     };
   }
 }
+
+// ─── Agent Onboarding ─────────────────────────────────────────────────────────
+
+const agentOnboardingSchema = z.object({
+  fullName: z.string().min(1, "Full name is required").max(255),
+  phone: z.string().max(50).optional(),
+  region: z.string().max(100).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export type AgentOnboardingInput = z.infer<typeof agentOnboardingSchema>;
+
+/**
+ * Generate a unique agent code from the user's name.
+ * Format: uppercase first name + random 4-digit suffix if needed.
+ */
+async function generateAgentCode(fullName: string): Promise<string> {
+  const base = fullName
+    .trim()
+    .split(/\s+/)[0]
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "")
+    .slice(0, 10);
+
+  const code = base || "AGENT";
+
+  // Check uniqueness, append suffix if needed
+  const existing = await prisma.user.findUnique({
+    where: { agentCode: code },
+    select: { id: true },
+  });
+
+  if (!existing) return code;
+
+  // Add random suffix
+  for (let i = 0; i < 10; i++) {
+    const suffix = Math.floor(1000 + Math.random() * 9000).toString();
+    const candidate = `${code}${suffix}`;
+    const taken = await prisma.user.findUnique({
+      where: { agentCode: candidate },
+      select: { id: true },
+    });
+    if (!taken) return candidate;
+  }
+
+  // Fallback to cuid-based code
+  return `${code}${createId().slice(0, 6).toUpperCase()}`;
+}
+
+export async function submitAgentOnboarding(
+  data: AgentOnboardingInput,
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const userId = session.user.id;
+
+    // Idempotency check
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true, role: true, onboardingData: true },
+    });
+
+    if (!existingUser) {
+      return { success: false, error: "User not found" };
+    }
+
+    if (existingUser.onboardingData !== null) {
+      return { success: false, error: "Onboarding already submitted" };
+    }
+
+    // Validate input
+    const validation = agentOnboardingSchema.safeParse(data);
+    if (!validation.success) {
+      return {
+        success: false,
+        error: validation.error.errors[0]?.message || "Invalid input",
+      };
+    }
+
+    const validated = validation.data;
+
+    // Generate unique agent code
+    const agentCode = await generateAgentCode(validated.fullName);
+
+    // Update User
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        name: validated.fullName,
+        role: "AGENT",
+        status: "PENDING",
+        agentCode,
+        onboardingData: validated as any,
+      },
+    });
+
+    await logAction({
+      entityType: "User",
+      entityId: userId,
+      action: AuditAction.ONBOARDING_SUBMITTED,
+      diff: { role: "AGENT", fullName: validated.fullName, agentCode },
+    });
+
+    revalidatePath("/pending");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Agent onboarding error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to submit onboarding",
+    };
+  }
+}
