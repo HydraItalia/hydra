@@ -84,6 +84,7 @@ export const {
                 email: user.email,
                 name: user.name,
                 role: user.role,
+                status: user.status,
               };
             },
           }),
@@ -153,6 +154,7 @@ export const {
             email: true,
             name: true,
             role: true,
+            status: true,
             vendorId: true,
             clientId: true,
             agentCode: true,
@@ -163,10 +165,14 @@ export const {
         if (dbUser) {
           token.id = dbUser.id;
           token.role = dbUser.role;
+          token.status = dbUser.status;
           token.vendorId = dbUser.vendorId;
           token.clientId = dbUser.clientId;
           token.agentCode = dbUser.agentCode;
           token.driverId = dbUser.driverId;
+        } else {
+          // New user just created by adapter — default to PENDING
+          token.status = "PENDING";
         }
       }
       return token;
@@ -175,6 +181,7 @@ export const {
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as any;
+        session.user.status = token.status as any;
         session.user.vendorId = token.vendorId as string | null;
         session.user.clientId = token.clientId as string | null;
         session.user.agentCode = token.agentCode as string | null;
