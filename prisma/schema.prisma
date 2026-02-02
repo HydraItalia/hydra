@@ -497,10 +497,14 @@ model Session {
 }
 
 model User {
-  id                                    String        @id
+  id                                    String        @id @default(cuid())
   email                                 String        @unique
   name                                  String?
   role                                  Role          @default(CLIENT)
+  status                                UserStatus    @default(PENDING)
+  approvedAt                            DateTime?
+  approvedByUserId                      String?
+  onboardingData                        Json?
   agentCode                             String?       @unique
   vendorId                              String?       @unique
   clientId                              String?       @unique
@@ -523,6 +527,7 @@ model User {
 
   @@index([email])
   @@index([role])
+  @@index([status])
 }
 
 model Vendor {
@@ -658,6 +663,13 @@ enum Role {
   VENDOR
   CLIENT
   DRIVER
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
 }
 
 enum SubOrderStatus {
