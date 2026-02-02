@@ -1,0 +1,223 @@
+import { requireRole } from "@/lib/auth";
+import { fetchApprovalDetail } from "@/data/approvals";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { PageHeader } from "@/components/shared/page-header";
+import { UserStatus } from "@prisma/client";
+import { StatusActions } from "./status-actions";
+import { VendorUserLinks } from "./vendor-user-links";
+
+type PageProps = {
+  params: Promise<{ userId: string }>;
+};
+
+function statusBadgeVariant(
+  status: UserStatus,
+): "default" | "secondary" | "destructive" | "outline" {
+  switch (status) {
+    case "APPROVED":
+      return "default";
+    case "PENDING":
+      return "secondary";
+    case "REJECTED":
+      return "destructive";
+    case "SUSPENDED":
+      return "destructive";
+    default:
+      return "outline";
+  }
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function renderOnboardingData(data: any) {
+  if (!data || typeof data !== "object") {
+    return <p className="text-sm text-muted-foreground">No onboarding data submitted.</p>;
+  }
+
+  const fields: Array<{ label: string; value: string }> = [];
+
+  // Common fields across roles
+  if (data.businessName) fields.push({ label: "Business Name", value: data.businessName });
+  if (data.fullName) fields.push({ label: "Full Name", value: data.fullName });
+  if (data.contactPerson) fields.push({ label: "Contact Person", value: data.contactPerson });
+  if (data.email || data.contactEmail) fields.push({ label: "Email", value: data.email || data.contactEmail });
+  if (data.phone || data.contactPhone) fields.push({ label: "Phone", value: data.phone || data.contactPhone });
+  if (data.address) fields.push({ label: "Address", value: data.address });
+  if (data.region) fields.push({ label: "Region", value: data.region });
+  if (data.vehicleInfo) fields.push({ label: "Vehicle Info", value: data.vehicleInfo });
+  if (data.businessHours) fields.push({ label: "Business Hours", value: data.businessHours });
+  if (data.vendorName) fields.push({ label: "Preferred Vendor", value: data.vendorName });
+  if (data.notes) fields.push({ label: "Notes", value: data.notes });
+
+  if (fields.length === 0) {
+    return <p className="text-sm text-muted-foreground">No onboarding data submitted.</p>;
+  }
+
+  return (
+    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+      {fields.map((f) => (
+        <div key={f.label}>
+          <dt className="text-sm font-medium text-muted-foreground">{f.label}</dt>
+          <dd className="text-sm mt-0.5">{f.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export default async function ApprovalDetailPage({ params }: PageProps) {
+  await requireRole("ADMIN");
+
+  const { userId } = await params;
+  const user = await fetchApprovalDetail(userId);
+
+  if (!user) {
+    notFound();
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title={user.name || user.email}
+        subtitle={user.name ? user.email : undefined}
+        action={
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/approvals">
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back to Approvals
+            </Link>
+          </Button>
+        }
+      />
+
+      {/* User Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">User Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Role</p>
+              <Badge variant="outline" className="mt-1">
+                {user.role}
+              </Badge>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Status</p>
+              <Badge variant={statusBadgeVariant(user.status)} className="mt-1">
+                {user.status}
+              </Badge>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Submitted</p>
+              <p className="text-sm mt-1">{formatDate(user.createdAt)}</p>
+            </div>
+            {user.approvedAt && (
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Last Status Change
+                </p>
+                <p className="text-sm mt-1">{formatDate(user.approvedAt)}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Linked entities */}
+          {(user.agentCode || user.Vendor || user.Client || user.Driver) && (
+            <>
+              <Separator className="my-4" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {user.agentCode && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Agent Code</p>
+                    <p className="text-sm mt-1 font-mono">{user.agentCode}</p>
+                  </div>
+                )}
+                {user.Vendor && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Vendor</p>
+                    <p className="text-sm mt-1">{user.Vendor.name}</p>
+                  </div>
+                )}
+                {user.Client && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Client</p>
+                    <p className="text-sm mt-1">{user.Client.name}</p>
+                  </div>
+                )}
+                {user.Driver && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Driver</p>
+                    <p className="text-sm mt-1">{user.Driver.name}</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Status Controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Status Controls</CardTitle>
+          <CardDescription>
+            Approve, reject, suspend, or reactivate this user.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <StatusActions userId={user.id} currentStatus={user.status} />
+        </CardContent>
+      </Card>
+
+      {/* Onboarding Data */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Onboarding Data</CardTitle>
+          <CardDescription>
+            Information submitted during the onboarding process.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {renderOnboardingData(user.onboardingData)}
+        </CardContent>
+      </Card>
+
+      {/* VendorUser Links (only for VENDOR role) */}
+      {user.role === "VENDOR" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Vendor Memberships</CardTitle>
+            <CardDescription>
+              Vendor organizations this user belongs to.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <VendorUserLinks userId={user.id} links={user.VendorUser} />
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

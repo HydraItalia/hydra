@@ -22,6 +22,73 @@ export type PendingUserResult = {
   createdAt: string;
 };
 
+export type ApprovalDetailResult = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: Role;
+  status: UserStatus;
+  onboardingData: any;
+  createdAt: string;
+  approvedAt: string | null;
+  approvedByUserId: string | null;
+  agentCode: string | null;
+  vendorId: string | null;
+  clientId: string | null;
+  driverId: string | null;
+  Vendor: { id: string; name: string } | null;
+  Client: { id: string; name: string } | null;
+  Driver: { id: string; name: string } | null;
+  VendorUser: Array<{
+    vendorId: string;
+    role: string;
+    Vendor: { id: string; name: string };
+  }>;
+};
+
+export async function fetchApprovalDetail(
+  userId: string,
+): Promise<ApprovalDetailResult | null> {
+  await requireRole("ADMIN");
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId, deletedAt: null },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      status: true,
+      onboardingData: true,
+      createdAt: true,
+      approvedAt: true,
+      approvedByUserId: true,
+      agentCode: true,
+      vendorId: true,
+      clientId: true,
+      driverId: true,
+      Vendor: { select: { id: true, name: true } },
+      Client: { select: { id: true, name: true } },
+      Driver: { select: { id: true, name: true } },
+      VendorUser: {
+        select: {
+          vendorId: true,
+          role: true,
+          Vendor: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+
+  if (!user) return null;
+
+  return {
+    ...user,
+    createdAt: user.createdAt.toISOString(),
+    approvedAt: user.approvedAt?.toISOString() ?? null,
+  };
+}
+
 export async function fetchPendingUsers(
   filters: ApprovalFilters = {},
 ): Promise<{
