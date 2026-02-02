@@ -174,13 +174,14 @@ model Client {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  AgentClient AgentClient[]
-  Agreement   Agreement[]
-  Cart        Cart[]
-  ClientStats ClientStats?
-  DriverStop  DriverStop[]
-  Order       Order[]
-  User        User?
+  AgentClient  AgentClient[]
+  Agreement    Agreement[]
+  Cart         Cart[]
+  ClientStats  ClientStats?
+  ClientVendor ClientVendor[]
+  DriverStop   DriverStop[]
+  Order        Order[]
+  User         User?
 
   @@index([region])
   @@index([email])
@@ -210,6 +211,24 @@ model ClientStats {
   updatedAt DateTime @updatedAt
 
   Client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model ClientVendor {
+  id               String             @id @default(cuid())
+  clientId         String
+  vendorId         String
+  status           ClientVendorStatus @default(PENDING)
+  approvedByUserId String?
+  createdAt        DateTime           @default(now())
+  approvedAt       DateTime?
+  Client           Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  Vendor           Vendor             @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  ApprovedByUser   User?              @relation("ClientVendorApprovedBy", fields: [approvedByUserId], references: [id])
+
+  @@unique([clientId, vendorId])
+  @@index([clientId])
+  @@index([vendorId])
+  @@index([status])
 }
 
 model Delivery {
@@ -530,6 +549,7 @@ model User {
   AgentClient                           AgentClient[]
   AgentVendor                           AgentVendor[]
   AuditLog                              AuditLog[]
+  ClientVendorApprovals                 ClientVendor[] @relation("ClientVendorApprovedBy")
   VendorUser                            VendorUser[]
   Cart                                  Cart[]
   Order_Order_assignedAgentUserIdToUser Order[]       @relation("Order_assignedAgentUserIdToUser")
@@ -568,6 +588,7 @@ model Vendor {
   deletedAt     DateTime?
   AgentVendor   AgentVendor[]
   Agreement     Agreement[]
+  ClientVendor  ClientVendor[]
   User          User?
   VendorUser    VendorUser[]
   VendorProduct VendorProduct[]
@@ -691,6 +712,12 @@ enum VendorUserRole {
   OWNER
   STAFF
   AGENT
+}
+
+enum ClientVendorStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum SubOrderStatus {
