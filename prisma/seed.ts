@@ -17,6 +17,11 @@ import { parse } from "csv-parse/sync";
 
 const prisma = new PrismaClient();
 
+// ===== SEED MODE =====
+// SEED_MODE=dev  -> full mock data (default)
+// SEED_MODE=prod -> core users only, no mock business entities
+const SEED_MODE = (process.env.SEED_MODE || "dev") as "dev" | "prod";
+
 // ===== CSV IMPORT HELPERS =====
 
 type CsvRow = {
@@ -244,8 +249,87 @@ async function importVendorsFromCSV() {
   console.log(`   📊 Total imported: ${totalImported} products`);
 }
 
+// ===== CORE USERS =====
+// Idempotent: upserts by email, never sets User.id manually.
+// Always deletes admin@hydra.local if present.
+async function seedCoreUsers() {
+  console.log("🔐 Removing admin@hydra.local if present...");
+  await prisma.user.deleteMany({ where: { email: "admin@hydra.local" } });
+
+  console.log("👥 Upserting core users...");
+
+  const coreUserData = {
+    brennan: {
+      email: "brennanlazzara@gmail.com",
+      name: "Brennan Lazzara",
+      role: Role.ADMIN,
+      status: UserStatus.APPROVED,
+    },
+    andrea: {
+      email: "andrea@hydra.local",
+      name: "Andrea",
+      role: Role.AGENT,
+      status: UserStatus.APPROVED,
+      agentCode: "ANDREA" as const,
+    },
+    manuele: {
+      email: "manuele@hydra.local",
+      name: "Manuele",
+      role: Role.AGENT,
+      status: UserStatus.APPROVED,
+      agentCode: "MANUELE" as const,
+    },
+  };
+
+  const brennanAdmin = await prisma.user.upsert({
+    where: { email: coreUserData.brennan.email },
+    update: coreUserData.brennan,
+    create: coreUserData.brennan,
+  });
+
+  const andreaAgent = await prisma.user.upsert({
+    where: { email: coreUserData.andrea.email },
+    update: coreUserData.andrea,
+    create: coreUserData.andrea,
+  });
+
+  const manueleAgent = await prisma.user.upsert({
+    where: { email: coreUserData.manuele.email },
+    update: coreUserData.manuele,
+    create: coreUserData.manuele,
+  });
+
+  console.log(`   ✅ ${brennanAdmin.email} (ADMIN)`);
+  console.log(`   ✅ ${andreaAgent.email} (AGENT, agentCode=ANDREA)`);
+  console.log(`   ✅ ${manueleAgent.email} (AGENT, agentCode=MANUELE)`);
+
+  return { brennanAdmin, andreaAgent, manueleAgent };
+}
+
 async function main() {
-  console.log("🌱 Starting seed...");
+  console.log(`🌱 Starting seed (mode: ${SEED_MODE})...`);
+
+  if (SEED_MODE !== "dev" && SEED_MODE !== "prod") {
+    throw new Error(
+      `Invalid SEED_MODE: "${SEED_MODE}". Must be "dev" or "prod".`,
+    );
+  }
+
+  // ===== PROD MODE: core users only =====
+  if (SEED_MODE === "prod") {
+    const { brennanAdmin, andreaAgent, manueleAgent } = await seedCoreUsers();
+
+    const userCount = await prisma.user.count();
+    console.log("\n✅ Production seed completed!");
+    console.log(`\n📊 Summary: ${userCount} total user(s)`);
+    console.log("\n🔐 Core Users:");
+    console.log(`- ${brennanAdmin.email} (ADMIN)`);
+    console.log(`- ${andreaAgent.email} (AGENT)`);
+    console.log(`- ${manueleAgent.email} (AGENT)`);
+    return;
+  }
+
+  // ===== DEV MODE: full mock data =====
 
   // Clean existing data (in order to avoid FK constraints)
   console.log("🧹 Cleaning existing data...");
@@ -272,50 +356,8 @@ async function main() {
   await prisma.verificationToken.deleteMany();
   await prisma.user.deleteMany();
 
-  // ===== USERS =====
-  console.log("👥 Creating users...");
-
-  const adminUser = await prisma.user.create({
-    data: {
-      id: createId(),
-      email: "admin@hydra.local",
-      name: "Admin User",
-      role: Role.ADMIN,
-      status: UserStatus.APPROVED,
-    },
-  });
-
-  const brennanGodUser = await prisma.user.create({
-    data: {
-      id: createId(),
-      email: "brennanlazzara@gmail.com",
-      name: "Brennan Lazzara",
-      role: Role.ADMIN,
-      status: UserStatus.APPROVED,
-    },
-  });
-
-  const andreaAgent = await prisma.user.create({
-    data: {
-      id: createId(),
-      email: "andrea@hydra.local",
-      name: "Andrea",
-      role: Role.AGENT,
-      status: UserStatus.APPROVED,
-      agentCode: "ANDREA",
-    },
-  });
-
-  const manueleAgent = await prisma.user.create({
-    data: {
-      id: createId(),
-      email: "manuele@hydra.local",
-      name: "Manuele",
-      role: Role.AGENT,
-      status: UserStatus.APPROVED,
-      agentCode: "MANUELE",
-    },
-  });
+  // ===== CORE USERS =====
+  const { brennanAdmin, andreaAgent, manueleAgent } = await seedCoreUsers();
 
   // ===== VENDORS =====
   // Import vendors and products from CSV files
@@ -340,7 +382,6 @@ async function main() {
   if (whiteDog) {
     await prisma.user.create({
       data: {
-        id: createId(),
         email: "vendor.whitedog@hydra.local",
         name: "White Dog Manager",
         role: Role.VENDOR,
@@ -353,7 +394,6 @@ async function main() {
   if (plustik) {
     await prisma.user.create({
       data: {
-        id: createId(),
         email: "vendor.plustik@hydra.local",
         name: "Plustik Manager",
         role: Role.VENDOR,
@@ -366,7 +406,6 @@ async function main() {
   if (generalBeverage) {
     await prisma.user.create({
       data: {
-        id: createId(),
         email: "vendor.generalbeverage@hydra.local",
         name: "General Beverage Manager",
         role: Role.VENDOR,
@@ -379,7 +418,6 @@ async function main() {
   if (cdFish) {
     await prisma.user.create({
       data: {
-        id: createId(),
         email: "vendor.cdfish@hydra.local",
         name: "CD Fish Manager",
         role: Role.VENDOR,
@@ -464,7 +502,6 @@ async function main() {
 
   const clientDemoUser = await prisma.user.create({
     data: {
-      id: createId(),
       email: clientDemoEmail,
       name: "Demo Restaurant Manager",
       role: Role.CLIENT,
@@ -680,7 +717,6 @@ async function main() {
   // Create driver users
   await prisma.user.create({
     data: {
-      id: createId(),
       email: "driver.marco@hydra.local",
       name: "Marco Rossi",
       role: Role.DRIVER,
@@ -691,7 +727,6 @@ async function main() {
 
   await prisma.user.create({
     data: {
-      id: createId(),
       email: "driver.giulia@hydra.local",
       name: "Giulia Bianchi",
       role: Role.DRIVER,
@@ -908,7 +943,7 @@ async function main() {
     console.log("✅ Created demo shift for Marco");
   }
 
-  console.log("\n✅ Seed completed successfully!");
+  console.log("\n✅ Dev seed completed successfully!");
   console.log("\n📊 Summary:");
 
   const vendorCount = await prisma.vendor.count();
@@ -935,7 +970,7 @@ async function main() {
   console.log(`- Driver Shifts: 1 (open shift for Marco)`);
 
   console.log("\n🔐 Test Users:");
-  console.log("- admin@hydra.local (ADMIN)");
+  console.log("- brennanlazzara@gmail.com (ADMIN)");
   console.log("- andrea@hydra.local (AGENT - manages White Dog, CD Fish)");
   console.log(
     "- manuele@hydra.local (AGENT - manages General Beverage, Plustik)",
