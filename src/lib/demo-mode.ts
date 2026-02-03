@@ -3,9 +3,13 @@
  *
  * Provides utilities for checking and managing demo mode state
  *
- * SECURITY: Demo mode is NEVER enabled in production, regardless of env vars.
- * This prevents accidental exposure of the demo Credentials provider which
- * bypasses email verification.
+ * SECURITY: Demo mode is controlled by ENABLE_DEMO_MODE env var.
+ * In Vercel, this is set per-environment:
+ *   - Production: ENABLE_DEMO_MODE=false (demo disabled)
+ *   - Preview:    ENABLE_DEMO_MODE=true  (demo enabled)
+ *
+ * NOTE: We cannot gate on NODE_ENV because Vercel sets NODE_ENV=production
+ * for ALL deployed environments (including Preview).
  */
 
 export type DemoUser = {
@@ -15,37 +19,15 @@ export type DemoUser = {
   description: string;
 };
 
-const isProduction = process.env.NODE_ENV === "production";
-const envWantsDemo = process.env.ENABLE_DEMO_MODE?.toLowerCase() === "true";
-
-// Log warning if demo mode is attempted in production
-if (isProduction && envWantsDemo) {
-  console.error(
-    "\n" +
-      "╔═══════════════════════════════════════════════════════════════════════╗\n" +
-      "║  ⚠️  SECURITY WARNING: ENABLE_DEMO_MODE=true in production!           ║\n" +
-      "║                                                                       ║\n" +
-      "║  Demo mode has been DISABLED to protect your application.             ║\n" +
-      "║  Demo mode bypasses email verification and must never run in prod.    ║\n" +
-      "║                                                                       ║\n" +
-      "║  Remove ENABLE_DEMO_MODE from your production environment variables.  ║\n" +
-      "╚═══════════════════════════════════════════════════════════════════════╝\n"
-  );
-}
-
 /**
  * Check if demo mode is enabled
  * Demo mode allows one-click signin for testing and demos
  *
- * IMPORTANT: Always returns false in production, regardless of env var.
- * This is a security measure to prevent demo mode from ever running in prod.
+ * Controlled entirely by ENABLE_DEMO_MODE env var.
+ * Vercel Production has this set to "false", Preview has it set to "true".
  */
 export function isDemoModeEnabled(): boolean {
-  // SECURITY: Never enable demo mode in production
-  if (isProduction) {
-    return false;
-  }
-  return envWantsDemo;
+  return process.env.ENABLE_DEMO_MODE?.toLowerCase() === "true";
 }
 
 /**
@@ -91,11 +73,11 @@ export const DEMO_USERS: DemoUser[] = [
     description: "Delivery driver - view routes and manage deliveries",
   },
   {
-    email: "admin@hydra.local",
-    name: "Admin User",
+    email: "brennanlazzara@gmail.com",
+    name: "Brennan Lazzara",
     role: "ADMIN",
     description:
-      "Full system access - manage all vendors, clients, orders, and users (COMING SOON)",
+      "Full system access - manage all vendors, clients, orders, and users",
   },
   {
     email: "andrea@hydra.local",
