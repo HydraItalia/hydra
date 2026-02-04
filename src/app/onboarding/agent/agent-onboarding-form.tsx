@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -34,6 +35,7 @@ type FormValues = z.infer<typeof schema>;
 
 export function AgentOnboardingForm() {
   const router = useRouter();
+  const { update } = useSession();
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<FormValues>({
@@ -53,6 +55,7 @@ export function AgentOnboardingForm() {
 
       if (result.success) {
         toast.success("Registration submitted");
+        await update();
         router.push("/pending");
       } else {
         toast.error(result.error || "Failed to submit");

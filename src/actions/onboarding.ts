@@ -98,6 +98,7 @@ export async function submitVendorOnboarding(
       await tx.user.update({
         where: { id: userId },
         data: {
+          name: validated.businessName,
           role: "VENDOR",
           status: "PENDING",
           vendorId,
@@ -222,6 +223,7 @@ export async function submitClientOnboarding(
       await tx.user.update({
         where: { id: userId },
         data: {
+          name: validated.contactPerson || validated.businessName,
           role: "CLIENT",
           status: "PENDING",
           clientId,
@@ -331,6 +333,7 @@ export async function submitDriverOnboarding(
       await tx.user.update({
         where: { id: userId },
         data: {
+          name: validated.fullName,
           role: "DRIVER",
           status: "PENDING",
           driverId,

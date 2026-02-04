@@ -150,11 +150,12 @@ export const {
   ],
   debug: process.env.NODE_ENV === "development",
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
+    async jwt({ token, user, trigger }) {
+      if (user || trigger === "update") {
         // Fetch the full user with role information
+        // Runs on sign-in (user present) and when session.update() is called
         const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
+          where: { id: (user?.id ?? token.id) as string },
           select: {
             id: true,
             email: true,
