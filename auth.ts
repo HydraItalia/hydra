@@ -105,12 +105,20 @@ export const {
           process.env.NODE_ENV !== "production" &&
           process.env.AUTH_EMAIL_DEV_MODE?.toLowerCase() !== "false";
 
-        // Structured logging for debugging (safe - no secrets)
+        // Safe redacted preview: "bre***@gm***.com"
+        const parts = email.split("@");
+        const hasValidShape = parts.length === 2 && parts[1].includes(".");
+        const redactedPreview = hasValidShape
+          ? `${parts[0].slice(0, 3)}***@${parts[1]}`
+          : `<invalid:len=${email.length},hasAt=${email.includes("@")}>`;
+
+        // Structured logging for debugging (safe - no full email)
         console.log("[auth] sendVerificationRequest invoked", {
           nodeEnv: process.env.NODE_ENV,
           authEmailDevMode: process.env.AUTH_EMAIL_DEV_MODE ?? "(unset)",
           isDevMode,
-          recipientDomain: email.split("@")[1] || "unknown",
+          recipientPreview: redactedPreview,
+          recipientLength: email.length,
           from: provider.from,
           hasResendApiKey: !!process.env.RESEND_API_KEY,
         });

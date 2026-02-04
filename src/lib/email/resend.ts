@@ -25,6 +25,23 @@ interface ResendErrorResponse {
   name: string;
 }
 
+/** Minimal email format check: local@domain.tld */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Redact email for safe logging: "bre***@gm***.com" */
+function redactEmail(email: string): string {
+  const parts = email.split("@");
+  if (parts.length !== 2) return `<invalid:len=${email.length}>`;
+  const [local, domain] = parts;
+  const redactedLocal = local.length <= 3 ? local[0] + "***" : local.slice(0, 3) + "***";
+  const domainParts = domain.split(".");
+  if (domainParts.length < 2) return `${redactedLocal}@<invalid-domain:${domain}>`;
+  const redactedDomain =
+    (domainParts[0].length <= 2 ? domainParts[0] : domainParts[0].slice(0, 2) + "***") +
+    "." + domainParts.slice(1).join(".");
+  return `${redactedLocal}@${redactedDomain}`;
+}
+
 /**
  * Send an email via the Resend HTTP API.
  *
@@ -39,8 +56,24 @@ export async function sendEmailViaResend(options: SendEmailOptions): Promise<Res
     );
   }
 
+  const to = options.to.trim();
+
+  // Validate email before sending — catch truncated/malformed addresses early
+  if (!EMAIL_RE.test(to)) {
+    console.error("[email] Invalid recipient email format", {
+      redacted: redactEmail(options.to),
+      length: options.to.length,
+      hasAt: options.to.includes("@"),
+      hasDot: options.to.includes("."),
+    });
+    throw new Error(
+      `[email] Invalid recipient email format (redacted: ${redactEmail(options.to)}). ` +
+      `Expected user@domain.tld but got a ${options.to.length}-char string.`
+    );
+  }
+
   console.log("[email] Sending via Resend HTTP API", {
-    to_domain: options.to.split("@")[1] || "unknown",
+    to_redacted: redactEmail(to),
     from: options.from,
     subject: options.subject,
   });
@@ -53,7 +86,7 @@ export async function sendEmailViaResend(options: SendEmailOptions): Promise<Res
     },
     body: JSON.stringify({
       from: options.from,
-      to: [options.to],
+      to: [to],
       subject: options.subject,
       html: options.html,
       text: options.text,

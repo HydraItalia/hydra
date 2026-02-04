@@ -21,7 +21,7 @@ export default function SignInPage() {
       // Show spinner for at least 500ms so users see feedback
       await Promise.all([
         signIn('email', {
-          email,
+          email: email.trim().toLowerCase(),
           redirect: false,
           callbackUrl: '/dashboard',
         }),
