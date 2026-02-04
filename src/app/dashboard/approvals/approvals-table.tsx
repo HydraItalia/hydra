@@ -26,6 +26,8 @@ function statusBadgeVariant(
       return "destructive";
     case "SUSPENDED":
       return "destructive";
+    case "ONBOARDING":
+      return "outline";
     default:
       return "outline";
   }

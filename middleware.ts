@@ -12,7 +12,7 @@ import type { NextRequest } from "next/server";
  * - Public routes: /, /signin, /api/auth/* — always accessible
  * - /onboarding, /pending — accessible to authenticated users regardless of status
  * - /dashboard/* — only accessible to APPROVED users
- *   - No status / undefined → redirect to /onboarding
+ *   - ONBOARDING → redirect to /onboarding
  *   - PENDING → redirect to /pending
  *   - REJECTED/SUSPENDED → redirect to /pending?reason=rejected or ?reason=suspended
  *   - APPROVED → allow through
@@ -56,9 +56,19 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", nextUrl));
   }
 
+  // ONBOARDING users on /pending — redirect to /onboarding
+  if (status === "ONBOARDING" && isPending) {
+    return NextResponse.redirect(new URL("/onboarding", nextUrl));
+  }
+
+  // PENDING users on /onboarding — redirect to /pending
+  if (status === "PENDING" && isOnboarding) {
+    return NextResponse.redirect(new URL("/pending", nextUrl));
+  }
+
   // Dashboard routes require APPROVED status
   if (isDashboard) {
-    if (!status) {
+    if (status === "ONBOARDING") {
       return NextResponse.redirect(new URL("/onboarding", nextUrl));
     }
     if (status === "PENDING") {

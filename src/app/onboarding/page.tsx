@@ -52,6 +52,10 @@ export default async function OnboardingPage() {
     redirect("/dashboard");
   }
 
+  if (session.user.status === "PENDING") {
+    redirect("/pending");
+  }
+
   return (
     <div className="w-full max-w-2xl space-y-6">
       <div className="text-center space-y-2">

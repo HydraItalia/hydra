@@ -533,7 +533,7 @@ model User {
   email                                 String        @unique
   name                                  String?
   role                                  Role          @default(CLIENT)
-  status                                UserStatus    @default(PENDING)
+  status                                UserStatus    @default(ONBOARDING)
   approvedAt                            DateTime?
   approvedByUserId                      String?
   onboardingData                        Json?
@@ -702,6 +702,7 @@ enum Role {
 }
 
 enum UserStatus {
+  ONBOARDING
   PENDING
   APPROVED
   REJECTED

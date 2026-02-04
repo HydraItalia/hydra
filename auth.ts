@@ -54,11 +54,11 @@ export const {
 
               // Check if email is in demo users list
               const demoUser = DEMO_USERS.find(
-                (u) => u.email === credentials.email
+                (u) => u.email === credentials.email,
               );
               if (!demoUser) {
                 console.warn(
-                  `[Demo Mode] Attempted signin with unauthorized email`
+                  `[Demo Mode] Attempted signin with unauthorized email`,
                 );
                 return null;
               }
@@ -70,14 +70,12 @@ export const {
 
               if (!user) {
                 console.error(
-                  `[Demo Mode] User not found in database: ${credentials.email}`
+                  `[Demo Mode] User not found in database: ${credentials.email}`,
                 );
                 return null;
               }
 
-              console.log(
-                `[Demo Mode] Signing in with role: ${user.role}`
-              );
+              console.log(`[Demo Mode] Signing in with role: ${user.role}`);
 
               return {
                 id: user.id,
@@ -179,8 +177,8 @@ export const {
           token.agentCode = dbUser.agentCode;
           token.driverId = dbUser.driverId;
         } else {
-          // New user just created by adapter — default to PENDING
-          token.status = "PENDING";
+          // New user just created by adapter — default to ONBOARDING
+          token.status = "ONBOARDING";
         }
       }
       return token;

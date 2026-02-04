@@ -8,6 +8,7 @@ import { Search, X } from "lucide-react";
 
 const STATUS_OPTIONS = [
   { value: "PENDING", label: "Pending" },
+  { value: "ONBOARDING", label: "Onboarding" },
   { value: "APPROVED", label: "Approved" },
   { value: "REJECTED", label: "Rejected" },
   { value: "SUSPENDED", label: "Suspended" },

@@ -26,6 +26,11 @@ export default async function PendingPage() {
     redirect("/dashboard");
   }
 
+  // Still onboarding — send back to onboarding
+  if (status === "ONBOARDING") {
+    redirect("/onboarding");
+  }
+
   // Derive display state solely from session status (never from URL params)
   const isRejected = status === "REJECTED";
   const isSuspended = status === "SUSPENDED";
