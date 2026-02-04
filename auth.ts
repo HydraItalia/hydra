@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { isDemoModeEnabled, DEMO_USERS } from "@/lib/demo-mode";
 import { sendEmailViaResend } from "@/lib/email/resend";
 import { validateEmailEnv } from "@/lib/email/env-check";
+import { magicLinkEmail } from "@/lib/email/magic-link-template";
 
 // Fail fast in production if email env vars are missing
 validateEmailEnv();
@@ -133,8 +134,7 @@ export const {
         console.log("[auth] Sending magic link email via Resend HTTP API");
 
         const subject = "Sign in to Hydra";
-        const text = `Sign in to Hydra\n\n${url}\n\n`;
-        const html = `<p>Click the link below to sign in:</p><p><a href="${url}">Sign in to Hydra</a></p>`;
+        const { html, text } = magicLinkEmail({ url });
 
         await sendEmailViaResend({
           to: email,
