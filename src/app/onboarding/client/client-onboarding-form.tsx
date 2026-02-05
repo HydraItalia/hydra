@@ -111,7 +111,7 @@ export function ClientOnboardingForm() {
       personalPecEmail: "",
       residentialAddress: undefined,
       domicileAddress: undefined,
-      idDocumentType: "",
+      idDocumentType: undefined,
       idDocumentNumber: "",
       idDocumentExpiry: "",
       idDocumentIssuer: "",
@@ -199,8 +199,9 @@ export function ClientOnboardingForm() {
 
     form.setValue("clientType", pendingTypeChange);
     setPendingTypeChange(null);
-    // Reset completed steps since structure changed
+    // Reset completed steps and current step since structure changed
     setCompletedSteps(new Set([0]));
+    setCurrentStep(1);
   }, [form, pendingTypeChange]);
 
   const cancelTypeChange = useCallback(() => {

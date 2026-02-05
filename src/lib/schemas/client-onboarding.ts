@@ -47,6 +47,26 @@ export const clientTypeSchema = z.enum([
 
 export type ClientType = z.infer<typeof clientTypeSchema>;
 
+// ── ID Document Type ─────────────────────────────────────────────────────────
+
+export const idDocumentTypeSchema = z.enum([
+  "ID_CARD",
+  "PASSPORT",
+  "DRIVING_LICENSE",
+]);
+
+export type IdDocumentType = z.infer<typeof idDocumentTypeSchema>;
+
+// ── Date string validation ───────────────────────────────────────────────────
+
+const optionalDateString = z
+  .string()
+  .optional()
+  .or(z.literal(""))
+  .refine((value) => !value || !Number.isNaN(Date.parse(value)), {
+    message: "Invalid date",
+  });
+
 // ── Main onboarding schema (conditional based on clientType) ─────────────────
 
 export const clientOnboardingSchema = z
@@ -56,7 +76,7 @@ export const clientOnboardingSchema = z
 
     // Section 1: Personal Details (PRIVATE only)
     fullName: z.string().max(255).optional().or(z.literal("")),
-    birthDate: z.string().optional().or(z.literal("")), // ISO date string
+    birthDate: optionalDateString,
     birthPlace: z.string().max(255).optional().or(z.literal("")),
     personalTaxCode: z.string().max(20).optional().or(z.literal("")),
     personalPhone: z.string().max(50).optional().or(z.literal("")),
@@ -74,9 +94,9 @@ export const clientOnboardingSchema = z
       .or(z.literal("")),
     residentialAddress: addressSchema.optional(),
     domicileAddress: addressSchema.optional(),
-    idDocumentType: z.string().max(50).optional().or(z.literal("")),
+    idDocumentType: idDocumentTypeSchema.optional(),
     idDocumentNumber: z.string().max(100).optional().or(z.literal("")),
-    idDocumentExpiry: z.string().optional().or(z.literal("")), // ISO date string
+    idDocumentExpiry: optionalDateString,
     idDocumentIssuer: z.string().max(255).optional().or(z.literal("")),
 
     // Section 2: Company Details (COMPANY/RESELLER/PARTNER only)
