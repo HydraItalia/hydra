@@ -44,6 +44,18 @@ import { BillingDocumentsStep } from "./steps/billing-documents-step";
 import { OperationalStep } from "./steps/operational-step";
 import { ConsentsStep } from "./steps/consents-step";
 
+// Helper to check if a value is non-empty (handles strings, arrays, and objects)
+function isNonEmptyValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim() !== "";
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") {
+    // Check if object has any non-empty values
+    return Object.values(value).some((v) => isNonEmptyValue(v));
+  }
+  return Boolean(value);
+}
+
 // Fields to clear when switching from PRIVATE to BUSINESS
 const PRIVATE_ONLY_FIELDS = [
   "fullName",
@@ -149,9 +161,7 @@ export function ClientOnboardingForm() {
 
       const hasData = fieldsToCheck.some((field) => {
         const value = form.getValues(field as keyof ClientOnboardingInput);
-        if (typeof value === "string") return value.trim() !== "";
-        if (typeof value === "object" && value !== null) return true;
-        return false;
+        return isNonEmptyValue(value);
       });
 
       if (hasData) {
