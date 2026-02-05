@@ -63,7 +63,7 @@ export function VendorOnboardingForm() {
       warehouseAccess: "",
       emergencyContacts: [],
       operationalNotes: "",
-      dataProcessingConsent: undefined as unknown as true,
+      dataProcessingConsent: undefined as never,
       marketingConsent: false,
       logoUsageConsent: false,
     },
@@ -147,17 +147,11 @@ export function VendorOnboardingForm() {
             </Button>
             {isLastStep ? (
               <Button type="submit" disabled={isLoading}>
-                {isLoading && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isLoading ? "Submitting..." : "Submit Registration"}
               </Button>
             ) : (
-              <Button
-                type="button"
-                onClick={handleNext}
-                disabled={isLoading}
-              >
+              <Button type="button" onClick={handleNext} disabled={isLoading}>
                 Next
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>

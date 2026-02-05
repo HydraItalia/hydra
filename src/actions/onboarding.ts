@@ -101,9 +101,7 @@ export async function submitVendorOnboarding(
           tradeName: validated.tradeName || null,
           industry: validated.industry || null,
           description: validated.description || null,
-          foundedAt: validated.foundedAt
-            ? new Date(validated.foundedAt)
-            : null,
+          foundedAt: validated.foundedAt ? new Date(validated.foundedAt) : null,
           employeeCount: validated.employeeCount ?? null,
           // Section 2: Legal & Tax
           vatNumber: validated.vatNumber || null,
@@ -125,8 +123,7 @@ export async function submitVendorOnboarding(
           bankAccountHolder: validated.bankAccountHolder || null,
           iban: validated.iban || null,
           bankNameAndBranch: validated.bankNameAndBranch || null,
-          preferredPaymentMethod:
-            validated.preferredPaymentMethod ?? undefined,
+          preferredPaymentMethod: validated.preferredPaymentMethod ?? undefined,
           paymentTerms: validated.paymentTerms ?? undefined,
           invoicingNotes: validated.invoicingNotes || null,
           // Section 6: Operational
@@ -136,8 +133,8 @@ export async function submitVendorOnboarding(
           emergencyContacts: validated.emergencyContacts ?? undefined,
           operationalNotes: validated.operationalNotes || null,
           // Section 7: Consents (timestamps auto-set server-side)
-          dataProcessingConsent: true,
-          dataProcessingTimestamp: now,
+          dataProcessingConsent: validated.dataProcessingConsent,
+          dataProcessingTimestamp: validated.dataProcessingConsent ? now : null,
           marketingConsent: validated.marketingConsent,
           marketingTimestamp: validated.marketingConsent ? now : null,
           logoUsageConsent: validated.logoUsageConsent,

@@ -99,6 +99,7 @@ export function DocumentsStep({ form, disabled }: Props) {
             type="button"
             variant="ghost"
             size="icon"
+            aria-label={`Remove document ${index + 1}`}
             onClick={() => remove(index)}
             disabled={disabled}
           >

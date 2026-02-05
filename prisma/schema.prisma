@@ -824,8 +824,6 @@ model VendorProfile {
 
   Vendor   Vendor           @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   Document VendorDocument[]
-
-  @@index([vendorId])
 }
 
 // ── Vendor Document Metadata ─────────────────────────────────────────────────

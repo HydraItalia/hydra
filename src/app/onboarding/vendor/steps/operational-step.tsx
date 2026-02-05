@@ -122,6 +122,7 @@ export function OperationalStep({ form, disabled }: Props) {
             type="button"
             variant="ghost"
             size="icon"
+            aria-label={`Remove emergency contact ${index + 1}`}
             onClick={() => remove(index)}
             disabled={disabled}
           >
