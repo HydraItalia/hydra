@@ -206,26 +206,14 @@ export async function submitVendorOnboarding(
 
 // ─── Client Onboarding ────────────────────────────────────────────────────────
 
-const clientOnboardingSchema = z.object({
-  businessName: z
-    .string()
-    .min(1, "Business or contact name is required")
-    .max(255),
-  region: z.string().max(100).optional(),
-  notes: z.string().max(2000).optional(),
-  contactPerson: z.string().max(255).optional(),
-  email: z
-    .string()
-    .email("Invalid email")
-    .max(255)
-    .optional()
-    .or(z.literal("")),
-  phone: z.string().max(50).optional(),
-  address: z.string().max(500).optional(),
-  vendorName: z.string().max(255).optional(),
-});
+import {
+  clientOnboardingSchema,
+  type ClientOnboardingInput,
+} from "@/lib/schemas/client-onboarding";
 
-export type ClientOnboardingInput = z.infer<typeof clientOnboardingSchema>;
+export type { ClientOnboardingInput };
+
+const REQUIRED_CLIENT_DOC_TYPES = new Set(["ID_DOCUMENT", "SIGNED_GDPR_FORM"]);
 
 export async function submitClientOnboarding(
   data: ClientOnboardingInput,
@@ -252,7 +240,7 @@ export async function submitClientOnboarding(
       return { success: false, error: "Onboarding already submitted" };
     }
 
-    // Validate input
+    // Validate input (includes conditional validation based on clientType)
     const validation = clientOnboardingSchema.safeParse(data);
     if (!validation.success) {
       return {
@@ -262,73 +250,150 @@ export async function submitClientOnboarding(
     }
 
     const validated = validation.data;
+    const now = new Date();
+    const isPrivate = validated.clientType === "PRIVATE";
 
-    // Look up vendor if specified
-    let vendorId: string | null = null;
-    if (validated.vendorName?.trim()) {
-      const vendor = await prisma.vendor.findFirst({
-        where: {
-          name: { contains: validated.vendorName.trim(), mode: "insensitive" },
-          deletedAt: null,
-        },
-        select: { id: true },
-      });
-      if (vendor) {
-        vendorId = vendor.id;
-      }
-    }
+    // Format address string for legacy Client.fullAddress field
+    const primaryAddress = isPrivate
+      ? validated.residentialAddress
+      : validated.registeredOfficeAddress;
+    const legacyAddress = primaryAddress
+      ? [
+          primaryAddress.street,
+          primaryAddress.city,
+          primaryAddress.province,
+          primaryAddress.postalCode,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : null;
 
-    // Create Client + update User + optional ClientVendor in a transaction
+    // Determine legacy field values based on clientType
+    const legacyName = isPrivate
+      ? validated.fullName
+      : validated.tradeName || validated.legalName;
+    const legacyEmail = isPrivate
+      ? validated.personalEmail
+      : validated.adminContact?.email;
+    const legacyPhone = isPrivate
+      ? validated.personalPhone
+      : validated.adminContact?.phone;
+    const legacyTaxId = isPrivate
+      ? validated.personalTaxCode
+      : validated.vatNumber;
+    const legacyContactPerson = isPrivate
+      ? validated.fullName
+      : validated.adminContact?.fullName;
+
+    // Create Client + ClientProfile + ClientDocument[] + update User in transaction
     await prisma.$transaction(async (tx) => {
       const clientId = createId();
+      const profileId = createId();
 
-      // Create Client record
+      // 1. Create Client (legacy fields populated for backward compat)
       await tx.client.create({
         data: {
           id: clientId,
-          name: validated.businessName,
-          region: validated.region || null,
-          notes: validated.notes || null,
-          contactPerson: validated.contactPerson || null,
-          email: validated.email || null,
-          phone: validated.phone || null,
-          fullAddress: validated.address || null,
+          name: legacyName || "Unknown",
+          email: legacyEmail || null,
+          phone: legacyPhone || null,
+          taxId: legacyTaxId || null,
+          fullAddress: legacyAddress,
+          contactPerson: legacyContactPerson || null,
         },
       });
 
-      // Update User
+      // 2. Create ClientProfile (all detailed onboarding data)
+      await tx.clientProfile.create({
+        data: {
+          id: profileId,
+          clientId,
+          clientType: validated.clientType,
+
+          // Section 1: Personal Details (PRIVATE only)
+          fullName: validated.fullName || null,
+          birthDate: validated.birthDate ? new Date(validated.birthDate) : null,
+          birthPlace: validated.birthPlace || null,
+          personalTaxCode: validated.personalTaxCode || null,
+          personalPhone: validated.personalPhone || null,
+          personalEmail: validated.personalEmail || null,
+          personalPecEmail: validated.personalPecEmail || null,
+          residentialAddress: validated.residentialAddress ?? undefined,
+          domicileAddress: validated.domicileAddress ?? undefined,
+          idDocumentType: validated.idDocumentType || null,
+          idDocumentNumber: validated.idDocumentNumber || null,
+          idDocumentExpiry: validated.idDocumentExpiry
+            ? new Date(validated.idDocumentExpiry)
+            : null,
+          idDocumentIssuer: validated.idDocumentIssuer || null,
+
+          // Section 2: Company Details (COMPANY/RESELLER/PARTNER only)
+          legalName: validated.legalName || null,
+          tradeName: validated.tradeName || null,
+          vatNumber: validated.vatNumber || null,
+          companyTaxCode: validated.companyTaxCode || null,
+          sdiRecipientCode: validated.sdiRecipientCode || null,
+          companyPecEmail: validated.companyPecEmail || null,
+          registeredOfficeAddress:
+            validated.registeredOfficeAddress ?? undefined,
+          operatingAddress: validated.operatingAddress ?? undefined,
+          adminContact: validated.adminContact ?? undefined,
+          operationalContact: validated.operationalContact ?? undefined,
+
+          // Section 4: Billing
+          invoicingNotes: validated.invoicingNotes || null,
+
+          // Section 6: Operational
+          preferredContactHours: validated.preferredContactHours || null,
+          specialRequirements: validated.specialRequirements || null,
+          operationalNotes: validated.operationalNotes || null,
+
+          // Section 7: Consents (timestamps auto-set server-side)
+          dataProcessingConsent: validated.dataProcessingConsent,
+          dataProcessingTimestamp: validated.dataProcessingConsent ? now : null,
+          marketingConsent: validated.marketingConsent,
+          marketingTimestamp: validated.marketingConsent ? now : null,
+          consentVersion: "1.0",
+        },
+      });
+
+      // 3. Create ClientDocument metadata rows
+      if (validated.documents?.length) {
+        await tx.clientDocument.createMany({
+          data: validated.documents.map((doc) => ({
+            id: createId(),
+            clientProfileId: profileId,
+            type: doc.type,
+            label: doc.label,
+            fileName: doc.fileName || null,
+            notes: doc.notes || null,
+            required: REQUIRED_CLIENT_DOC_TYPES.has(doc.type),
+          })),
+        });
+      }
+
+      // 4. Update User: set role, status, store onboarding snapshot, link client
       await tx.user.update({
         where: { id: userId },
         data: {
-          name: validated.contactPerson || validated.businessName,
+          name: legacyContactPerson || legacyName,
           role: "CLIENT",
           status: "PENDING",
           clientId,
-          onboardingData: validated as any,
+          onboardingData: JSON.parse(JSON.stringify(validated)),
         },
       });
-
-      // If vendor found, create a pending ClientVendor link
-      if (vendorId) {
-        await tx.clientVendor.create({
-          data: {
-            id: createId(),
-            clientId,
-            vendorId,
-            status: "PENDING",
-          },
-        });
-      }
     });
 
+    // Audit log — no PII (no emails, phones, tax codes)
     await logAction({
       entityType: "User",
       entityId: userId,
       action: AuditAction.ONBOARDING_SUBMITTED,
       diff: {
         role: "CLIENT",
-        businessName: validated.businessName,
-        vendorName: validated.vendorName || null,
+        clientType: validated.clientType,
+        name: legacyName,
       },
     });
 
@@ -336,7 +401,10 @@ export async function submitClientOnboarding(
 
     return { success: true };
   } catch (error) {
-    console.error("Client onboarding error:", error);
+    console.error(
+      "Client onboarding error:",
+      error instanceof Error ? error.message : "Unknown error",
+    );
     return {
       success: false,
       error:

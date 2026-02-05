@@ -195,25 +195,69 @@ describe("submitVendorOnboarding (#159)", () => {
 
 // ─── Client Onboarding ───────────────────────────────────────────────────────
 
+// Valid PRIVATE client input for tests
+const validPrivateClientInput = {
+  clientType: "PRIVATE" as const,
+  fullName: "Mario Rossi",
+  personalTaxCode: "RSSMRA80A01H501U",
+  personalPhone: "+39 123 456 7890",
+  personalEmail: "mario@example.com",
+  residentialAddress: {
+    street: "Via Roma 1",
+    city: "Roma",
+    province: "RM",
+    postalCode: "00100",
+    country: "Italy",
+  },
+  dataProcessingConsent: true as const,
+  marketingConsent: false,
+};
+
+// Valid COMPANY client input for tests
+const validCompanyClientInput = {
+  clientType: "COMPANY" as const,
+  legalName: "Acme Corp S.r.l.",
+  vatNumber: "IT12345678901",
+  registeredOfficeAddress: {
+    street: "Via Milano 10",
+    city: "Milano",
+    province: "MI",
+    postalCode: "20100",
+    country: "Italy",
+  },
+  adminContact: {
+    fullName: "Admin User",
+    email: "admin@acme.it",
+    phone: "+39 02 1234567",
+  },
+  dataProcessingConsent: true as const,
+  marketingConsent: false,
+};
+
 describe("submitClientOnboarding (#159)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTransaction.mockImplementation(async (fn: any) => fn(prisma));
   });
 
-  it("creates Client + updates User for valid input", async () => {
+  it("creates Client + ClientProfile + updates User for PRIVATE client", async () => {
     mockAuth("user-1");
     mockFreshUser();
 
-    const result = await submitClientOnboarding({
-      businessName: "Acme Corp",
-      region: "Milano",
-    });
+    const result = await submitClientOnboarding(validPrivateClientInput);
 
     expect(result).toEqual({ success: true });
     expect(prisma.client.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ name: "Acme Corp" }),
+        data: expect.objectContaining({ name: "Mario Rossi" }),
+      }),
+    );
+    expect(prisma.clientProfile.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clientType: "PRIVATE",
+          fullName: "Mario Rossi",
+        }),
       }),
     );
     expect(prisma.user.update).toHaveBeenCalledWith(
@@ -223,57 +267,64 @@ describe("submitClientOnboarding (#159)", () => {
     );
   });
 
-  it("creates ClientVendor link when vendor is found", async () => {
+  it("creates Client + ClientProfile + updates User for COMPANY client", async () => {
     mockAuth("user-1");
     mockFreshUser();
-    vi.mocked(prisma.vendor.findFirst).mockResolvedValue({
-      id: "vendor-99",
-    } as any);
 
-    const result = await submitClientOnboarding({
-      businessName: "Acme Corp",
-      vendorName: "Pizzeria Roma",
-    });
+    const result = await submitClientOnboarding(validCompanyClientInput);
 
     expect(result).toEqual({ success: true });
-    expect(prisma.clientVendor.create).toHaveBeenCalledWith(
+    expect(prisma.client.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ name: "Acme Corp S.r.l." }),
+      }),
+    );
+    expect(prisma.clientProfile.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          vendorId: "vendor-99",
-          status: "PENDING",
+          clientType: "COMPANY",
+          legalName: "Acme Corp S.r.l.",
         }),
       }),
     );
-  });
-
-  it("succeeds without ClientVendor when vendor not found", async () => {
-    mockAuth("user-1");
-    mockFreshUser();
-    vi.mocked(prisma.vendor.findFirst).mockResolvedValue(null);
-
-    const result = await submitClientOnboarding({
-      businessName: "Acme Corp",
-      vendorName: "Nonexistent Vendor",
-    });
-
-    expect(result).toEqual({ success: true });
-    expect(prisma.clientVendor.create).not.toHaveBeenCalled();
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ role: "CLIENT", status: "PENDING" }),
+      }),
+    );
   });
 
   it("rejects duplicate submission", async () => {
     mockAuth("user-1");
     mockAlreadyOnboardedUser();
-    const result = await submitClientOnboarding({ businessName: "Test" });
+    const result = await submitClientOnboarding(validPrivateClientInput);
     expect(result).toEqual({
       success: false,
       error: "Onboarding already submitted",
     });
   });
 
-  it("rejects empty business name", async () => {
+  it("rejects PRIVATE client without required fields", async () => {
     mockAuth("user-1");
     mockFreshUser();
-    const result = await submitClientOnboarding({ businessName: "" });
+    const result = await submitClientOnboarding({
+      clientType: "PRIVATE",
+      fullName: "", // missing required field
+      dataProcessingConsent: true,
+      marketingConsent: false,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects COMPANY client without required fields", async () => {
+    mockAuth("user-1");
+    mockFreshUser();
+    const result = await submitClientOnboarding({
+      clientType: "COMPANY",
+      legalName: "", // missing required field
+      dataProcessingConsent: true,
+      marketingConsent: false,
+    });
     expect(result.success).toBe(false);
   });
 });

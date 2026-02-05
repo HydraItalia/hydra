@@ -174,14 +174,15 @@ model Client {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  AgentClient  AgentClient[]
-  Agreement    Agreement[]
-  Cart         Cart[]
-  ClientStats  ClientStats?
-  ClientVendor ClientVendor[]
-  DriverStop   DriverStop[]
-  Order        Order[]
-  User         User?
+  AgentClient   AgentClient[]
+  Agreement     Agreement[]
+  Cart          Cart[]
+  ClientProfile ClientProfile?
+  ClientStats   ClientStats?
+  ClientVendor  ClientVendor[]
+  DriverStop    DriverStop[]
+  Order         Order[]
+  User          User?
 
   @@index([region])
   @@index([email])
@@ -846,4 +847,99 @@ model VendorDocument {
 
   @@index([vendorProfileId])
   @@index([vendorProfileId, type])
+}
+
+// ── Client Type Enum ─────────────────────────────────────────────────────────
+
+enum ClientType {
+  PRIVATE
+  COMPANY
+  RESELLER
+  PARTNER
+}
+
+enum ClientDocumentType {
+  ID_DOCUMENT
+  TAX_CODE
+  SIGNED_GDPR_FORM
+  OTHER
+}
+
+// ── Client Onboarding Profile (1:1 with Client) ─────────────────────────────
+
+model ClientProfile {
+  id       String @id @default(cuid())
+  clientId String @unique
+
+  // Section 1: Personal Details (PRIVATE only)
+  fullName           String?
+  birthDate          DateTime?
+  birthPlace         String?
+  personalTaxCode    String?
+  personalPhone      String?
+  personalEmail      String?
+  personalPecEmail   String?
+  residentialAddress Json? // { street, city, province, postalCode, country }
+  domicileAddress    Json? // same shape, optional
+  idDocumentType     String?
+  idDocumentNumber   String?
+  idDocumentExpiry   DateTime?
+  idDocumentIssuer   String?
+
+  // Section 2: Company Details (COMPANY/RESELLER/PARTNER only)
+  legalName               String?
+  tradeName               String?
+  vatNumber               String?
+  companyTaxCode          String?
+  sdiRecipientCode        String? // max 7 chars
+  companyPecEmail         String?
+  registeredOfficeAddress Json? // { street, city, province, postalCode, country }
+  operatingAddress        Json? // same shape, optional
+  adminContact            Json? // { fullName, email, phone }
+  operationalContact      Json? // { fullName, email, phone }
+
+  // Section 3: Commercial
+  clientType ClientType
+
+  // Section 4: Billing
+  invoicingNotes String?
+
+  // Section 6: Operational
+  preferredContactHours String?
+  specialRequirements   String?
+  operationalNotes      String?
+
+  // Section 7: Consents
+  dataProcessingConsent   Boolean   @default(false)
+  dataProcessingTimestamp DateTime?
+  marketingConsent        Boolean   @default(false)
+  marketingTimestamp      DateTime?
+  consentVersion          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Client   Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  Document ClientDocument[]
+}
+
+// ── Client Document Metadata ─────────────────────────────────────────────────
+
+model ClientDocument {
+  id              String             @id @default(cuid())
+  clientProfileId String
+  type            ClientDocumentType
+  label           String
+  fileName        String?
+  notes           String?
+  required        Boolean            @default(false)
+  uploadedAt      DateTime?
+  fileUrl         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ClientProfile ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
+
+  @@index([clientProfileId, type])
 }
