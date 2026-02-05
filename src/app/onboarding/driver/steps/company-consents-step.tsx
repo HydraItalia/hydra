@@ -173,6 +173,7 @@ export function CompanyConsentsStep({
                   I consent to geolocation tracking during active deliveries for
                   route optimization and delivery confirmation.
                 </p>
+                <FormMessage />
               </div>
             </FormItem>
           )}
@@ -196,6 +197,7 @@ export function CompanyConsentsStep({
                   I authorize the use of my profile photo on the Hydra platform
                   for identification purposes.
                 </p>
+                <FormMessage />
               </div>
             </FormItem>
           )}

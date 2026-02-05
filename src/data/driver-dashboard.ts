@@ -120,9 +120,9 @@ export async function fetchDriverDashboardProfile(): Promise<DriverDashboardProf
   const now = new Date();
   const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
 
-  // Find licenses expiring within 90 days
+  // Find licenses expiring within 90 days (excludes already expired)
   const expiringLicenses = driver.licenses
-    .filter((lic) => lic.expiryDate <= ninetyDaysFromNow)
+    .filter((lic) => lic.expiryDate > now && lic.expiryDate <= ninetyDaysFromNow)
     .map((lic) => {
       const daysUntilExpiry = Math.ceil(
         (lic.expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)
