@@ -91,6 +91,7 @@ export const vendorOnboardingSchema = z.object({
   iban: z
     .string()
     .max(34)
+    .transform((val) => (val ? val.toUpperCase().replace(/\s/g, "") : val))
     .optional()
     .or(z.literal(""))
     .refine(
