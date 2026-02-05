@@ -118,6 +118,74 @@ export type ClientProfileDetail = {
   }>;
 };
 
+export type DriverProfileDetail = {
+  // Driver base
+  id: string;
+  taxCode: string | null;
+  onboardingStatus: string;
+  approvedAt: string | null;
+  createdAt: string;
+  // Personal Data
+  fullName: string;
+  birthDate: string;
+  birthPlace: string;
+  nationality: string;
+  // Addresses
+  residentialAddress: any;
+  domicileAddress: any;
+  // Contact
+  phone: string;
+  email: string;
+  pecEmail: string | null;
+  // Identity Document
+  idDocumentType: string;
+  idDocumentNumber: string;
+  idDocumentExpiry: string;
+  idDocumentIssuer: string;
+  // Consents
+  dataProcessingConsent: boolean;
+  dataProcessingTimestamp: string | null;
+  operationalCommsConsent: boolean;
+  operationalCommsTimestamp: string | null;
+  geolocationConsent: boolean;
+  geolocationTimestamp: string | null;
+  imageUsageConsent: boolean;
+  imageUsageTimestamp: string | null;
+  consentVersion: string | null;
+  // Licenses
+  licenses: Array<{
+    id: string;
+    licenseType: string;
+    licenseNumber: string;
+    issueDate: string;
+    expiryDate: string;
+    issuingAuthority: string;
+    isCertification: boolean;
+    isVerified: boolean;
+  }>;
+  // Documents
+  documents: Array<{
+    id: string;
+    type: string;
+    label: string;
+    fileName: string | null;
+    required: boolean;
+    fileUrl: string | null;
+    uploadedAt: string | null;
+    expiryDate: string | null;
+    isVerified: boolean;
+  }>;
+  // Company link
+  companyLink: {
+    id: string;
+    status: string;
+    companyType: string;
+    vendorId: string | null;
+    vendorName: string | null;
+    linkedAt: string;
+  } | null;
+};
+
 export type ApprovalDetailResult = {
   id: string;
   email: string;
@@ -142,6 +210,7 @@ export type ApprovalDetailResult = {
   }>;
   VendorProfile: VendorProfileDetail | null;
   ClientProfile: ClientProfileDetail | null;
+  DriverProfile: DriverProfileDetail | null;
 };
 
 export async function fetchApprovalDetail(
@@ -274,7 +343,84 @@ export async function fetchApprovalDetail(
           },
         },
       },
-      Driver: { select: { id: true, name: true } },
+      Driver: {
+        select: {
+          id: true,
+          name: true,
+          taxCode: true,
+          onboardingStatus: true,
+          approvedAt: true,
+          createdAt: true,
+          profile: {
+            select: {
+              fullName: true,
+              birthDate: true,
+              birthPlace: true,
+              nationality: true,
+              residentialAddress: true,
+              domicileAddress: true,
+              phone: true,
+              email: true,
+              pecEmail: true,
+              idDocumentType: true,
+              idDocumentNumber: true,
+              idDocumentExpiry: true,
+              idDocumentIssuer: true,
+              dataProcessingConsent: true,
+              dataProcessingTimestamp: true,
+              operationalCommsConsent: true,
+              operationalCommsTimestamp: true,
+              geolocationConsent: true,
+              geolocationTimestamp: true,
+              imageUsageConsent: true,
+              imageUsageTimestamp: true,
+              consentVersion: true,
+            },
+          },
+          licenses: {
+            select: {
+              id: true,
+              licenseType: true,
+              licenseNumber: true,
+              issueDate: true,
+              expiryDate: true,
+              issuingAuthority: true,
+              isCertification: true,
+              isVerified: true,
+            },
+            orderBy: { expiryDate: "asc" },
+          },
+          documents: {
+            select: {
+              id: true,
+              type: true,
+              label: true,
+              fileName: true,
+              required: true,
+              fileUrl: true,
+              uploadedAt: true,
+              expiryDate: true,
+              isVerified: true,
+            },
+          },
+          companyLinks: {
+            select: {
+              id: true,
+              status: true,
+              companyType: true,
+              vendorId: true,
+              linkedAt: true,
+              vendor: {
+                select: { id: true, name: true },
+              },
+            },
+            where: {
+              status: { in: ["PENDING", "ACTIVE"] },
+            },
+            take: 1,
+          },
+        },
+      },
       VendorUser: {
         select: {
           vendorId: true,
@@ -289,11 +435,15 @@ export async function fetchApprovalDetail(
 
   const vendorProfile = user.Vendor?.VendorProfile ?? null;
   const clientProfile = user.Client?.ClientProfile ?? null;
+  const driver = user.Driver as any;
+  const driverProfile = driver?.profile ?? null;
+  const driverCompanyLink = driver?.companyLinks?.[0] ?? null;
 
   return {
     ...user,
     Vendor: user.Vendor ? { id: user.Vendor.id, name: user.Vendor.name } : null,
     Client: user.Client ? { id: user.Client.id, name: user.Client.name } : null,
+    Driver: user.Driver ? { id: user.Driver.id, name: user.Driver.name } : null,
     createdAt: user.createdAt.toISOString(),
     approvedAt: user.approvedAt?.toISOString() ?? null,
     VendorProfile: vendorProfile
@@ -318,6 +468,72 @@ export async function fetchApprovalDetail(
             clientProfile.dataProcessingTimestamp?.toISOString() ?? null,
           marketingTimestamp:
             clientProfile.marketingTimestamp?.toISOString() ?? null,
+        }
+      : null,
+    DriverProfile: driverProfile
+      ? {
+          id: driver.id,
+          taxCode: driver.taxCode,
+          onboardingStatus: driver.onboardingStatus,
+          approvedAt: driver.approvedAt?.toISOString() ?? null,
+          createdAt: driver.createdAt.toISOString(),
+          fullName: driverProfile.fullName,
+          birthDate: driverProfile.birthDate.toISOString(),
+          birthPlace: driverProfile.birthPlace,
+          nationality: driverProfile.nationality,
+          residentialAddress: driverProfile.residentialAddress,
+          domicileAddress: driverProfile.domicileAddress,
+          phone: driverProfile.phone,
+          email: driverProfile.email,
+          pecEmail: driverProfile.pecEmail,
+          idDocumentType: driverProfile.idDocumentType,
+          idDocumentNumber: driverProfile.idDocumentNumber,
+          idDocumentExpiry: driverProfile.idDocumentExpiry.toISOString(),
+          idDocumentIssuer: driverProfile.idDocumentIssuer,
+          dataProcessingConsent: driverProfile.dataProcessingConsent,
+          dataProcessingTimestamp:
+            driverProfile.dataProcessingTimestamp?.toISOString() ?? null,
+          operationalCommsConsent: driverProfile.operationalCommsConsent,
+          operationalCommsTimestamp:
+            driverProfile.operationalCommsTimestamp?.toISOString() ?? null,
+          geolocationConsent: driverProfile.geolocationConsent,
+          geolocationTimestamp:
+            driverProfile.geolocationTimestamp?.toISOString() ?? null,
+          imageUsageConsent: driverProfile.imageUsageConsent,
+          imageUsageTimestamp:
+            driverProfile.imageUsageTimestamp?.toISOString() ?? null,
+          consentVersion: driverProfile.consentVersion,
+          licenses: driver.licenses.map((lic: any) => ({
+            id: lic.id,
+            licenseType: lic.licenseType,
+            licenseNumber: lic.licenseNumber,
+            issueDate: lic.issueDate.toISOString(),
+            expiryDate: lic.expiryDate.toISOString(),
+            issuingAuthority: lic.issuingAuthority,
+            isCertification: lic.isCertification,
+            isVerified: lic.isVerified,
+          })),
+          documents: driver.documents.map((doc: any) => ({
+            id: doc.id,
+            type: doc.type,
+            label: doc.label,
+            fileName: doc.fileName,
+            required: doc.required,
+            fileUrl: doc.fileUrl,
+            uploadedAt: doc.uploadedAt?.toISOString() ?? null,
+            expiryDate: doc.expiryDate?.toISOString() ?? null,
+            isVerified: doc.isVerified,
+          })),
+          companyLink: driverCompanyLink
+            ? {
+                id: driverCompanyLink.id,
+                status: driverCompanyLink.status,
+                companyType: driverCompanyLink.companyType,
+                vendorId: driverCompanyLink.vendorId,
+                vendorName: driverCompanyLink.vendor?.name ?? null,
+                linkedAt: driverCompanyLink.linkedAt.toISOString(),
+              }
+            : null,
         }
       : null,
   };

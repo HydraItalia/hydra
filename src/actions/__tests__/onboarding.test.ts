@@ -331,28 +331,81 @@ describe("submitClientOnboarding (#159)", () => {
 
 // ─── Driver Onboarding ───────────────────────────────────────────────────────
 
+// Valid driver onboarding data for tests (raw input, before transforms)
+const validDriverData: Parameters<typeof submitDriverOnboarding>[0] = {
+  fullName: "Marco Rossi",
+  birthDate: "1985-03-15",
+  birthPlace: "Roma",
+  taxCode: "RSSMRC85C15H501X",
+  nationality: "Italiana",
+  residentialAddress: {
+    street: "Via Roma 123",
+    city: "Roma",
+    province: "RM",
+    postalCode: "00100",
+    country: "Italia",
+  },
+  phone: "+393334567890",
+  email: "marco.rossi@example.com",
+  idDocumentType: "ID_CARD",
+  idDocumentNumber: "CA12345AB",
+  idDocumentExpiry: "2030-01-01",
+  idDocumentIssuer: "Comune di Roma",
+  licenses: [
+    {
+      type: "C",
+      number: "AB123456",
+      issueDate: "2020-01-01",
+      expiryDate: "2030-01-01",
+      issuingAuthority: "Motorizzazione Roma",
+      isCertification: false,
+    },
+  ],
+  documents: [
+    { type: "ID_DOCUMENT", label: "Carta d'identita" },
+    { type: "DRIVING_LICENSE", label: "Patente" },
+    { type: "SIGNED_GDPR_FORM", label: "Privacy" },
+  ],
+  vendorId: "vendor-1",
+  dataProcessingConsent: true,
+  operationalCommsConsent: false,
+  geolocationConsent: false,
+  imageUsageConsent: false,
+};
+
 describe("submitDriverOnboarding (#159)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTransaction.mockImplementation(async (fn: any) => fn(prisma));
+    // Mock driver taxCode uniqueness check
+    vi.mocked(prisma.driver.findUnique).mockResolvedValue(null);
+    // Mock vendor exists check
+    vi.mocked(prisma.vendor.findUnique).mockResolvedValue({
+      id: "vendor-1",
+      name: "Test Vendor",
+    } as any);
   });
 
-  it("creates Driver + updates User for valid input", async () => {
+  it("creates Driver + DriverProfile + DriverLicense + DriverDocument + DriverCompanyLink for valid input", async () => {
     mockAuth("user-1");
     mockFreshUser();
 
-    const result = await submitDriverOnboarding({
-      fullName: "Marco Rossi",
-      phone: "+39 123 456 7890",
-      region: "Roma",
-    });
+    const result = await submitDriverOnboarding(validDriverData);
 
     expect(result).toEqual({ success: true });
     expect(prisma.driver.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ name: "Marco Rossi" }),
+        data: expect.objectContaining({
+          name: "Marco Rossi",
+          taxCode: "RSSMRC85C15H501X",
+          onboardingStatus: "PENDING",
+        }),
       }),
     );
+    expect(prisma.driverProfile.create).toHaveBeenCalled();
+    expect(prisma.driverLicense.createMany).toHaveBeenCalled();
+    expect(prisma.driverDocument.createMany).toHaveBeenCalled();
+    expect(prisma.driverCompanyLink.create).toHaveBeenCalled();
     expect(prisma.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ role: "DRIVER", status: "PENDING" }),
@@ -361,22 +414,22 @@ describe("submitDriverOnboarding (#159)", () => {
     expect(logAction).toHaveBeenCalled();
   });
 
-  it("rejects missing phone", async () => {
+  it("rejects invalid tax code format", async () => {
     mockAuth("user-1");
     mockFreshUser();
     const result = await submitDriverOnboarding({
-      fullName: "Marco Rossi",
-      phone: "",
+      ...validDriverData,
+      taxCode: "INVALID",
     });
     expect(result.success).toBe(false);
   });
 
-  it("rejects missing full name", async () => {
+  it("rejects missing licenses", async () => {
     mockAuth("user-1");
     mockFreshUser();
     const result = await submitDriverOnboarding({
-      fullName: "",
-      phone: "+39 123",
+      ...validDriverData,
+      licenses: [],
     });
     expect(result.success).toBe(false);
   });
@@ -384,13 +437,25 @@ describe("submitDriverOnboarding (#159)", () => {
   it("rejects duplicate submission", async () => {
     mockAuth("user-1");
     mockAlreadyOnboardedUser();
-    const result = await submitDriverOnboarding({
-      fullName: "Test",
-      phone: "123",
-    });
+    const result = await submitDriverOnboarding(validDriverData);
     expect(result).toEqual({
       success: false,
       error: "Onboarding already submitted",
+    });
+  });
+
+  it("rejects duplicate tax code", async () => {
+    mockAuth("user-1");
+    mockFreshUser();
+    // Mock existing driver with same taxCode
+    vi.mocked(prisma.driver.findUnique).mockResolvedValue({
+      id: "existing-driver",
+    } as any);
+
+    const result = await submitDriverOnboarding(validDriverData);
+    expect(result).toEqual({
+      success: false,
+      error: "Tax code already registered",
     });
   });
 });
