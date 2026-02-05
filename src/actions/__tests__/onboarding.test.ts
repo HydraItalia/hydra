@@ -36,6 +36,12 @@ vi.mock("@/lib/prisma", () => ({
     vendorUser: {
       create: vi.fn(),
     },
+    vendorProfile: {
+      create: vi.fn(),
+    },
+    vendorDocument: {
+      createMany: vi.fn(),
+    },
     client: {
       create: vi.fn(),
     },
@@ -100,20 +106,44 @@ describe("submitVendorOnboarding (#159)", () => {
     mockTransaction.mockImplementation(async (fn: any) => fn(prisma));
   });
 
-  it("creates Vendor + VendorUser + updates User for valid input", async () => {
+  const validVendorInput = {
+    legalName: "Pizzeria Roma S.r.l.",
+    adminContact: {
+      fullName: "Mario Rossi",
+      role: "Owner",
+      email: "info@roma.it",
+      phone: "+39 06 1234567",
+    },
+    commercialContact: {
+      fullName: "Luigi Verdi",
+      role: "Sales",
+      email: "sales@roma.it",
+      phone: "+39 06 7654321",
+    },
+    dataProcessingConsent: true as const,
+    marketingConsent: false,
+    logoUsageConsent: false,
+  };
+
+  it("creates Vendor + VendorProfile + VendorUser + updates User for valid input", async () => {
     mockAuth("user-1");
     mockFreshUser();
 
-    const result = await submitVendorOnboarding({
-      businessName: "Pizzeria Roma",
-      contactEmail: "info@roma.it",
-    });
+    const result = await submitVendorOnboarding(validVendorInput);
 
     expect(result).toEqual({ success: true });
     expect(mockTransaction).toHaveBeenCalledTimes(1);
     expect(prisma.vendor.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ name: "Pizzeria Roma" }),
+        data: expect.objectContaining({ name: "Pizzeria Roma S.r.l." }),
+      }),
+    );
+    expect(prisma.vendorProfile.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          legalName: "Pizzeria Roma S.r.l.",
+          dataProcessingConsent: true,
+        }),
       }),
     );
     expect(prisma.vendorUser.create).toHaveBeenCalledWith(
@@ -136,7 +166,7 @@ describe("submitVendorOnboarding (#159)", () => {
 
   it("rejects unauthenticated user", async () => {
     mockAuth(null);
-    const result = await submitVendorOnboarding({ businessName: "Test" });
+    const result = await submitVendorOnboarding(validVendorInput);
     expect(result).toEqual({ success: false, error: "Not authenticated" });
     expect(mockTransaction).not.toHaveBeenCalled();
   });
@@ -144,17 +174,20 @@ describe("submitVendorOnboarding (#159)", () => {
   it("rejects duplicate submission (idempotency)", async () => {
     mockAuth("user-1");
     mockAlreadyOnboardedUser();
-    const result = await submitVendorOnboarding({ businessName: "Test" });
+    const result = await submitVendorOnboarding(validVendorInput);
     expect(result).toEqual({
       success: false,
       error: "Onboarding already submitted",
     });
   });
 
-  it("rejects empty business name", async () => {
+  it("rejects empty legal name", async () => {
     mockAuth("user-1");
     mockFreshUser();
-    const result = await submitVendorOnboarding({ businessName: "" });
+    const result = await submitVendorOnboarding({
+      ...validVendorInput,
+      legalName: "",
+    });
     expect(result.success).toBe(false);
     expect("error" in result && result.error).toBeTruthy();
   });

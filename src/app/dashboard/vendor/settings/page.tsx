@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { VendorSettingsForm } from "@/components/vendor-settings/vendor-settings-form";
 import { StripeConnectOnboarding } from "@/components/vendor-settings/stripe-connect-onboarding";
+import { VendorProfileCard } from "@/components/vendor-settings/vendor-profile-card";
 
 export default async function VendorSettingsPage() {
   // Check authentication and role
@@ -84,6 +85,19 @@ export default async function VendorSettingsPage() {
         </CardHeader>
         <CardContent>
           <VendorSettingsForm initialData={settingsResult.data} />
+        </CardContent>
+      </Card>
+
+      {/* Company Profile from onboarding (read-only) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Company Profile</CardTitle>
+          <CardDescription>
+            Registration details submitted during onboarding (read-only)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <VendorProfileCard vendorId={user.vendorId} />
         </CardContent>
       </Card>
     </div>

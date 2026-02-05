@@ -22,6 +22,53 @@ export type PendingUserResult = {
   createdAt: string;
 };
 
+export type VendorProfileDetail = {
+  legalName: string;
+  tradeName: string | null;
+  industry: string | null;
+  description: string | null;
+  foundedAt: string | null;
+  employeeCount: number | null;
+  vatNumber: string | null;
+  taxCode: string | null;
+  chamberOfCommerceRegistration: string | null;
+  registeredOfficeAddress: any;
+  operatingAddress: any;
+  pecEmail: string | null;
+  sdiRecipientCode: string | null;
+  taxRegime: string | null;
+  licenses: string | null;
+  adminContact: any;
+  commercialContact: any;
+  technicalContact: any;
+  bankAccountHolder: string | null;
+  iban: string | null;
+  bankNameAndBranch: string | null;
+  preferredPaymentMethod: string | null;
+  paymentTerms: string | null;
+  invoicingNotes: string | null;
+  openingHours: string | null;
+  closingDays: string | null;
+  warehouseAccess: string | null;
+  emergencyContacts: any;
+  operationalNotes: string | null;
+  dataProcessingConsent: boolean;
+  dataProcessingTimestamp: string | null;
+  marketingConsent: boolean;
+  marketingTimestamp: string | null;
+  logoUsageConsent: boolean;
+  logoUsageTimestamp: string | null;
+  consentVersion: string | null;
+  Document: Array<{
+    id: string;
+    type: string;
+    label: string;
+    fileName: string | null;
+    notes: string | null;
+    required: boolean;
+  }>;
+};
+
 export type ApprovalDetailResult = {
   id: string;
   email: string;
@@ -44,6 +91,7 @@ export type ApprovalDetailResult = {
     role: string;
     Vendor: { id: string; name: string };
   }>;
+  VendorProfile: VendorProfileDetail | null;
 };
 
 export async function fetchApprovalDetail(
@@ -67,7 +115,62 @@ export async function fetchApprovalDetail(
       vendorId: true,
       clientId: true,
       driverId: true,
-      Vendor: { select: { id: true, name: true } },
+      Vendor: {
+        select: {
+          id: true,
+          name: true,
+          VendorProfile: {
+            select: {
+              legalName: true,
+              tradeName: true,
+              industry: true,
+              description: true,
+              foundedAt: true,
+              employeeCount: true,
+              vatNumber: true,
+              taxCode: true,
+              chamberOfCommerceRegistration: true,
+              registeredOfficeAddress: true,
+              operatingAddress: true,
+              pecEmail: true,
+              sdiRecipientCode: true,
+              taxRegime: true,
+              licenses: true,
+              adminContact: true,
+              commercialContact: true,
+              technicalContact: true,
+              bankAccountHolder: true,
+              iban: true,
+              bankNameAndBranch: true,
+              preferredPaymentMethod: true,
+              paymentTerms: true,
+              invoicingNotes: true,
+              openingHours: true,
+              closingDays: true,
+              warehouseAccess: true,
+              emergencyContacts: true,
+              operationalNotes: true,
+              dataProcessingConsent: true,
+              dataProcessingTimestamp: true,
+              marketingConsent: true,
+              marketingTimestamp: true,
+              logoUsageConsent: true,
+              logoUsageTimestamp: true,
+              consentVersion: true,
+              Document: {
+                select: {
+                  id: true,
+                  type: true,
+                  label: true,
+                  fileName: true,
+                  notes: true,
+                  required: true,
+                },
+              },
+            },
+          },
+        },
+      },
       Client: { select: { id: true, name: true } },
       Driver: { select: { id: true, name: true } },
       VendorUser: {
@@ -82,10 +185,25 @@ export async function fetchApprovalDetail(
 
   if (!user) return null;
 
+  const profile = user.Vendor?.VendorProfile ?? null;
+
   return {
     ...user,
+    Vendor: user.Vendor ? { id: user.Vendor.id, name: user.Vendor.name } : null,
     createdAt: user.createdAt.toISOString(),
     approvedAt: user.approvedAt?.toISOString() ?? null,
+    VendorProfile: profile
+      ? {
+          ...profile,
+          foundedAt: profile.foundedAt?.toISOString() ?? null,
+          dataProcessingTimestamp:
+            profile.dataProcessingTimestamp?.toISOString() ?? null,
+          marketingTimestamp:
+            profile.marketingTimestamp?.toISOString() ?? null,
+          logoUsageTimestamp:
+            profile.logoUsageTimestamp?.toISOString() ?? null,
+        }
+      : null,
   };
 }
 

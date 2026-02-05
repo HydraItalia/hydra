@@ -14,14 +14,14 @@ export default async function VendorOnboardingPage() {
   }
 
   return (
-    <div className="w-full max-w-lg space-y-6">
+    <div className="w-full max-w-2xl space-y-6">
       <div className="text-center space-y-2">
         <h1 className="text-2xl font-bold tracking-tight">
           Vendor Registration
         </h1>
         <p className="text-muted-foreground">
-          Tell us about your business. This information will be reviewed by an
-          administrator.
+          Complete the following sections to register your business. All
+          information will be reviewed by an administrator.
         </p>
       </div>
       <VendorOnboardingForm />

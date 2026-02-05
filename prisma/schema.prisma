@@ -593,6 +593,7 @@ model Vendor {
   VendorUser    VendorUser[]
   VendorProduct VendorProduct[]
   SubOrder      SubOrder[]
+  VendorProfile VendorProfile?
 
   @@index([region])
 }
@@ -737,4 +738,114 @@ enum PaymentStatus {
   FAILED
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+enum VendorDocumentType {
+  CHAMBER_OF_COMMERCE_EXTRACT
+  LEGAL_REP_ID
+  CERTIFICATION
+  SIGNED_CONTRACT
+  SIGNED_GDPR_FORM
+  OTHER
+}
+
+enum VendorPaymentMethod {
+  BANK_TRANSFER
+  DIRECT_DEBIT
+  CHECK
+  OTHER
+}
+
+enum VendorPaymentTerms {
+  NET_30
+  NET_60
+  NET_90
+  ON_DELIVERY
+  PREPAID
+  OTHER
+}
+
+// ── Vendor Onboarding Profile (1:1 with Vendor) ─────────────────────────────
+
+model VendorProfile {
+  id       String @id @default(cuid())
+  vendorId String @unique
+
+  // Section 1: General
+  legalName     String
+  tradeName     String?
+  industry      String?
+  description   String?
+  foundedAt     DateTime?
+  employeeCount Int?
+
+  // Section 2: Legal & Tax
+  vatNumber                     String?
+  taxCode                       String?
+  chamberOfCommerceRegistration String?
+  registeredOfficeAddress       Json? // { street, city, province, postalCode, country }
+  operatingAddress              Json? // same shape, optional
+  pecEmail                      String?
+  sdiRecipientCode              String? // max 7 chars
+  taxRegime                     String?
+  licenses                      String?
+
+  // Section 3: Contacts (JSON)
+  adminContact      Json // { fullName, role, email, phone } — required
+  commercialContact Json // { fullName, role, email, phone } — required
+  technicalContact  Json? // { fullName, email, phone }
+
+  // Section 4: Banking
+  bankAccountHolder      String?
+  iban                   String?
+  bankNameAndBranch      String?
+  preferredPaymentMethod VendorPaymentMethod?
+  paymentTerms           VendorPaymentTerms?
+  invoicingNotes         String?
+
+  // Section 6: Operational
+  openingHours      String?
+  closingDays       String?
+  warehouseAccess   String?
+  emergencyContacts Json? // [{ name, phone, role }]
+  operationalNotes  String?
+
+  // Section 7: Consents
+  dataProcessingConsent   Boolean   @default(false)
+  dataProcessingTimestamp DateTime?
+  marketingConsent        Boolean   @default(false)
+  marketingTimestamp      DateTime?
+  logoUsageConsent        Boolean   @default(false)
+  logoUsageTimestamp      DateTime?
+  consentVersion          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Vendor   Vendor           @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  Document VendorDocument[]
+
+  @@index([vendorId])
+}
+
+// ── Vendor Document Metadata ─────────────────────────────────────────────────
+
+model VendorDocument {
+  id              String             @id @default(cuid())
+  vendorProfileId String
+  type            VendorDocumentType
+  label           String
+  fileName        String?
+  notes           String?
+  required        Boolean            @default(false)
+  uploadedAt      DateTime?
+  fileUrl         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  VendorProfile VendorProfile @relation(fields: [vendorProfileId], references: [id], onDelete: Cascade)
+
+  @@index([vendorProfileId])
+  @@index([vendorProfileId, type])
 }
