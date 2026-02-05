@@ -688,9 +688,9 @@ async function DriverDashboard({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {driverProfile.documents.length === 0 ? (
+              {driverProfile.documents.filter((doc) => doc.required).length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No documents on file
+                  No required documents on file
                 </p>
               ) : (
                 <div className="space-y-2">

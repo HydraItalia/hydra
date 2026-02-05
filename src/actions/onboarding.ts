@@ -494,14 +494,18 @@ export async function submitDriverOnboarding(
       inviteId = invite.id;
     }
 
-    // Verify vendor exists
-    const vendor = await prisma.vendor.findUnique({
-      where: { id: resolvedVendorId },
+    // Verify vendor exists and is approved
+    const vendor = await prisma.vendor.findFirst({
+      where: {
+        id: resolvedVendorId,
+        deletedAt: null,
+        User: { status: "APPROVED" },
+      },
       select: { id: true, name: true },
     });
 
     if (!vendor) {
-      return { success: false, error: "Selected company not found" };
+      return { success: false, error: "Selected company not found or not approved" };
     }
 
     // Create Driver + DriverProfile + DriverLicense[] + DriverDocument[] + DriverCompanyLink + update User
