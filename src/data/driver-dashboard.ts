@@ -108,7 +108,7 @@ export async function fetchDriverDashboardProfile(): Promise<DriverDashboardProf
             select: { id: true, name: true },
           },
         },
-        take: 1,
+        orderBy: { linkedAt: "desc" },
       },
     },
   });
@@ -146,8 +146,11 @@ export async function fetchDriverDashboardProfile(): Promise<DriverDashboardProf
     isVerified: doc.isVerified,
   }));
 
-  // Get company link
-  const companyLink = driver.companyLinks[0] ?? null;
+  // Get company link - prefer ACTIVE over PENDING
+  const companyLink =
+    driver.companyLinks.find((link) => link.status === "ACTIVE") ??
+    driver.companyLinks[0] ??
+    null;
 
   // Calculate activation readiness
   const presentDocTypes: string[] = documents.map((d) => d.type);
@@ -160,7 +163,10 @@ export async function fetchDriverDashboardProfile(): Promise<DriverDashboardProf
       .filter((d) => REQUIRED_DOCUMENT_TYPES.includes(d.type as string))
       .every((d) => d.hasFile);
 
-  const hasActiveCompanyLink = companyLink?.status === "ACTIVE";
+  // Check if any company link is ACTIVE (not just the selected one)
+  const hasActiveCompanyLink = driver.companyLinks.some(
+    (link) => link.status === "ACTIVE"
+  );
   const hasValidLicenses =
     driver.licenses.length > 0 &&
     driver.licenses.some((lic) => lic.expiryDate > now);

@@ -65,15 +65,26 @@ export async function fetchApprovedVendors(
 
 /**
  * Resolve a driver invite token to vendor info.
- * Returns null if invalid/expired/consumed.
+ * Returns null if invalid/expired/consumed or vendor is deleted/unapproved.
  */
 export async function resolveDriverInvite(token: string): Promise<{
   vendorId: string;
   vendorName: string;
   inviteToken: string;
 } | null> {
-  const invite = await prisma.driverInvite.findUnique({
-    where: { token },
+  const now = new Date();
+
+  // Query with all constraints at the database level
+  const invite = await prisma.driverInvite.findFirst({
+    where: {
+      token,
+      consumedAt: null,
+      expiresAt: { gt: now },
+      vendor: {
+        deletedAt: null,
+        User: { status: "APPROVED" },
+      },
+    },
     include: {
       vendor: {
         select: { id: true, name: true },
@@ -82,8 +93,6 @@ export async function resolveDriverInvite(token: string): Promise<{
   });
 
   if (!invite) return null;
-  if (invite.consumedAt) return null;
-  if (invite.expiresAt < new Date()) return null;
 
   return {
     vendorId: invite.vendor.id,

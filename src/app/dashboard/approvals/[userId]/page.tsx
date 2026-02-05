@@ -602,9 +602,13 @@ function renderDriverProfile(profile: DriverProfileDetail) {
           </p>
           <div className="space-y-2">
             {profile.licenses.map((lic) => {
-              const isExpiringSoon =
-                new Date(lic.expiryDate) <
-                new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+              const expiryDate = new Date(lic.expiryDate);
+              const now = new Date();
+              const ninetyDaysFromNow = new Date(
+                now.getTime() + 90 * 24 * 60 * 60 * 1000
+              );
+              const isExpired = expiryDate < now;
+              const isExpiringSoon = !isExpired && expiryDate < ninetyDaysFromNow;
               return (
                 <div
                   key={lic.id}
@@ -618,10 +622,15 @@ function renderDriverProfile(profile: DriverProfileDetail) {
                   </Badge>
                   <span className="font-mono text-xs">{lic.licenseNumber}</span>
                   <span className="text-muted-foreground">
-                    exp: {new Date(lic.expiryDate).toLocaleDateString()}
+                    exp: {expiryDate.toLocaleDateString()}
                   </span>
-                  {isExpiringSoon && (
+                  {isExpired && (
                     <Badge variant="destructive" className="text-xs">
+                      Expired
+                    </Badge>
+                  )}
+                  {isExpiringSoon && (
+                    <Badge variant="secondary" className="text-xs">
                       Expiring Soon
                     </Badge>
                   )}

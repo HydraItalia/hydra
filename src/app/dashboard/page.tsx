@@ -590,7 +590,8 @@ async function DriverDashboard({
                 Account Status
                 <Badge
                   variant={
-                    driverProfile.onboardingStatus === "APPROVED"
+                    driverProfile.onboardingStatus === "APPROVED" ||
+                    driverProfile.onboardingStatus === "ACTIVE"
                       ? "default"
                       : driverProfile.onboardingStatus === "PENDING"
                         ? "secondary"

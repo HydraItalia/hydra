@@ -149,6 +149,7 @@ export function CompanyConsentsStep({
                   or push notifications regarding deliveries and service
                   updates.
                 </p>
+                <FormMessage />
               </div>
             </FormItem>
           )}

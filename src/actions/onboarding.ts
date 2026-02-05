@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { auth } from "../../auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { createId } from "@paralleldrive/cuid2";
 import { logAction, AuditAction } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
@@ -504,7 +505,8 @@ export async function submitDriverOnboarding(
     }
 
     // Create Driver + DriverProfile + DriverLicense[] + DriverDocument[] + DriverCompanyLink + update User
-    await prisma.$transaction(async (tx) => {
+    try {
+      await prisma.$transaction(async (tx) => {
       const driverId = createId();
       const profileId = createId();
 
@@ -540,7 +542,7 @@ export async function submitDriverOnboarding(
           currentVendorId: resolvedVendorId,
           // Consents with server-side timestamps
           dataProcessingConsent: validated.dataProcessingConsent,
-          dataProcessingTimestamp: now,
+          dataProcessingTimestamp: validated.dataProcessingConsent ? now : null,
           operationalCommsConsent: validated.operationalCommsConsent,
           operationalCommsTimestamp: validated.operationalCommsConsent
             ? now
@@ -618,6 +620,18 @@ export async function submitDriverOnboarding(
         },
       });
     });
+    } catch (error) {
+      // Handle race condition on taxCode unique constraint
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        Array.isArray(error.meta?.target) &&
+        (error.meta.target as string[]).includes("taxCode")
+      ) {
+        return { success: false, error: "Tax code already registered" };
+      }
+      throw error; // Re-throw other errors for outer catch
+    }
 
     // Audit log — no PII (no emails, phones, tax codes, addresses)
     await logAction({

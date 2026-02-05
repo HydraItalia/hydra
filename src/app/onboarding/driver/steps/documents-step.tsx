@@ -38,8 +38,11 @@ export function DocumentsStep({ form, disabled }: Props) {
     name: "documents",
   });
 
+  // Watch documents for real-time updates (fields array is stale on type changes)
+  const watchedDocuments = form.watch("documents");
+
   // Check which required documents are missing
-  const addedTypes = fields.map((f) => f.type);
+  const addedTypes = (watchedDocuments || []).map((d) => d.type);
   const missingRequired = REQUIRED_DOCUMENTS.filter(
     (type) => !addedTypes.includes(type)
   );
