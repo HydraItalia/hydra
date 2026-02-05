@@ -47,9 +47,16 @@ export default async function middleware(req: NextRequest) {
   }
 
   const status = token.status as string | undefined;
+  const role = token.role as string | undefined;
   const isDashboard = pathname.startsWith("/dashboard");
   const isOnboarding = pathname.startsWith("/onboarding");
   const isPending = pathname.startsWith("/pending");
+
+  // ADMIN users bypass onboarding/status gating for dashboard routes
+  // Admins need full access regardless of their own status
+  if (role === "ADMIN" && isDashboard) {
+    return NextResponse.next();
+  }
 
   // APPROVED users trying to access /onboarding or /pending — send to dashboard
   if (status === "APPROVED" && (isOnboarding || isPending)) {
@@ -66,7 +73,7 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/pending", nextUrl));
   }
 
-  // Dashboard routes require APPROVED status
+  // Dashboard routes require APPROVED status (non-ADMIN users)
   if (isDashboard) {
     if (status === "ONBOARDING") {
       return NextResponse.redirect(new URL("/onboarding", nextUrl));

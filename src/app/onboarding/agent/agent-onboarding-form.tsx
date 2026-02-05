@@ -55,8 +55,15 @@ export function AgentOnboardingForm() {
 
       if (result.success) {
         toast.success("Registration submitted");
-        await update();
-        router.push("/pending");
+        // Refresh JWT so status=PENDING is in the token cookie
+        const updatedSession = await update();
+        // Verify session was updated before navigating
+        if (updatedSession?.user?.status === "PENDING") {
+          router.replace("/pending");
+        } else {
+          // Fallback: hard navigation if session didn't update
+          window.location.assign("/pending");
+        }
       } else {
         toast.error(result.error || "Failed to submit");
       }
