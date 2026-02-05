@@ -261,18 +261,41 @@ model Delivery {
 }
 
 model Driver {
-  id          String        @id
-  name        String
-  phone       String?
-  status      DriverStatus  @default(OFFLINE)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  deletedAt   DateTime?
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Unique identifier for onboarded drivers (codice fiscale)
+  taxCode String? @unique
+
+  // Operational status (for delivery operations)
+  status DriverStatus @default(OFFLINE)
+
+  // Onboarding status (for registration workflow)
+  onboardingStatus  DriverOnboardingStatus @default(PENDING)
+  approvedAt        DateTime?
+  activatedAt       DateTime?
+  suspendedAt       DateTime?
+  suspendedReason   String?
+
+  // Operational relations
   Delivery    Delivery[]
   DriverShift DriverShift[]
-  User        User?
+
+  // Onboarding relations
+  profile      DriverProfile?
+  licenses     DriverLicense[]
+  documents    DriverDocument[]
+  companyLinks DriverCompanyLink[]
+
+  // User relation (1:1)
+  User User?
 
   @@index([status])
+  @@index([onboardingStatus])
 }
 
 model DriverShift {
@@ -596,6 +619,10 @@ model Vendor {
   SubOrder      SubOrder[]
   VendorProfile VendorProfile?
 
+  // Driver onboarding relations
+  driverCompanyLinks DriverCompanyLink[]
+  driverInvites      DriverInvite[]
+
   @@index([region])
 }
 
@@ -656,6 +683,45 @@ enum DriverStatus {
   ONLINE
   OFFLINE
   BUSY
+}
+
+// Driver onboarding status (distinct from operational DriverStatus)
+enum DriverOnboardingStatus {
+  PENDING
+  APPROVED
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+  REJECTED
+}
+
+enum DriverIdDocumentType {
+  ID_CARD
+  PASSPORT
+  DRIVING_LICENSE
+}
+
+enum DriverDocumentType {
+  ID_DOCUMENT
+  DRIVING_LICENSE
+  SIGNED_GDPR_FORM
+  ADR_CERTIFICATE
+  CQC_CERTIFICATE
+  MEDICAL_CERTIFICATE
+  CRIMINAL_RECORD
+  OTHER
+}
+
+enum CompanyType {
+  VENDOR
+  LOGISTICS_PARTNER
+}
+
+enum DriverCompanyLinkStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  REJECTED
 }
 
 enum DriverStopStatus {
@@ -942,4 +1008,173 @@ model ClientDocument {
   ClientProfile ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
 
   @@index([clientProfileId, type])
+}
+
+// ── Driver Onboarding Profile (1:1 with Driver) ─────────────────────────────
+
+model DriverProfile {
+  id        String   @id @default(cuid())
+  driverId  String   @unique
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Personal Data
+  fullName    String
+  birthDate   DateTime
+  birthPlace  String
+  nationality String @default("Italiana")
+
+  // Addresses
+  residentialAddress Json
+  domicileAddress    Json?
+
+  // Contact
+  phone    String
+  email    String
+  pecEmail String?
+
+  // Identity Document
+  idDocumentType   DriverIdDocumentType
+  idDocumentNumber String
+  idDocumentExpiry DateTime
+  idDocumentIssuer String
+
+  // Denormalized company reference (vendor-only for now)
+  currentVendorId String?
+
+  // Consents with timestamps
+  dataProcessingConsent     Boolean   @default(false)
+  dataProcessingTimestamp   DateTime?
+  operationalCommsConsent   Boolean   @default(false)
+  operationalCommsTimestamp DateTime?
+  geolocationConsent        Boolean   @default(false)
+  geolocationTimestamp      DateTime?
+  imageUsageConsent         Boolean   @default(false)
+  imageUsageTimestamp       DateTime?
+  consentVersion            String    @default("1.0")
+
+  notes String?
+}
+
+// ── Driver License (first-class table for expiry tracking) ──────────────────
+
+model DriverLicense {
+  id        String   @id @default(cuid())
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // License Details (type validated by Zod, not DB enum)
+  licenseType      String
+  licenseNumber    String
+  issueDate        DateTime
+  expiryDate       DateTime
+  issuingAuthority String
+
+  // Flags
+  isCertification  Boolean   @default(false)
+  isVerified       Boolean   @default(false)
+  verifiedAt       DateTime?
+  verifiedByUserId String?
+
+  // Optional document link
+  documentId String?         @unique
+  document   DriverDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([driverId])
+  @@index([expiryDate])
+}
+
+// ── Driver Document (upload-ready metadata) ─────────────────────────────────
+
+model DriverDocument {
+  id        String   @id @default(cuid())
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Metadata
+  type     DriverDocumentType
+  label    String
+  fileName String?
+  notes    String?
+  required Boolean @default(false)
+
+  // File storage (nullable until upload implemented)
+  storageKey      String?
+  storageProvider String?
+  fileUrl         String?
+  mimeType        String?
+  sizeBytes       Int?
+  uploadedAt      DateTime?
+
+  // Expiry & verification
+  expiryDate       DateTime?
+  isVerified       Boolean   @default(false)
+  verifiedAt       DateTime?
+  verifiedByUserId String?
+
+  // Back-reference for license docs
+  license DriverLicense?
+
+  @@index([driverId])
+  @@index([type])
+}
+
+// ── Driver Company Link (company association) ───────────────────────────────
+
+model DriverCompanyLink {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  // Polymorphic company reference
+  companyType CompanyType
+  vendorId    String?
+  vendor      Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  // Link status
+  status DriverCompanyLinkStatus @default(PENDING)
+  role   String?
+
+  // Timestamps
+  linkedAt          DateTime  @default(now())
+  activatedAt       DateTime?
+  deactivatedAt     DateTime?
+  deactivatedReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // NOTE: Partial unique indexes in SQL migration (Prisma can't express)
+  @@index([driverId])
+  @@index([vendorId])
+  @@index([status])
+}
+
+// ── Driver Invite (invite-first flow) ───────────────────────────────────────
+
+model DriverInvite {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Vendor who sent the invite
+  vendorId        String
+  vendor          Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  invitedByUserId String?
+
+  // Token
+  token     String   @unique
+  expiresAt DateTime
+
+  // Consumption tracking
+  consumedAt         DateTime?
+  consumedByDriverId String?
+
+  @@index([vendorId])
+  @@index([expiresAt])
 }

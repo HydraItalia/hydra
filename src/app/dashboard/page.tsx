@@ -40,6 +40,8 @@ import {
   getTodayRouteProgressForDriver,
 } from "@/actions/driver-shift";
 import { RouteProgressWidget } from "@/components/driver-route";
+import { fetchDriverDashboardProfile } from "@/data/driver-dashboard";
+import { Badge } from "@/components/ui/badge";
 
 type DashboardPageProps = {
   searchParams?: Promise<{ error?: string }>;
@@ -491,7 +493,7 @@ async function DriverDashboard({
     return <div>No driver associated with this account</div>;
   }
 
-  // Fetch driver statistics, current shift, and route progress
+  // Fetch driver statistics, current shift, route progress, and profile data
   const [
     assignedCount,
     pickedUpCount,
@@ -500,6 +502,7 @@ async function DriverDashboard({
     totalDeliveries,
     currentShiftResult,
     routeProgressResult,
+    driverProfile,
   ] = await Promise.all([
     prisma.delivery.count({
       where: { driverId: user.driverId, status: "ASSIGNED" },
@@ -524,6 +527,7 @@ async function DriverDashboard({
     }),
     getCurrentDriverShiftForToday(),
     getTodayRouteProgressForDriver(),
+    fetchDriverDashboardProfile(),
   ]);
 
   // Get next deliveries (assigned or picked up)
@@ -575,6 +579,173 @@ async function DriverDashboard({
           )
         }
       />
+
+      {/* Driver Profile Status Section */}
+      {driverProfile && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {/* Status Card */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                Account Status
+                <Badge
+                  variant={
+                    driverProfile.onboardingStatus === "APPROVED"
+                      ? "default"
+                      : driverProfile.onboardingStatus === "PENDING"
+                        ? "secondary"
+                        : "destructive"
+                  }
+                >
+                  {driverProfile.onboardingStatus}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {driverProfile.companyLink ? (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Company</span>
+                  <div className="flex items-center gap-2">
+                    <span>{driverProfile.companyLink.vendorName}</span>
+                    <Badge
+                      variant={
+                        driverProfile.companyLink.status === "ACTIVE"
+                          ? "default"
+                          : "secondary"
+                      }
+                      className="text-xs"
+                    >
+                      {driverProfile.companyLink.status}
+                    </Badge>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No company link on file
+                </p>
+              )}
+              {driverProfile.onboardingStatus === "PENDING" && (
+                <Alert>
+                  <Clock className="h-4 w-4" />
+                  <AlertTitle>Awaiting Review</AlertTitle>
+                  <AlertDescription>
+                    Your registration is being reviewed by an administrator.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {driverProfile.onboardingStatus === "SUSPENDED" && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Account Suspended</AlertTitle>
+                  <AlertDescription>
+                    Please contact support to resolve any issues.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Credential Warnings */}
+          {driverProfile.expiringLicenses.length > 0 && (
+            <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  Expiring Credentials
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {driverProfile.expiringLicenses.map((lic) => (
+                    <div
+                      key={lic.id}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span>{lic.licenseType.replace(/_/g, " ")}</span>
+                      <Badge
+                        variant={
+                          lic.daysUntilExpiry <= 30 ? "destructive" : "secondary"
+                        }
+                      >
+                        {lic.daysUntilExpiry <= 0
+                          ? "EXPIRED"
+                          : `${lic.daysUntilExpiry} days`}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Document Checklist */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Documents</CardTitle>
+              <CardDescription>
+                Required documents for activation
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {driverProfile.documents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No documents on file
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {driverProfile.documents
+                    .filter((doc) => doc.required)
+                    .map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span>{doc.type.replace(/_/g, " ")}</span>
+                        <div className="flex items-center gap-1">
+                          {doc.hasFile ? (
+                            <Badge variant="default" className="text-xs">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Uploaded
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">
+                              Pending
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+              {!driverProfile.activationReadiness.hasAllRequiredDocs && (
+                <p className="text-xs text-destructive mt-2">
+                  Some required documents are missing
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Activation Readiness CTA */}
+      {driverProfile &&
+        driverProfile.onboardingStatus === "APPROVED" &&
+        !driverProfile.activationReadiness.isReady && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Complete Your Profile</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc list-inside mt-1">
+                {driverProfile.activationReadiness.missingRequirements.map(
+                  (req, i) => (
+                    <li key={i}>{req}</li>
+                  )
+                )}
+              </ul>
+              {/* TODO: Link to document upload when implemented */}
+            </AlertDescription>
+          </Alert>
+        )}
 
       {/* Current Shift and Route Progress */}
       <div className="grid gap-4 md:grid-cols-2">

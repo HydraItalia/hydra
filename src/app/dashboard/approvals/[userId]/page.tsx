@@ -52,7 +52,15 @@ function formatDate(iso: string): string {
 import type {
   VendorProfileDetail,
   ClientProfileDetail,
+  DriverProfileDetail,
 } from "@/data/approvals";
+
+// Required driver documents for approval checklist
+const REQUIRED_DRIVER_DOCUMENTS = [
+  "ID_DOCUMENT",
+  "DRIVING_LICENSE",
+  "SIGNED_GDPR_FORM",
+];
 
 function renderOnboardingData(data: any) {
   if (!data || typeof data !== "object") {
@@ -496,6 +504,280 @@ function renderClientProfile(profile: ClientProfileDetail) {
   );
 }
 
+function renderDriverProfile(profile: DriverProfileDetail) {
+  const section = (
+    title: string,
+    items: Array<{ label: string; value: string | null }>,
+  ) => {
+    const visible = items.filter((i) => i.value);
+    if (visible.length === 0) return null;
+    return (
+      <div>
+        <p className="text-sm font-semibold mb-2">{title}</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+          {visible.map((f) => (
+            <div key={f.label}>
+              <dt className="text-xs font-medium text-muted-foreground">
+                {f.label}
+              </dt>
+              <dd className="text-sm">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  };
+
+  // Check if all required documents are present
+  const presentDocTypes = profile.documents.map((d) => d.type);
+  const missingRequired = REQUIRED_DRIVER_DOCUMENTS.filter(
+    (type) => !presentDocTypes.includes(type),
+  );
+  const allRequiredPresent = missingRequired.length === 0;
+
+  return (
+    <div className="space-y-5">
+      {/* Onboarding Status Badge */}
+      <div className="flex items-center gap-2">
+        <Badge
+          variant={
+            profile.onboardingStatus === "APPROVED"
+              ? "default"
+              : profile.onboardingStatus === "REJECTED"
+                ? "destructive"
+                : "secondary"
+          }
+        >
+          Driver: {profile.onboardingStatus}
+        </Badge>
+        {profile.taxCode && (
+          <span className="text-sm font-mono text-muted-foreground">
+            {profile.taxCode}
+          </span>
+        )}
+      </div>
+
+      {/* Personal Details */}
+      {section("Personal Details", [
+        { label: "Full Name", value: profile.fullName },
+        {
+          label: "Birth Date",
+          value: new Date(profile.birthDate).toLocaleDateString(),
+        },
+        { label: "Birth Place", value: profile.birthPlace },
+        { label: "Nationality", value: profile.nationality },
+        { label: "Phone", value: profile.phone },
+        { label: "Email", value: profile.email },
+        { label: "PEC Email", value: profile.pecEmail },
+      ])}
+
+      {/* Addresses */}
+      {section("Addresses", [
+        {
+          label: "Residential Address",
+          value: formatAddress(profile.residentialAddress),
+        },
+        {
+          label: "Domicile Address",
+          value: formatAddress(profile.domicileAddress),
+        },
+      ])}
+
+      {/* ID Document */}
+      {section("Identity Document", [
+        { label: "Type", value: profile.idDocumentType.replace(/_/g, " ") },
+        { label: "Number", value: profile.idDocumentNumber },
+        {
+          label: "Expiry",
+          value: new Date(profile.idDocumentExpiry).toLocaleDateString(),
+        },
+        { label: "Issuing Authority", value: profile.idDocumentIssuer },
+      ])}
+
+      {/* Licenses */}
+      {profile.licenses.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold mb-2">
+            Licenses & Certifications
+          </p>
+          <div className="space-y-2">
+            {profile.licenses.map((lic) => {
+              const isExpiringSoon =
+                new Date(lic.expiryDate) <
+                new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+              return (
+                <div
+                  key={lic.id}
+                  className="flex items-center gap-2 text-sm border rounded-md p-2"
+                >
+                  <Badge
+                    variant={lic.isCertification ? "secondary" : "outline"}
+                    className="text-xs"
+                  >
+                    {lic.licenseType.replace(/_/g, " ")}
+                  </Badge>
+                  <span className="font-mono text-xs">{lic.licenseNumber}</span>
+                  <span className="text-muted-foreground">
+                    exp: {new Date(lic.expiryDate).toLocaleDateString()}
+                  </span>
+                  {isExpiringSoon && (
+                    <Badge variant="destructive" className="text-xs">
+                      Expiring Soon
+                    </Badge>
+                  )}
+                  {lic.isVerified && (
+                    <Badge variant="default" className="text-xs">
+                      Verified
+                    </Badge>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Documents with Required Indicator */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-sm font-semibold">Documents</p>
+          <Badge variant={allRequiredPresent ? "default" : "destructive"}>
+            {allRequiredPresent
+              ? "All required present"
+              : `Missing ${missingRequired.length} required`}
+          </Badge>
+        </div>
+        {!allRequiredPresent && (
+          <p className="text-xs text-destructive mb-2">
+            Missing: {missingRequired.map((t) => t.replace(/_/g, " ")).join(", ")}
+          </p>
+        )}
+        {profile.documents.length > 0 ? (
+          <div className="space-y-1">
+            {profile.documents.map((doc) => (
+              <div key={doc.id} className="flex items-center gap-2 text-sm">
+                <Badge
+                  variant={doc.required ? "default" : "outline"}
+                  className="text-xs"
+                >
+                  {doc.type.replace(/_/g, " ")}
+                </Badge>
+                <span>{doc.label}</span>
+                {doc.fileName && (
+                  <span className="text-muted-foreground">({doc.fileName})</span>
+                )}
+                {doc.fileUrl ? (
+                  <Badge variant="default" className="text-xs">
+                    Uploaded
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs">
+                    Pending Upload
+                  </Badge>
+                )}
+                {doc.isVerified && (
+                  <Badge variant="default" className="text-xs">
+                    Verified
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No documents listed.</p>
+        )}
+      </div>
+
+      {/* Company Link */}
+      {profile.companyLink && (
+        <div>
+          <p className="text-sm font-semibold mb-2">Company Association</p>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                profile.companyLink.status === "ACTIVE" ? "default" : "secondary"
+              }
+            >
+              {profile.companyLink.status}
+            </Badge>
+            <span className="text-sm">
+              {profile.companyLink.vendorName || "Unknown Company"}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              (Linked: {new Date(profile.companyLink.linkedAt).toLocaleDateString()})
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Consents */}
+      <div>
+        <p className="text-sm font-semibold mb-2">Consents</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Data Processing
+            </dt>
+            <dd className="text-sm">
+              <Badge
+                variant={
+                  profile.dataProcessingConsent ? "default" : "destructive"
+                }
+              >
+                {profile.dataProcessingConsent ? "Accepted" : "Not accepted"}
+              </Badge>
+              {profile.dataProcessingTimestamp && (
+                <span className="text-xs text-muted-foreground ml-1">
+                  {new Date(profile.dataProcessingTimestamp).toLocaleDateString()}
+                </span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Operational Comms
+            </dt>
+            <dd className="text-sm">
+              <Badge
+                variant={profile.operationalCommsConsent ? "default" : "outline"}
+              >
+                {profile.operationalCommsConsent ? "Accepted" : "Declined"}
+              </Badge>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Geolocation
+            </dt>
+            <dd className="text-sm">
+              <Badge
+                variant={profile.geolocationConsent ? "default" : "outline"}
+              >
+                {profile.geolocationConsent ? "Accepted" : "Declined"}
+              </Badge>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Image Usage
+            </dt>
+            <dd className="text-sm">
+              <Badge variant={profile.imageUsageConsent ? "default" : "outline"}>
+                {profile.imageUsageConsent ? "Accepted" : "Declined"}
+              </Badge>
+            </dd>
+          </div>
+        </dl>
+        {profile.consentVersion && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Version: {profile.consentVersion}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default async function ApprovalDetailPage({ params }: PageProps) {
   await requireRole("ADMIN");
 
@@ -640,9 +922,23 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
         </Card>
       )}
 
-      {/* Legacy Onboarding Data (non-vendor/client roles or legacy without profile) */}
+      {/* Driver Profile (structured data from new onboarding) */}
+      {user.DriverProfile && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Driver Profile</CardTitle>
+            <CardDescription>
+              Detailed driver information submitted during onboarding.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>{renderDriverProfile(user.DriverProfile)}</CardContent>
+        </Card>
+      )}
+
+      {/* Legacy Onboarding Data (non-vendor/client/driver roles or legacy without profile) */}
       {(!user.VendorProfile || user.role !== "VENDOR") &&
-        (!user.ClientProfile || user.role !== "CLIENT") && (
+        (!user.ClientProfile || user.role !== "CLIENT") &&
+        !user.DriverProfile && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Onboarding Data</CardTitle>

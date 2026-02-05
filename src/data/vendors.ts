@@ -10,6 +10,90 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import type { Prisma } from "@prisma/client";
 
+// ── Public Vendor Queries (for driver onboarding) ─────────────────────────────
+
+export type ApprovedVendorOption = {
+  id: string;
+  name: string;
+  tradeName: string | null;
+};
+
+/**
+ * Fetch approved vendors for driver company selection dropdown.
+ * No auth required - public for onboarding flow.
+ */
+export async function fetchApprovedVendors(
+  search?: string
+): Promise<ApprovedVendorOption[]> {
+  const vendors = await prisma.vendor.findMany({
+    where: {
+      deletedAt: null,
+      // Vendor must have an approved user
+      User: {
+        status: "APPROVED",
+      },
+      ...(search && search.trim()
+        ? {
+            OR: [
+              { name: { contains: search.trim(), mode: "insensitive" } },
+              {
+                VendorProfile: {
+                  tradeName: { contains: search.trim(), mode: "insensitive" },
+                },
+              },
+            ],
+          }
+        : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      VendorProfile: {
+        select: { tradeName: true },
+      },
+    },
+    orderBy: { name: "asc" },
+    take: 50,
+  });
+
+  return vendors.map((v) => ({
+    id: v.id,
+    name: v.name,
+    tradeName: v.VendorProfile?.tradeName ?? null,
+  }));
+}
+
+/**
+ * Resolve a driver invite token to vendor info.
+ * Returns null if invalid/expired/consumed.
+ */
+export async function resolveDriverInvite(token: string): Promise<{
+  vendorId: string;
+  vendorName: string;
+  inviteToken: string;
+} | null> {
+  const invite = await prisma.driverInvite.findUnique({
+    where: { token },
+    include: {
+      vendor: {
+        select: { id: true, name: true },
+      },
+    },
+  });
+
+  if (!invite) return null;
+  if (invite.consumedAt) return null;
+  if (invite.expiresAt < new Date()) return null;
+
+  return {
+    vendorId: invite.vendor.id,
+    vendorName: invite.vendor.name,
+    inviteToken: token,
+  };
+}
+
+// ── Admin/Agent Vendor Queries ────────────────────────────────────────────────
+
 export type VendorFilters = {
   region?: string;
   hasProducts?: boolean;

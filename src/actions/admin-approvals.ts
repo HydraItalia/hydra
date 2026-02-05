@@ -13,7 +13,7 @@ export async function approveUser(userId: string): Promise<ActionResult> {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, driverId: true },
     });
 
     if (!user) {
@@ -24,20 +24,40 @@ export async function approveUser(userId: string): Promise<ActionResult> {
       return { success: false, error: "User is already approved" };
     }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        status: "APPROVED",
-        approvedAt: new Date(),
-        approvedByUserId: admin.id,
-      },
+    const now = new Date();
+
+    // Use transaction to update both User and Driver (if applicable)
+    await prisma.$transaction(async (tx) => {
+      // Update user status
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          status: "APPROVED",
+          approvedAt: now,
+          approvedByUserId: admin.id,
+        },
+      });
+
+      // If user has a linked driver, also update driver onboarding status
+      if (user.driverId) {
+        await tx.driver.update({
+          where: { id: user.driverId },
+          data: {
+            onboardingStatus: "APPROVED",
+            approvedAt: now,
+          },
+        });
+      }
     });
 
     await logAction({
       entityType: "User",
       entityId: userId,
       action: AuditAction.USER_APPROVED,
-      diff: { previousStatus: user.status },
+      diff: {
+        previousStatus: user.status,
+        ...(user.driverId && { driverApproved: true }),
+      },
     });
 
     revalidatePath("/dashboard/approvals");
@@ -62,7 +82,7 @@ export async function rejectUser(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, driverId: true },
     });
 
     if (!user) {
@@ -73,16 +93,33 @@ export async function rejectUser(
       return { success: false, error: "User is already rejected" };
     }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { status: "REJECTED" },
+    // Use transaction to update both User and Driver (if applicable)
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { status: "REJECTED" },
+      });
+
+      // If user has a linked driver, also update driver onboarding status
+      if (user.driverId) {
+        await tx.driver.update({
+          where: { id: user.driverId },
+          data: {
+            onboardingStatus: "REJECTED",
+          },
+        });
+      }
     });
 
     await logAction({
       entityType: "User",
       entityId: userId,
       action: AuditAction.USER_REJECTED,
-      diff: { previousStatus: user.status, reason: reason || null },
+      diff: {
+        previousStatus: user.status,
+        reason: reason || null,
+        ...(user.driverId && { driverRejected: true }),
+      },
     });
 
     revalidatePath("/dashboard/approvals");
@@ -107,7 +144,7 @@ export async function suspendUser(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, driverId: true },
     });
 
     if (!user) {
@@ -118,16 +155,37 @@ export async function suspendUser(
       return { success: false, error: "User is already suspended" };
     }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { status: "SUSPENDED" },
+    const now = new Date();
+
+    // Use transaction to update both User and Driver (if applicable)
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { status: "SUSPENDED" },
+      });
+
+      // If user has a linked driver, also update driver status
+      if (user.driverId) {
+        await tx.driver.update({
+          where: { id: user.driverId },
+          data: {
+            onboardingStatus: "SUSPENDED",
+            suspendedAt: now,
+            suspendedReason: reason || null,
+          },
+        });
+      }
     });
 
     await logAction({
       entityType: "User",
       entityId: userId,
       action: AuditAction.USER_SUSPENDED,
-      diff: { previousStatus: user.status, reason: reason || null },
+      diff: {
+        previousStatus: user.status,
+        reason: reason || null,
+        ...(user.driverId && { driverSuspended: true }),
+      },
     });
 
     revalidatePath("/dashboard/approvals");
@@ -149,7 +207,7 @@ export async function reactivateUser(userId: string): Promise<ActionResult> {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, driverId: true },
     });
 
     if (!user) {
@@ -160,20 +218,41 @@ export async function reactivateUser(userId: string): Promise<ActionResult> {
       return { success: false, error: "User is already active" };
     }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        status: "APPROVED",
-        approvedAt: new Date(),
-        approvedByUserId: admin.id,
-      },
+    const now = new Date();
+
+    // Use transaction to update both User and Driver (if applicable)
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          status: "APPROVED",
+          approvedAt: now,
+          approvedByUserId: admin.id,
+        },
+      });
+
+      // If user has a linked driver, also reactivate driver
+      if (user.driverId) {
+        await tx.driver.update({
+          where: { id: user.driverId },
+          data: {
+            onboardingStatus: "APPROVED",
+            approvedAt: now,
+            suspendedAt: null,
+            suspendedReason: null,
+          },
+        });
+      }
     });
 
     await logAction({
       entityType: "User",
       entityId: userId,
       action: AuditAction.USER_REACTIVATED,
-      diff: { previousStatus: user.status },
+      diff: {
+        previousStatus: user.status,
+        ...(user.driverId && { driverReactivated: true }),
+      },
     });
 
     revalidatePath("/dashboard/approvals");
