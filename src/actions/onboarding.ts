@@ -9,21 +9,19 @@ import { revalidatePath } from "next/cache";
 
 // ─── Vendor Onboarding ────────────────────────────────────────────────────────
 
-const vendorOnboardingSchema = z.object({
-  businessName: z.string().min(1, "Business name is required").max(255),
-  contactEmail: z
-    .string()
-    .email("Invalid email")
-    .max(255)
-    .optional()
-    .or(z.literal("")),
-  contactPhone: z.string().max(50).optional(),
-  address: z.string().max(500).optional(),
-  region: z.string().max(100).optional(),
-  businessHours: z.string().max(255).optional(),
-});
+import {
+  vendorOnboardingSchema,
+  type VendorOnboardingInput,
+} from "@/lib/schemas/vendor-onboarding";
 
-export type VendorOnboardingInput = z.infer<typeof vendorOnboardingSchema>;
+export type { VendorOnboardingInput };
+
+const REQUIRED_DOC_TYPES = new Set([
+  "CHAMBER_OF_COMMERCE_EXTRACT",
+  "LEGAL_REP_ID",
+  "SIGNED_CONTRACT",
+  "SIGNED_GDPR_FORM",
+]);
 
 export async function submitVendorOnboarding(
   data: VendorOnboardingInput,
@@ -51,7 +49,6 @@ export async function submitVendorOnboarding(
       (existingUser.onboardingData !== null &&
         existingUser.status === "PENDING")
     ) {
-      // Already submitted — role has been set or onboarding data exists
       if (existingUser.onboardingData !== null) {
         return { success: false, error: "Onboarding already submitted" };
       }
@@ -67,58 +64,138 @@ export async function submitVendorOnboarding(
     }
 
     const validated = validation.data;
+    const now = new Date();
 
-    // Create Vendor + VendorUser + update User in a transaction
+    // Format address string for legacy Vendor.address field
+    const addr = validated.registeredOfficeAddress;
+    const legacyAddress = addr
+      ? [addr.street, addr.city, addr.province, addr.postalCode]
+          .filter(Boolean)
+          .join(", ")
+      : null;
+
+    // Create Vendor + VendorProfile + VendorDocument[] + VendorUser + update User
     await prisma.$transaction(async (tx) => {
       const vendorId = createId();
+      const profileId = createId();
 
-      // Create Vendor record
+      // 1. Create Vendor (legacy fields populated for backward compat)
       await tx.vendor.create({
         data: {
           id: vendorId,
-          name: validated.businessName,
-          contactEmail: validated.contactEmail || null,
-          contactPhone: validated.contactPhone || null,
-          address: validated.address || null,
-          region: validated.region || null,
-          businessHours: validated.businessHours || null,
+          name: validated.tradeName || validated.legalName,
+          contactEmail: validated.adminContact.email,
+          contactPhone: validated.adminContact.phone,
+          address: legacyAddress,
+          businessHours: validated.openingHours || null,
         },
       });
 
-      // Create VendorUser junction (OWNER)
-      await tx.vendorUser.create({
+      // 2. Create VendorProfile (all detailed onboarding data)
+      await tx.vendorProfile.create({
         data: {
+          id: profileId,
           vendorId,
-          userId,
-          role: "OWNER",
+          // Section 1: General
+          legalName: validated.legalName,
+          tradeName: validated.tradeName || null,
+          industry: validated.industry || null,
+          description: validated.description || null,
+          foundedAt: validated.foundedAt ? new Date(validated.foundedAt) : null,
+          employeeCount: validated.employeeCount ?? null,
+          // Section 2: Legal & Tax
+          vatNumber: validated.vatNumber || null,
+          taxCode: validated.taxCode || null,
+          chamberOfCommerceRegistration:
+            validated.chamberOfCommerceRegistration || null,
+          registeredOfficeAddress:
+            validated.registeredOfficeAddress ?? undefined,
+          operatingAddress: validated.operatingAddress ?? undefined,
+          pecEmail: validated.pecEmail || null,
+          sdiRecipientCode: validated.sdiRecipientCode || null,
+          taxRegime: validated.taxRegime || null,
+          licenses: validated.licenses || null,
+          // Section 3: Contacts
+          adminContact: validated.adminContact,
+          commercialContact: validated.commercialContact,
+          technicalContact: validated.technicalContact ?? undefined,
+          // Section 4: Banking
+          bankAccountHolder: validated.bankAccountHolder || null,
+          iban: validated.iban || null,
+          bankNameAndBranch: validated.bankNameAndBranch || null,
+          preferredPaymentMethod: validated.preferredPaymentMethod ?? undefined,
+          paymentTerms: validated.paymentTerms ?? undefined,
+          invoicingNotes: validated.invoicingNotes || null,
+          // Section 6: Operational
+          openingHours: validated.openingHours || null,
+          closingDays: validated.closingDays || null,
+          warehouseAccess: validated.warehouseAccess || null,
+          emergencyContacts: validated.emergencyContacts ?? undefined,
+          operationalNotes: validated.operationalNotes || null,
+          // Section 7: Consents (timestamps auto-set server-side)
+          dataProcessingConsent: validated.dataProcessingConsent,
+          dataProcessingTimestamp: validated.dataProcessingConsent ? now : null,
+          marketingConsent: validated.marketingConsent,
+          marketingTimestamp: validated.marketingConsent ? now : null,
+          logoUsageConsent: validated.logoUsageConsent,
+          logoUsageTimestamp: validated.logoUsageConsent ? now : null,
+          consentVersion: "1.0",
         },
       });
 
-      // Update User: set role, status, store onboarding data, link vendor
+      // 3. Create VendorDocument metadata rows
+      if (validated.documents?.length) {
+        await tx.vendorDocument.createMany({
+          data: validated.documents.map((doc) => ({
+            id: createId(),
+            vendorProfileId: profileId,
+            type: doc.type,
+            label: doc.label,
+            fileName: doc.fileName || null,
+            notes: doc.notes || null,
+            required: REQUIRED_DOC_TYPES.has(doc.type),
+          })),
+        });
+      }
+
+      // 4. Create VendorUser junction (OWNER)
+      await tx.vendorUser.create({
+        data: { vendorId, userId, role: "OWNER" },
+      });
+
+      // 5. Update User: set role, status, store onboarding snapshot, link vendor
       await tx.user.update({
         where: { id: userId },
         data: {
-          name: validated.businessName,
+          name: validated.tradeName || validated.legalName,
           role: "VENDOR",
           status: "PENDING",
           vendorId,
-          onboardingData: validated as any,
+          onboardingData: JSON.parse(JSON.stringify(validated)),
         },
       });
     });
 
+    // Audit log — no PII (no emails, phones, IBAN, tax codes)
     await logAction({
       entityType: "User",
       entityId: userId,
       action: AuditAction.ONBOARDING_SUBMITTED,
-      diff: { role: "VENDOR", businessName: validated.businessName },
+      diff: {
+        role: "VENDOR",
+        legalName: validated.legalName,
+      },
     });
 
     revalidatePath("/pending");
 
     return { success: true };
   } catch (error) {
-    console.error("Vendor onboarding error:", error);
+    // Log only error message and userId — no form data
+    console.error(
+      "Vendor onboarding error:",
+      error instanceof Error ? error.message : "Unknown error",
+    );
     return {
       success: false,
       error:

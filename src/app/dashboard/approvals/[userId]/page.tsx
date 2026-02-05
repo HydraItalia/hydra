@@ -49,39 +49,247 @@ function formatDate(iso: string): string {
   });
 }
 
+import type { VendorProfileDetail } from "@/data/approvals";
+
 function renderOnboardingData(data: any) {
   if (!data || typeof data !== "object") {
-    return <p className="text-sm text-muted-foreground">No onboarding data submitted.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        No onboarding data submitted.
+      </p>
+    );
   }
 
   const fields: Array<{ label: string; value: string }> = [];
 
   // Common fields across roles
-  if (data.businessName) fields.push({ label: "Business Name", value: data.businessName });
+  if (data.businessName)
+    fields.push({ label: "Business Name", value: data.businessName });
+  if (data.legalName)
+    fields.push({ label: "Legal Name", value: data.legalName });
   if (data.fullName) fields.push({ label: "Full Name", value: data.fullName });
-  if (data.contactPerson) fields.push({ label: "Contact Person", value: data.contactPerson });
-  if (data.email || data.contactEmail) fields.push({ label: "Email", value: data.email || data.contactEmail });
-  if (data.phone || data.contactPhone) fields.push({ label: "Phone", value: data.phone || data.contactPhone });
+  if (data.contactPerson)
+    fields.push({ label: "Contact Person", value: data.contactPerson });
+  if (data.email || data.contactEmail)
+    fields.push({ label: "Email", value: data.email || data.contactEmail });
+  if (data.phone || data.contactPhone)
+    fields.push({ label: "Phone", value: data.phone || data.contactPhone });
   if (data.address) fields.push({ label: "Address", value: data.address });
   if (data.region) fields.push({ label: "Region", value: data.region });
-  if (data.vehicleInfo) fields.push({ label: "Vehicle Info", value: data.vehicleInfo });
-  if (data.businessHours) fields.push({ label: "Business Hours", value: data.businessHours });
-  if (data.vendorName) fields.push({ label: "Preferred Vendor", value: data.vendorName });
+  if (data.vehicleInfo)
+    fields.push({ label: "Vehicle Info", value: data.vehicleInfo });
+  if (data.businessHours)
+    fields.push({ label: "Business Hours", value: data.businessHours });
+  if (data.vendorName)
+    fields.push({ label: "Preferred Vendor", value: data.vendorName });
   if (data.notes) fields.push({ label: "Notes", value: data.notes });
 
   if (fields.length === 0) {
-    return <p className="text-sm text-muted-foreground">No onboarding data submitted.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        No onboarding data submitted.
+      </p>
+    );
   }
 
   return (
     <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
       {fields.map((f) => (
         <div key={f.label}>
-          <dt className="text-sm font-medium text-muted-foreground">{f.label}</dt>
+          <dt className="text-sm font-medium text-muted-foreground">
+            {f.label}
+          </dt>
           <dd className="text-sm mt-0.5">{f.value}</dd>
         </div>
       ))}
     </dl>
+  );
+}
+
+function formatAddress(addr: any): string | null {
+  if (!addr || typeof addr !== "object") return null;
+  return [addr.street, addr.city, addr.province, addr.postalCode, addr.country]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function formatContact(contact: any): string | null {
+  if (!contact || typeof contact !== "object") return null;
+  const parts = [contact.fullName];
+  if (contact.role) parts.push(`(${contact.role})`);
+  if (contact.email) parts.push(`- ${contact.email}`);
+  if (contact.phone) parts.push(`- ${contact.phone}`);
+  return parts.join(" ");
+}
+
+function renderVendorProfile(profile: VendorProfileDetail) {
+  const section = (
+    title: string,
+    items: Array<{ label: string; value: string | null }>,
+  ) => {
+    const visible = items.filter((i) => i.value);
+    if (visible.length === 0) return null;
+    return (
+      <div>
+        <p className="text-sm font-semibold mb-2">{title}</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+          {visible.map((f) => (
+            <div key={f.label}>
+              <dt className="text-xs font-medium text-muted-foreground">
+                {f.label}
+              </dt>
+              <dd className="text-sm">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      {section("General", [
+        { label: "Legal Name", value: profile.legalName },
+        { label: "Trade Name", value: profile.tradeName },
+        { label: "Industry", value: profile.industry },
+        { label: "Description", value: profile.description },
+        {
+          label: "Founded",
+          value: profile.foundedAt
+            ? new Date(profile.foundedAt).toLocaleDateString()
+            : null,
+        },
+        {
+          label: "Employees",
+          value: profile.employeeCount?.toString() ?? null,
+        },
+      ])}
+      {section("Legal & Tax", [
+        { label: "VAT Number", value: profile.vatNumber },
+        { label: "Tax Code", value: profile.taxCode },
+        {
+          label: "Chamber of Commerce",
+          value: profile.chamberOfCommerceRegistration,
+        },
+        {
+          label: "Registered Address",
+          value: formatAddress(profile.registeredOfficeAddress),
+        },
+        {
+          label: "Operating Address",
+          value: formatAddress(profile.operatingAddress),
+        },
+        { label: "PEC Email", value: profile.pecEmail },
+        { label: "SDI Code", value: profile.sdiRecipientCode },
+        { label: "Tax Regime", value: profile.taxRegime },
+        { label: "Licenses", value: profile.licenses },
+      ])}
+      {section("Contacts", [
+        { label: "Admin Contact", value: formatContact(profile.adminContact) },
+        {
+          label: "Commercial Contact",
+          value: formatContact(profile.commercialContact),
+        },
+        {
+          label: "Technical Contact",
+          value: formatContact(profile.technicalContact),
+        },
+      ])}
+      {section("Banking", [
+        { label: "Account Holder", value: profile.bankAccountHolder },
+        { label: "IBAN", value: profile.iban },
+        { label: "Bank", value: profile.bankNameAndBranch },
+        {
+          label: "Payment Method",
+          value: profile.preferredPaymentMethod?.replace(/_/g, " ") ?? null,
+        },
+        {
+          label: "Payment Terms",
+          value: profile.paymentTerms?.replace(/_/g, " ") ?? null,
+        },
+        { label: "Invoicing Notes", value: profile.invoicingNotes },
+      ])}
+      {(profile.Document?.length ?? 0) > 0 && (
+        <div>
+          <p className="text-sm font-semibold mb-2">Documents</p>
+          <div className="space-y-1">
+            {profile.Document.map((doc) => (
+              <div key={doc.id} className="flex items-center gap-2 text-sm">
+                <Badge
+                  variant={doc.required ? "default" : "outline"}
+                  className="text-xs"
+                >
+                  {doc.type.replace(/_/g, " ")}
+                </Badge>
+                <span>{doc.label}</span>
+                {doc.fileName && (
+                  <span className="text-muted-foreground">
+                    ({doc.fileName})
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {section("Operational", [
+        { label: "Opening Hours", value: profile.openingHours },
+        { label: "Closing Days", value: profile.closingDays },
+        { label: "Warehouse Access", value: profile.warehouseAccess },
+        { label: "Operational Notes", value: profile.operationalNotes },
+      ])}
+      <div>
+        <p className="text-sm font-semibold mb-2">Consents</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-2">
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Data Processing
+            </dt>
+            <dd className="text-sm">
+              <Badge
+                variant={
+                  profile.dataProcessingConsent ? "default" : "destructive"
+                }
+              >
+                {profile.dataProcessingConsent ? "Accepted" : "Not accepted"}
+              </Badge>
+              {profile.dataProcessingTimestamp && (
+                <span className="text-xs text-muted-foreground ml-1">
+                  {new Date(
+                    profile.dataProcessingTimestamp,
+                  ).toLocaleDateString()}
+                </span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Marketing
+            </dt>
+            <dd className="text-sm">
+              <Badge variant={profile.marketingConsent ? "default" : "outline"}>
+                {profile.marketingConsent ? "Accepted" : "Declined"}
+              </Badge>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Logo Usage
+            </dt>
+            <dd className="text-sm">
+              <Badge variant={profile.logoUsageConsent ? "default" : "outline"}>
+                {profile.logoUsageConsent ? "Accepted" : "Declined"}
+              </Badge>
+            </dd>
+          </div>
+        </dl>
+        {profile.consentVersion && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Version: {profile.consentVersion}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -124,13 +332,17 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
               </Badge>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Status</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Status
+              </p>
               <Badge variant={statusBadgeVariant(user.status)} className="mt-1">
                 {user.status}
               </Badge>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Submitted</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Submitted
+              </p>
               <p className="text-sm mt-1">{formatDate(user.createdAt)}</p>
             </div>
             {user.approvedAt && (
@@ -150,25 +362,33 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {user.agentCode && (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Agent Code</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Agent Code
+                    </p>
                     <p className="text-sm mt-1 font-mono">{user.agentCode}</p>
                   </div>
                 )}
                 {user.Vendor && (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Vendor</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Vendor
+                    </p>
                     <p className="text-sm mt-1">{user.Vendor.name}</p>
                   </div>
                 )}
                 {user.Client && (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Client</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Client
+                    </p>
                     <p className="text-sm mt-1">{user.Client.name}</p>
                   </div>
                 )}
                 {user.Driver && (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Driver</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Driver
+                    </p>
                     <p className="text-sm mt-1">{user.Driver.name}</p>
                   </div>
                 )}
@@ -191,18 +411,31 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
         </CardContent>
       </Card>
 
-      {/* Onboarding Data */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Onboarding Data</CardTitle>
-          <CardDescription>
-            Information submitted during the onboarding process.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {renderOnboardingData(user.onboardingData)}
-        </CardContent>
-      </Card>
+      {/* Vendor Profile (structured data from new onboarding) */}
+      {user.VendorProfile && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Vendor Profile</CardTitle>
+            <CardDescription>
+              Detailed vendor information submitted during onboarding.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>{renderVendorProfile(user.VendorProfile)}</CardContent>
+        </Card>
+      )}
+
+      {/* Legacy Onboarding Data (non-vendor roles or legacy vendors without profile) */}
+      {(!user.VendorProfile || user.role !== "VENDOR") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Onboarding Data</CardTitle>
+            <CardDescription>
+              Information submitted during the onboarding process.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>{renderOnboardingData(user.onboardingData)}</CardContent>
+        </Card>
+      )}
 
       {/* VendorUser Links (only for VENDOR role) */}
       {user.role === "VENDOR" && (
