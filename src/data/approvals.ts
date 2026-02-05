@@ -69,6 +69,55 @@ export type VendorProfileDetail = {
   }>;
 };
 
+export type ClientProfileDetail = {
+  clientType: string;
+  // Personal details
+  fullName: string | null;
+  birthDate: string | null;
+  birthPlace: string | null;
+  personalTaxCode: string | null;
+  personalPhone: string | null;
+  personalEmail: string | null;
+  personalPecEmail: string | null;
+  residentialAddress: any;
+  domicileAddress: any;
+  idDocumentType: string | null;
+  idDocumentNumber: string | null;
+  idDocumentExpiry: string | null;
+  idDocumentIssuer: string | null;
+  // Company details
+  legalName: string | null;
+  tradeName: string | null;
+  vatNumber: string | null;
+  companyTaxCode: string | null;
+  sdiRecipientCode: string | null;
+  companyPecEmail: string | null;
+  registeredOfficeAddress: any;
+  operatingAddress: any;
+  adminContact: any;
+  operationalContact: any;
+  // Billing
+  invoicingNotes: string | null;
+  // Operational
+  preferredContactHours: string | null;
+  specialRequirements: string | null;
+  operationalNotes: string | null;
+  // Consents
+  dataProcessingConsent: boolean;
+  dataProcessingTimestamp: string | null;
+  marketingConsent: boolean;
+  marketingTimestamp: string | null;
+  consentVersion: string | null;
+  Document: Array<{
+    id: string;
+    type: string;
+    label: string;
+    fileName: string | null;
+    notes: string | null;
+    required: boolean;
+  }>;
+};
+
 export type ApprovalDetailResult = {
   id: string;
   email: string;
@@ -92,6 +141,7 @@ export type ApprovalDetailResult = {
     Vendor: { id: string; name: string };
   }>;
   VendorProfile: VendorProfileDetail | null;
+  ClientProfile: ClientProfileDetail | null;
 };
 
 export async function fetchApprovalDetail(
@@ -171,7 +221,59 @@ export async function fetchApprovalDetail(
           },
         },
       },
-      Client: { select: { id: true, name: true } },
+      Client: {
+        select: {
+          id: true,
+          name: true,
+          ClientProfile: {
+            select: {
+              clientType: true,
+              fullName: true,
+              birthDate: true,
+              birthPlace: true,
+              personalTaxCode: true,
+              personalPhone: true,
+              personalEmail: true,
+              personalPecEmail: true,
+              residentialAddress: true,
+              domicileAddress: true,
+              idDocumentType: true,
+              idDocumentNumber: true,
+              idDocumentExpiry: true,
+              idDocumentIssuer: true,
+              legalName: true,
+              tradeName: true,
+              vatNumber: true,
+              companyTaxCode: true,
+              sdiRecipientCode: true,
+              companyPecEmail: true,
+              registeredOfficeAddress: true,
+              operatingAddress: true,
+              adminContact: true,
+              operationalContact: true,
+              invoicingNotes: true,
+              preferredContactHours: true,
+              specialRequirements: true,
+              operationalNotes: true,
+              dataProcessingConsent: true,
+              dataProcessingTimestamp: true,
+              marketingConsent: true,
+              marketingTimestamp: true,
+              consentVersion: true,
+              Document: {
+                select: {
+                  id: true,
+                  type: true,
+                  label: true,
+                  fileName: true,
+                  notes: true,
+                  required: true,
+                },
+              },
+            },
+          },
+        },
+      },
       Driver: { select: { id: true, name: true } },
       VendorUser: {
         select: {
@@ -185,23 +287,37 @@ export async function fetchApprovalDetail(
 
   if (!user) return null;
 
-  const profile = user.Vendor?.VendorProfile ?? null;
+  const vendorProfile = user.Vendor?.VendorProfile ?? null;
+  const clientProfile = user.Client?.ClientProfile ?? null;
 
   return {
     ...user,
     Vendor: user.Vendor ? { id: user.Vendor.id, name: user.Vendor.name } : null,
+    Client: user.Client ? { id: user.Client.id, name: user.Client.name } : null,
     createdAt: user.createdAt.toISOString(),
     approvedAt: user.approvedAt?.toISOString() ?? null,
-    VendorProfile: profile
+    VendorProfile: vendorProfile
       ? {
-          ...profile,
-          foundedAt: profile.foundedAt?.toISOString() ?? null,
+          ...vendorProfile,
+          foundedAt: vendorProfile.foundedAt?.toISOString() ?? null,
           dataProcessingTimestamp:
-            profile.dataProcessingTimestamp?.toISOString() ?? null,
+            vendorProfile.dataProcessingTimestamp?.toISOString() ?? null,
           marketingTimestamp:
-            profile.marketingTimestamp?.toISOString() ?? null,
+            vendorProfile.marketingTimestamp?.toISOString() ?? null,
           logoUsageTimestamp:
-            profile.logoUsageTimestamp?.toISOString() ?? null,
+            vendorProfile.logoUsageTimestamp?.toISOString() ?? null,
+        }
+      : null,
+    ClientProfile: clientProfile
+      ? {
+          ...clientProfile,
+          birthDate: clientProfile.birthDate?.toISOString() ?? null,
+          idDocumentExpiry:
+            clientProfile.idDocumentExpiry?.toISOString() ?? null,
+          dataProcessingTimestamp:
+            clientProfile.dataProcessingTimestamp?.toISOString() ?? null,
+          marketingTimestamp:
+            clientProfile.marketingTimestamp?.toISOString() ?? null,
         }
       : null,
   };

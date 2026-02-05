@@ -2,70 +2,224 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   submitClientOnboarding,
   type ClientOnboardingInput,
 } from "@/actions/onboarding";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  clientOnboardingSchema,
+  getStepConfig,
+  TOTAL_STEPS,
+  type ClientType,
+} from "@/lib/schemas/client-onboarding";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { WizardProgress } from "./components/wizard-progress";
+import { ClientTypeStep } from "./steps/client-type-step";
+import { PersonalDetailsStep } from "./steps/personal-details-step";
+import { CompanyDetailsStep } from "./steps/company-details-step";
+import { BillingDocumentsStep } from "./steps/billing-documents-step";
+import { OperationalStep } from "./steps/operational-step";
+import { ConsentsStep } from "./steps/consents-step";
 
-const schema = z.object({
-  businessName: z
-    .string()
-    .min(1, "Business or contact name is required")
-    .max(255),
-  region: z.string().max(100).optional(),
-  notes: z.string().max(2000).optional(),
-  contactPerson: z.string().max(255).optional(),
-  email: z.string().email("Invalid email").or(z.literal("")).optional(),
-  phone: z.string().max(50).optional(),
-  address: z.string().max(500).optional(),
-  vendorName: z.string().max(255).optional(),
-});
+// Fields to clear when switching from PRIVATE to BUSINESS
+const PRIVATE_ONLY_FIELDS = [
+  "fullName",
+  "birthDate",
+  "birthPlace",
+  "personalTaxCode",
+  "personalPhone",
+  "personalEmail",
+  "personalPecEmail",
+  "residentialAddress",
+  "domicileAddress",
+  "idDocumentType",
+  "idDocumentNumber",
+  "idDocumentExpiry",
+  "idDocumentIssuer",
+] as const;
 
-type FormValues = z.infer<typeof schema>;
+// Fields to clear when switching from BUSINESS to PRIVATE
+const BUSINESS_ONLY_FIELDS = [
+  "legalName",
+  "tradeName",
+  "vatNumber",
+  "companyTaxCode",
+  "sdiRecipientCode",
+  "companyPecEmail",
+  "registeredOfficeAddress",
+  "operatingAddress",
+  "adminContact",
+  "operationalContact",
+] as const;
 
 export function ClientOnboardingForm() {
   const router = useRouter();
   const { update } = useSession();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingTypeChange, setPendingTypeChange] = useState<ClientType | null>(
+    null,
+  );
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  const form = useForm<ClientOnboardingInput>({
+    resolver: zodResolver(clientOnboardingSchema),
     defaultValues: {
-      businessName: "",
-      region: "",
-      notes: "",
-      contactPerson: "",
-      email: "",
-      phone: "",
-      address: "",
-      vendorName: "",
+      clientType: undefined as unknown as ClientType,
+      // Personal Details
+      fullName: "",
+      birthDate: "",
+      birthPlace: "",
+      personalTaxCode: "",
+      personalPhone: "",
+      personalEmail: "",
+      personalPecEmail: "",
+      residentialAddress: undefined,
+      domicileAddress: undefined,
+      idDocumentType: "",
+      idDocumentNumber: "",
+      idDocumentExpiry: "",
+      idDocumentIssuer: "",
+      // Company Details
+      legalName: "",
+      tradeName: "",
+      vatNumber: "",
+      companyTaxCode: "",
+      sdiRecipientCode: "",
+      companyPecEmail: "",
+      registeredOfficeAddress: undefined,
+      operatingAddress: undefined,
+      adminContact: undefined,
+      operationalContact: undefined,
+      // Billing
+      invoicingNotes: "",
+      documents: [],
+      // Operational
+      preferredContactHours: "",
+      specialRequirements: "",
+      operationalNotes: "",
+      // Consents
+      dataProcessingConsent: false as unknown as true,
+      marketingConsent: false,
     },
+    mode: "onTouched",
   });
 
-  const onSubmit = async (data: FormValues) => {
+  const clientType = form.watch("clientType");
+  const isPrivate = clientType === "PRIVATE";
+  const { fields: stepFields, labels: stepLabels } = getStepConfig(clientType);
+
+  // Handle client type change with confirmation if fields have data
+  const handleClientTypeChange = useCallback(
+    (newType: ClientType) => {
+      const currentType = form.getValues("clientType");
+
+      // If same type or no previous type, just set it
+      if (!currentType || currentType === newType) {
+        form.setValue("clientType", newType);
+        return;
+      }
+
+      // Check if the opposing section has data
+      const fieldsToCheck =
+        currentType === "PRIVATE" ? PRIVATE_ONLY_FIELDS : BUSINESS_ONLY_FIELDS;
+
+      const hasData = fieldsToCheck.some((field) => {
+        const value = form.getValues(field as keyof ClientOnboardingInput);
+        if (typeof value === "string") return value.trim() !== "";
+        if (typeof value === "object" && value !== null) return true;
+        return false;
+      });
+
+      if (hasData) {
+        // Show confirmation dialog
+        setPendingTypeChange(newType);
+      } else {
+        // No data to lose, just switch
+        form.setValue("clientType", newType);
+      }
+    },
+    [form],
+  );
+
+  // Confirm type change - clear irrelevant fields
+  const confirmTypeChange = useCallback(() => {
+    if (!pendingTypeChange) return;
+
+    const currentType = form.getValues("clientType");
+    const fieldsToClear =
+      currentType === "PRIVATE" ? PRIVATE_ONLY_FIELDS : BUSINESS_ONLY_FIELDS;
+
+    // Clear the fields
+    fieldsToClear.forEach((field) => {
+      const key = field as keyof ClientOnboardingInput;
+      if (
+        key.includes("Address") ||
+        key === "adminContact" ||
+        key === "operationalContact"
+      ) {
+        form.setValue(key, undefined as any);
+      } else {
+        form.setValue(key, "" as any);
+      }
+    });
+
+    form.setValue("clientType", pendingTypeChange);
+    setPendingTypeChange(null);
+    // Reset completed steps since structure changed
+    setCompletedSteps(new Set([0]));
+  }, [form, pendingTypeChange]);
+
+  const cancelTypeChange = useCallback(() => {
+    setPendingTypeChange(null);
+  }, []);
+
+  // Validate current step fields before proceeding
+  const validateCurrentStep = async () => {
+    const currentFields = stepFields[currentStep];
+    const result = await form.trigger(currentFields as any);
+    return result;
+  };
+
+  const handleNext = async () => {
+    const isValid = await validateCurrentStep();
+    if (isValid) {
+      setCompletedSteps((prev) => new Set([...prev, currentStep]));
+      setCurrentStep((prev) => Math.min(prev + 1, TOTAL_STEPS - 1));
+    }
+  };
+
+  const handleBack = () => {
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  };
+
+  const onSubmit = async (data: ClientOnboardingInput) => {
     setIsLoading(true);
     try {
-      const result = await submitClientOnboarding(
-        data as ClientOnboardingInput,
-      );
+      const result = await submitClientOnboarding(data);
 
       if (result.success) {
         toast.success("Registration submitted");
@@ -88,163 +242,142 @@ export function ClientOnboardingForm() {
     }
   };
 
+  const renderStep = () => {
+    // Step 0 is always client type selection
+    if (currentStep === 0) {
+      return (
+        <ClientTypeStep
+          form={
+            {
+              ...form,
+              setValue: (name: string, value: any) => {
+                if (name === "clientType") {
+                  handleClientTypeChange(value);
+                } else {
+                  form.setValue(name as any, value);
+                }
+              },
+            } as any
+          }
+          disabled={isLoading}
+        />
+      );
+    }
+
+    // Step 1 depends on client type
+    if (currentStep === 1) {
+      return isPrivate ? (
+        <PersonalDetailsStep form={form} disabled={isLoading} />
+      ) : (
+        <CompanyDetailsStep form={form} disabled={isLoading} />
+      );
+    }
+
+    // Steps 2-4 are the same for both types
+    if (currentStep === 2) {
+      return (
+        <BillingDocumentsStep
+          form={form}
+          disabled={isLoading}
+          isPrivate={isPrivate}
+        />
+      );
+    }
+
+    if (currentStep === 3) {
+      return <OperationalStep form={form} disabled={isLoading} />;
+    }
+
+    if (currentStep === 4) {
+      return <ConsentsStep form={form} disabled={isLoading} />;
+    }
+
+    return null;
+  };
+
+  const isFirstStep = currentStep === 0;
+  const isLastStep = currentStep === TOTAL_STEPS - 1;
+  const canProceedFromTypeStep = currentStep === 0 && clientType;
+
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <FormField
-              control={form.control}
-              name="businessName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Business / Restaurant Name *</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Your business name"
-                      {...field}
-                      disabled={isLoading}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="contactPerson"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Contact Person</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Full name"
-                      {...field}
-                      disabled={isLoading}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="business@example.com"
-                        {...field}
-                        disabled={isLoading}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+    <>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">Client Registration</CardTitle>
+              <WizardProgress
+                currentStep={currentStep}
+                completedSteps={completedSteps}
+                labels={stepLabels}
               />
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="+39 xxx xxx xxxx"
-                        {...field}
-                        disabled={isLoading}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Address</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Street address"
-                      {...field}
-                      disabled={isLoading}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+            </CardHeader>
+            <CardContent className="pt-0">{renderStep()}</CardContent>
+            <CardFooter className="flex justify-between border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleBack}
+                disabled={isFirstStep || isLoading}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Back
+              </Button>
+
+              {isLastStep ? (
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  {isLoading ? "Submitting..." : "Submit Registration"}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={
+                    isLoading || (isFirstStep && !canProceedFromTypeStep)
+                  }
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               )}
-            />
-            <FormField
-              control={form.control}
-              name="region"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Region</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g. Lazio"
-                      {...field}
-                      disabled={isLoading}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Any additional information"
-                      {...field}
-                      disabled={isLoading}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="vendorName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Preferred Vendor</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Vendor name (optional)"
-                      {...field}
-                      disabled={isLoading}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    If you have a vendor you&apos;d like to order from, enter
-                    their name. A link request will be sent for approval.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? "Submitting..." : "Submit Registration"}
-            </Button>
-          </CardFooter>
-        </Card>
-      </form>
-    </Form>
+            </CardFooter>
+          </Card>
+        </form>
+      </Form>
+
+      {/* Confirmation dialog for type change */}
+      <AlertDialog
+        open={pendingTypeChange !== null}
+        onOpenChange={(open) => !open && cancelTypeChange()}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change Client Type?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Switching to{" "}
+              {pendingTypeChange === "PRIVATE"
+                ? "Private Individual"
+                : "Business"}{" "}
+              will clear the data you&apos;ve entered in the{" "}
+              {clientType === "PRIVATE"
+                ? "Personal Details"
+                : "Company Details"}{" "}
+              section. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelTypeChange}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmTypeChange}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

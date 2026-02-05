@@ -49,7 +49,10 @@ function formatDate(iso: string): string {
   });
 }
 
-import type { VendorProfileDetail } from "@/data/approvals";
+import type {
+  VendorProfileDetail,
+  ClientProfileDetail,
+} from "@/data/approvals";
 
 function renderOnboardingData(data: any) {
   if (!data || typeof data !== "object") {
@@ -117,6 +120,14 @@ function formatContact(contact: any): string | null {
   if (!contact || typeof contact !== "object") return null;
   const parts = [contact.fullName];
   if (contact.role) parts.push(`(${contact.role})`);
+  if (contact.email) parts.push(`- ${contact.email}`);
+  if (contact.phone) parts.push(`- ${contact.phone}`);
+  return parts.join(" ");
+}
+
+function formatSimpleContact(contact: any): string | null {
+  if (!contact || typeof contact !== "object") return null;
+  const parts = [contact.fullName];
   if (contact.email) parts.push(`- ${contact.email}`);
   if (contact.phone) parts.push(`- ${contact.phone}`);
   return parts.join(" ");
@@ -293,6 +304,198 @@ function renderVendorProfile(profile: VendorProfileDetail) {
   );
 }
 
+function renderClientProfile(profile: ClientProfileDetail) {
+  const section = (
+    title: string,
+    items: Array<{ label: string; value: string | null }>,
+  ) => {
+    const visible = items.filter((i) => i.value);
+    if (visible.length === 0) return null;
+    return (
+      <div>
+        <p className="text-sm font-semibold mb-2">{title}</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+          {visible.map((f) => (
+            <div key={f.label}>
+              <dt className="text-xs font-medium text-muted-foreground">
+                {f.label}
+              </dt>
+              <dd className="text-sm">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  };
+
+  const isPrivate = profile.clientType === "PRIVATE";
+
+  return (
+    <div className="space-y-5">
+      {/* Client Type Badge */}
+      <div>
+        <Badge variant="outline" className="text-sm">
+          {profile.clientType}
+        </Badge>
+      </div>
+
+      {/* Personal Details (PRIVATE) */}
+      {isPrivate &&
+        section("Personal Details", [
+          { label: "Full Name", value: profile.fullName },
+          {
+            label: "Birth Date",
+            value: profile.birthDate
+              ? new Date(profile.birthDate).toLocaleDateString()
+              : null,
+          },
+          { label: "Birth Place", value: profile.birthPlace },
+          { label: "Tax Code", value: profile.personalTaxCode },
+          { label: "Phone", value: profile.personalPhone },
+          { label: "Email", value: profile.personalEmail },
+          { label: "PEC Email", value: profile.personalPecEmail },
+          {
+            label: "Residential Address",
+            value: formatAddress(profile.residentialAddress),
+          },
+          {
+            label: "Domicile Address",
+            value: formatAddress(profile.domicileAddress),
+          },
+        ])}
+
+      {/* ID Document (PRIVATE) */}
+      {isPrivate &&
+        section("ID Document", [
+          { label: "Type", value: profile.idDocumentType },
+          { label: "Number", value: profile.idDocumentNumber },
+          {
+            label: "Expiry",
+            value: profile.idDocumentExpiry
+              ? new Date(profile.idDocumentExpiry).toLocaleDateString()
+              : null,
+          },
+          { label: "Issuing Authority", value: profile.idDocumentIssuer },
+        ])}
+
+      {/* Company Details (BUSINESS) */}
+      {!isPrivate &&
+        section("Company Details", [
+          { label: "Legal Name", value: profile.legalName },
+          { label: "Trade Name", value: profile.tradeName },
+          { label: "VAT Number", value: profile.vatNumber },
+          { label: "Tax Code", value: profile.companyTaxCode },
+          { label: "SDI Code", value: profile.sdiRecipientCode },
+          { label: "PEC Email", value: profile.companyPecEmail },
+          {
+            label: "Registered Address",
+            value: formatAddress(profile.registeredOfficeAddress),
+          },
+          {
+            label: "Operating Address",
+            value: formatAddress(profile.operatingAddress),
+          },
+        ])}
+
+      {/* Contacts (BUSINESS) */}
+      {!isPrivate &&
+        section("Contacts", [
+          {
+            label: "Admin Contact",
+            value: formatSimpleContact(profile.adminContact),
+          },
+          {
+            label: "Operational Contact",
+            value: formatSimpleContact(profile.operationalContact),
+          },
+        ])}
+
+      {/* Billing */}
+      {section("Billing", [
+        { label: "Invoicing Notes", value: profile.invoicingNotes },
+      ])}
+
+      {/* Documents */}
+      {(profile.Document?.length ?? 0) > 0 && (
+        <div>
+          <p className="text-sm font-semibold mb-2">Documents</p>
+          <div className="space-y-1">
+            {profile.Document.map((doc) => (
+              <div key={doc.id} className="flex items-center gap-2 text-sm">
+                <Badge
+                  variant={doc.required ? "default" : "outline"}
+                  className="text-xs"
+                >
+                  {doc.type.replace(/_/g, " ")}
+                </Badge>
+                <span>{doc.label}</span>
+                {doc.fileName && (
+                  <span className="text-muted-foreground">
+                    ({doc.fileName})
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Operational */}
+      {section("Operational", [
+        {
+          label: "Preferred Contact Hours",
+          value: profile.preferredContactHours,
+        },
+        { label: "Special Requirements", value: profile.specialRequirements },
+        { label: "Operational Notes", value: profile.operationalNotes },
+      ])}
+
+      {/* Consents */}
+      <div>
+        <p className="text-sm font-semibold mb-2">Consents</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Data Processing
+            </dt>
+            <dd className="text-sm">
+              <Badge
+                variant={
+                  profile.dataProcessingConsent ? "default" : "destructive"
+                }
+              >
+                {profile.dataProcessingConsent ? "Accepted" : "Not accepted"}
+              </Badge>
+              {profile.dataProcessingTimestamp && (
+                <span className="text-xs text-muted-foreground ml-1">
+                  {new Date(
+                    profile.dataProcessingTimestamp,
+                  ).toLocaleDateString()}
+                </span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Marketing
+            </dt>
+            <dd className="text-sm">
+              <Badge variant={profile.marketingConsent ? "default" : "outline"}>
+                {profile.marketingConsent ? "Accepted" : "Declined"}
+              </Badge>
+            </dd>
+          </div>
+        </dl>
+        {profile.consentVersion && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Version: {profile.consentVersion}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default async function ApprovalDetailPage({ params }: PageProps) {
   await requireRole("ADMIN");
 
@@ -424,18 +627,34 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
         </Card>
       )}
 
-      {/* Legacy Onboarding Data (non-vendor roles or legacy vendors without profile) */}
-      {(!user.VendorProfile || user.role !== "VENDOR") && (
+      {/* Client Profile (structured data from new onboarding) */}
+      {user.ClientProfile && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Onboarding Data</CardTitle>
+            <CardTitle className="text-lg">Client Profile</CardTitle>
             <CardDescription>
-              Information submitted during the onboarding process.
+              Detailed client information submitted during onboarding.
             </CardDescription>
           </CardHeader>
-          <CardContent>{renderOnboardingData(user.onboardingData)}</CardContent>
+          <CardContent>{renderClientProfile(user.ClientProfile)}</CardContent>
         </Card>
       )}
+
+      {/* Legacy Onboarding Data (non-vendor/client roles or legacy without profile) */}
+      {(!user.VendorProfile || user.role !== "VENDOR") &&
+        (!user.ClientProfile || user.role !== "CLIENT") && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Onboarding Data</CardTitle>
+              <CardDescription>
+                Information submitted during the onboarding process.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {renderOnboardingData(user.onboardingData)}
+            </CardContent>
+          </Card>
+        )}
 
       {/* VendorUser Links (only for VENDOR role) */}
       {user.role === "VENDOR" && (
