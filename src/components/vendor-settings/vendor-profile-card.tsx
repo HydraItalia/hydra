@@ -60,7 +60,7 @@ export async function VendorProfileCard({ vendorId }: VendorProfileCardProps) {
         <Field label="Industry" value={profile.industry} />
         <Field
           label="Founded"
-          value={profile.foundedAt?.toLocaleDateString("en-GB") ?? null}
+          value={profile.foundedAt?.toLocaleDateString("it-IT") ?? null}
         />
         <Field label="Employees" value={profile.employeeCount?.toString()} />
       </dl>
