@@ -871,14 +871,19 @@ export async function submitAgentOnboarding(
         });
       });
     } catch (error) {
-      // Handle race condition on taxCode unique constraint
+      // Handle race condition on unique constraints
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002" &&
-        Array.isArray(error.meta?.target) &&
-        (error.meta.target as string[]).includes("taxCode")
+        Array.isArray(error.meta?.target)
       ) {
-        return { success: false, error: "Codice fiscale già registrato" };
+        const target = error.meta.target as string[];
+        if (target.includes("taxCode")) {
+          return { success: false, error: "Codice fiscale già registrato" };
+        }
+        if (target.includes("agentCode")) {
+          return { success: false, error: "Codice agente già registrato" };
+        }
       }
       throw error;
     }
@@ -901,7 +906,10 @@ export async function submitAgentOnboarding(
 
     return { success: true };
   } catch (error) {
-    console.error("Agent onboarding error:", error);
+    console.error(
+      "Agent onboarding error:",
+      error instanceof Error ? error.message : "Unknown error"
+    );
     return {
       success: false,
       error:

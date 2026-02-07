@@ -165,9 +165,19 @@ export const agentOnboardingSchema = z.object({
   chamberName: z.string().min(2, "Nome CCIAA richiesto").max(255),
   professionalAssociations: z.string().max(500).optional().or(z.literal("")),
   coveredTerritories: z
-    .array(z.string())
+    .array(
+      z.enum(ITALIAN_REGIONS, {
+        errorMap: () => ({ message: "Regione non valida" }),
+      })
+    )
     .min(1, "Seleziona almeno un territorio"),
-  sectors: z.array(z.string()).min(1, "Seleziona almeno un settore"),
+  sectors: z
+    .array(
+      z.enum(BUSINESS_SECTORS, {
+        errorMap: () => ({ message: "Settore non valido" }),
+      })
+    )
+    .min(1, "Seleziona almeno un settore"),
 
   // ── Step 2: Dati Fiscali ────────────────────────────────────────────────────
   vatNumber: z
@@ -178,7 +188,9 @@ export const agentOnboardingSchema = z.object({
       "Partita IVA non valida (11 cifre, opzionalmente con prefisso IT)"
     )
     .transform((v) => (v.startsWith("IT") ? v : `IT${v}`)), // Normalize to IT prefix
-  taxRegime: z.string().min(1, "Regime fiscale richiesto").max(100),
+  taxRegime: z.enum(TAX_REGIMES, {
+    errorMap: () => ({ message: "Regime fiscale richiesto" }),
+  }),
   atecoCode: z
     .string()
     .refine(
