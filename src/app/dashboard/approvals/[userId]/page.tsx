@@ -55,6 +55,7 @@ import type {
   DriverProfileDetail,
   AgentProfileDetail,
 } from "@/data/approvals";
+import { AGENT_TYPE_LABELS } from "@/lib/schemas/agent-onboarding";
 
 // Required driver documents for approval checklist
 const REQUIRED_DRIVER_DOCUMENTS = [
@@ -70,12 +71,6 @@ const REQUIRED_AGENT_DOCUMENTS = [
   "CHAMBER_OF_COMMERCE_EXTRACT",
   "ENASARCO_CERTIFICATE",
 ];
-
-// Agent type labels
-const AGENT_TYPE_LABELS: Record<string, string> = {
-  MONOMANDATARIO: "Monomandatario (Esclusivo)",
-  PLURIMANDATARIO: "Plurimandatario (Non esclusivo)",
-};
 
 function renderOnboardingData(data: any) {
   if (!data || typeof data !== "object") {
@@ -851,7 +846,7 @@ function renderAgentProfile(profile: AgentProfileDetail) {
           Agent: {profile.status}
         </Badge>
         <Badge variant="outline">
-          {AGENT_TYPE_LABELS[profile.agentType] || profile.agentType}
+          {AGENT_TYPE_LABELS[profile.agentType as keyof typeof AGENT_TYPE_LABELS] || profile.agentType}
         </Badge>
         {profile.agentCode && (
           <span className="text-sm font-mono text-muted-foreground">
