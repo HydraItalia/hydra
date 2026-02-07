@@ -54,9 +54,9 @@ model VendorUser {
   vendorId  String
   userId    String
   role      VendorUserRole
-  createdAt DateTime @default(now())
-  Vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  Vendor    Vendor         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  User      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([vendorId, userId])
   @@index([vendorId])
@@ -261,11 +261,11 @@ model Delivery {
 }
 
 model Driver {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   phone     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   // Unique identifier for onboarded drivers (codice fiscale)
@@ -275,11 +275,11 @@ model Driver {
   status DriverStatus @default(OFFLINE)
 
   // Onboarding status (for registration workflow)
-  onboardingStatus  DriverOnboardingStatus @default(PENDING)
-  approvedAt        DateTime?
-  activatedAt       DateTime?
-  suspendedAt       DateTime?
-  suspendedReason   String?
+  onboardingStatus DriverOnboardingStatus @default(PENDING)
+  approvedAt       DateTime?
+  activatedAt      DateTime?
+  suspendedAt      DateTime?
+  suspendedReason  String?
 
   // Operational relations
   Delivery    Delivery[]
@@ -553,22 +553,23 @@ model Session {
 }
 
 model User {
-  id                                    String        @id @default(cuid())
-  email                                 String        @unique
+  id                                    String         @id @default(cuid())
+  email                                 String         @unique
   name                                  String?
-  role                                  Role          @default(CLIENT)
-  status                                UserStatus    @default(ONBOARDING)
+  role                                  Role           @default(CLIENT)
+  status                                UserStatus     @default(ONBOARDING)
   approvedAt                            DateTime?
   approvedByUserId                      String?
   onboardingData                        Json?
-  agentCode                             String?       @unique
-  vendorId                              String?       @unique
-  clientId                              String?       @unique
-  createdAt                             DateTime      @default(now())
-  updatedAt                             DateTime      @updatedAt
+  agentCode                             String?        @unique
+  vendorId                              String?        @unique
+  clientId                              String?        @unique
+  createdAt                             DateTime       @default(now())
+  updatedAt                             DateTime       @updatedAt
   deletedAt                             DateTime?
   emailVerified                         DateTime?
-  driverId                              String?       @unique
+  driverId                              String?        @unique
+  agentId                               String?        @unique
   Account                               Account[]
   AgentClient                           AgentClient[]
   AgentVendor                           AgentVendor[]
@@ -576,12 +577,13 @@ model User {
   ClientVendorApprovals                 ClientVendor[] @relation("ClientVendorApprovedBy")
   VendorUser                            VendorUser[]
   Cart                                  Cart[]
-  Order_Order_assignedAgentUserIdToUser Order[]       @relation("Order_assignedAgentUserIdToUser")
-  Order_Order_submitterUserIdToUser     Order[]       @relation("Order_submitterUserIdToUser")
+  Order_Order_assignedAgentUserIdToUser Order[]        @relation("Order_assignedAgentUserIdToUser")
+  Order_Order_submitterUserIdToUser     Order[]        @relation("Order_submitterUserIdToUser")
   Session                               Session[]
-  Client                                Client?       @relation(fields: [clientId], references: [id])
-  Driver                                Driver?       @relation(fields: [driverId], references: [id])
-  Vendor                                Vendor?       @relation(fields: [vendorId], references: [id])
+  Client                                Client?        @relation(fields: [clientId], references: [id])
+  Driver                                Driver?        @relation(fields: [driverId], references: [id])
+  Vendor                                Vendor?        @relation(fields: [vendorId], references: [id])
+  agent                                 Agent?         @relation(fields: [agentId], references: [id])
 
   @@index([email])
   @@index([role])
@@ -709,6 +711,37 @@ enum DriverDocumentType {
   CQC_CERTIFICATE
   MEDICAL_CERTIFICATE
   CRIMINAL_RECORD
+  OTHER
+}
+
+// ── Agent Onboarding Enums ───────────────────────────────────────────────────
+
+enum AgentType {
+  MONOMANDATARIO // Exclusive agent (single principal)
+  PLURIMANDATARIO // Non-exclusive agent (multiple principals)
+}
+
+enum AgentStatus {
+  PENDING
+  APPROVED
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+  REJECTED
+}
+
+enum AgentDocumentType {
+  ID_DOCUMENT
+  TAX_CODE_CARD
+  CHAMBER_OF_COMMERCE_EXTRACT // Visura camerale
+  ENASARCO_CERTIFICATE
+  SIGNED_GDPR_FORM
+  OTHER
+}
+
+enum AgentPaymentMethod {
+  BANK_TRANSFER
+  CHECK
   OTHER
 }
 
@@ -1023,7 +1056,7 @@ model DriverProfile {
   fullName    String
   birthDate   DateTime
   birthPlace  String
-  nationality String @default("Italiana")
+  nationality String   @default("Italiana")
 
   // Addresses
   residentialAddress Json
@@ -1101,7 +1134,7 @@ model DriverDocument {
   label    String
   fileName String?
   notes    String?
-  required Boolean @default(false)
+  required Boolean            @default(false)
 
   // File storage (nullable until upload implemented)
   storageKey      String?
@@ -1134,7 +1167,7 @@ model DriverCompanyLink {
   // Polymorphic company reference
   companyType CompanyType
   vendorId    String?
-  vendor      Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  vendor      Vendor?     @relation(fields: [vendorId], references: [id], onDelete: SetNull)
 
   // Link status
   status DriverCompanyLinkStatus @default(PENDING)
@@ -1164,7 +1197,7 @@ model DriverInvite {
 
   // Vendor who sent the invite
   vendorId        String
-  vendor          Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendor          Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   invitedByUserId String?
 
   // Token
@@ -1177,4 +1210,136 @@ model DriverInvite {
 
   @@index([vendorId])
   @@index([expiresAt])
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AGENT ONBOARDING MODELS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Agent (Core Entity) ──────────────────────────────────────────────────────
+
+model Agent {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Legacy-compat fields (denormalized from profile)
+  name  String
+  phone String?
+  email String?
+
+  // Unique identifiers
+  taxCode   String  @unique
+  agentCode String? @unique
+
+  // Onboarding workflow
+  status          AgentStatus @default(PENDING)
+  approvedAt      DateTime?
+  suspendedAt     DateTime?
+  suspendedReason String?
+
+  // Relations
+  profile   AgentProfile?
+  documents AgentDocument[]
+  user      User?
+
+  @@index([status])
+}
+
+// ── Agent Profile (1:1, source of truth for onboarding data) ─────────────────
+
+model AgentProfile {
+  id        String   @id @default(cuid())
+  agentId   String   @unique
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ── Section 1: Dati Anagrafici ──────────────────────────────────────────────
+  fullName    String
+  birthDate   DateTime
+  birthPlace  String
+  nationality String   @default("Italiana")
+
+  // Addresses (JSON: { street, city, province, postalCode, country })
+  residentialAddress Json
+  domicileAddress    Json?
+
+  // Contact
+  phone    String
+  email    String
+  pecEmail String?
+
+  // ── Section 2: Dati Professionali ───────────────────────────────────────────
+  agentType                 AgentType
+  chamberRegistrationNumber String // Numero iscrizione Registro Imprese
+  chamberRegistrationDate   DateTime // Data iscrizione
+  chamberName               String // CCIAA (Camera di Commercio)
+  professionalAssociations  String? // Albi/associazioni (free text)
+
+  // Territories & Sectors (arrays for flexibility)
+  coveredTerritories String[]
+  sectors            String[]
+
+  // ── Section 3: Dati Fiscali ─────────────────────────────────────────────────
+  vatNumber                String // Partita IVA
+  taxRegime                String // e.g., "Ordinario", "Forfettario"
+  atecoCode                String // Codice ATECO
+  sdiRecipientCode         String // Codice destinatario SDI (max 7 chars)
+  invoicingPecEmail        String // PEC per fatturazione elettronica
+  enasarcoNumber           String // Numero posizione ENASARCO
+  enasarcoRegistrationDate DateTime // Data iscrizione ENASARCO
+
+  // ── Section 4: Dati Bancari ─────────────────────────────────────────────────
+  bankAccountHolder      String
+  iban                   String
+  bankNameBranch         String
+  preferredPaymentMethod AgentPaymentMethod @default(BANK_TRANSFER)
+  commissionNotes        String? // Note per fatturazione provvigioni
+
+  // ── Section 5: Consents ─────────────────────────────────────────────────────
+  dataProcessingConsent     Boolean   @default(false)
+  dataProcessingTimestamp   DateTime?
+  operationalCommsConsent   Boolean   @default(false)
+  operationalCommsTimestamp DateTime?
+  commercialImageConsent    Boolean   @default(false)
+  commercialImageTimestamp  DateTime?
+  consentVersion            String    @default("1.0")
+
+  notes String?
+}
+
+// ── Agent Document (upload-ready metadata) ───────────────────────────────────
+
+model AgentDocument {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Metadata
+  type     AgentDocumentType
+  label    String
+  fileName String?
+  notes    String?
+  required Boolean           @default(false)
+
+  // File storage (nullable until upload implemented)
+  storageKey      String?
+  storageProvider String?
+  fileUrl         String?
+  mimeType        String?
+  sizeBytes       Int?
+  uploadedAt      DateTime?
+
+  // Verification
+  expiryDate       DateTime?
+  isVerified       Boolean   @default(false)
+  verifiedAt       DateTime?
+  verifiedByUserId String?
+
+  @@index([agentId])
+  @@index([type])
 }
