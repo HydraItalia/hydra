@@ -63,7 +63,6 @@ CREATE TABLE "Agent" (
 CREATE UNIQUE INDEX "Agent_taxCode_key" ON "Agent"("taxCode");
 CREATE UNIQUE INDEX "Agent_agentCode_key" ON "Agent"("agentCode");
 CREATE INDEX "Agent_status_idx" ON "Agent"("status");
-CREATE INDEX "Agent_agentCode_idx" ON "Agent"("agentCode");
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- AGENT PROFILE (1:1 with Agent, source of truth for onboarding data)

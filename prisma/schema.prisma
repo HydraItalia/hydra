@@ -1245,7 +1245,6 @@ model Agent {
   user      User?
 
   @@index([status])
-  @@index([agentCode])
 }
 
 // ── Agent Profile (1:1, source of truth for onboarding data) ─────────────────
