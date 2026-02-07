@@ -9,21 +9,22 @@ export default async function AgentOnboardingPage() {
     redirect("/signin");
   }
 
-  if (session.user.status === "APPROVED") {
+  // Already has agent profile or is approved
+  if (session.user.agentCode || session.user.status === "APPROVED") {
     redirect("/dashboard");
   }
 
   return (
-    <div className="w-full max-w-lg space-y-6">
+    <div className="w-full max-w-2xl space-y-6">
       <div className="text-center space-y-2">
         <h1 className="text-2xl font-bold tracking-tight">
-          Agent Registration
+          Registrazione Agente
         </h1>
         <p className="text-muted-foreground">
-          Register as an agent to manage vendor and client relationships.
+          Compila il modulo per registrarti come Agente di Commercio.
         </p>
       </div>
-      <AgentOnboardingForm />
+      <AgentOnboardingForm userId={session.user.id} />
     </div>
   );
 }
