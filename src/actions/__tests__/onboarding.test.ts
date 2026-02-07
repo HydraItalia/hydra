@@ -11,6 +11,7 @@ import {
   submitClientOnboarding,
   submitDriverOnboarding,
   submitAgentOnboarding,
+  type AgentOnboardingInput,
 } from "../onboarding";
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -497,7 +498,7 @@ describe("submitDriverOnboarding (#159)", () => {
 // ─── Agent Onboarding ────────────────────────────────────────────────────────
 
 // Valid agent data for testing
-const validAgentData = {
+const validAgentData: AgentOnboardingInput = {
   // Dati Anagrafici
   fullName: "Andrea Bianchi",
   birthDate: "1985-03-15",
@@ -515,7 +516,7 @@ const validAgentData = {
   email: "andrea@example.com",
   pecEmail: "andrea@pec.it",
   // Dati Professionali
-  agentType: "MONOMANDATARIO" as const,
+  agentType: "MONOMANDATARIO",
   chamberRegistrationNumber: "MI-123456",
   chamberRegistrationDate: "2020-01-15",
   chamberName: "CCIAA Milano",
@@ -534,15 +535,15 @@ const validAgentData = {
   bankAccountHolder: "Andrea Bianchi",
   iban: "IT60X0542811101000000123456",
   bankNameBranch: "Banca Intesa - Milano Centro",
-  preferredPaymentMethod: "BANK_TRANSFER" as const,
+  preferredPaymentMethod: "BANK_TRANSFER",
   commissionNotes: "",
   // Documenti
   documents: [
-    { type: "ID_DOCUMENT" as const, label: "Carta d'identità" },
-    { type: "TAX_CODE_CARD" as const, label: "Codice fiscale" },
+    { type: "ID_DOCUMENT", label: "Carta d'identità" },
+    { type: "TAX_CODE_CARD", label: "Codice fiscale" },
   ],
   // Consensi
-  dataProcessingConsent: true as const,
+  dataProcessingConsent: true,
   operationalCommsConsent: true,
   commercialImageConsent: false,
 };
