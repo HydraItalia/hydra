@@ -200,6 +200,11 @@ export function AgentOnboardingForm({ userId }: AgentOnboardingFormProps) {
   }, [userId]);
 
   const clearDraft = useCallback(() => {
+    // Cancel any pending autosave to prevent re-saving after clear
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
     try {
       localStorage.removeItem(getDraftKey(userId));
     } catch {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { UseFormReturn } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,9 +20,13 @@ interface Props {
 }
 
 export function PersonalInfoStep({ form, disabled }: Props) {
-  const [showDomicile, setShowDomicile] = useState(
-    !!form.getValues("domicileAddress")?.street
-  );
+  const [showDomicile, setShowDomicile] = useState(false);
+
+  // Sync showDomicile with form state (e.g., after form.reset with saved draft)
+  const domicileStreet = form.watch("domicileAddress.street");
+  useEffect(() => {
+    setShowDomicile(Boolean(domicileStreet));
+  }, [domicileStreet]);
 
   return (
     <div className="space-y-6">

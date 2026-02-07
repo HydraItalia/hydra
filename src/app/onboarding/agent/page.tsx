@@ -9,6 +9,11 @@ export default async function AgentOnboardingPage() {
     redirect("/signin");
   }
 
+  // Already submitted and pending approval
+  if (session.user.status === "PENDING") {
+    redirect("/pending");
+  }
+
   // Already has agent profile or is approved
   if (session.user.agentCode || session.user.status === "APPROVED") {
     redirect("/dashboard");
