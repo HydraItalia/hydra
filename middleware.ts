@@ -52,6 +52,18 @@ export default async function middleware(req: NextRequest) {
   const isOnboarding = pathname.startsWith("/onboarding");
   const isPending = pathname.startsWith("/pending");
 
+  // Compute role-specific onboarding path
+  const onboardingPath =
+    role === "AGENT"
+      ? "/onboarding/agent"
+      : role === "DRIVER"
+        ? "/onboarding/driver"
+        : role === "VENDOR"
+          ? "/onboarding/vendor"
+          : role === "CLIENT"
+            ? "/onboarding/client"
+            : "/onboarding";
+
   // ADMIN users bypass onboarding/status gating for dashboard routes
   // Admins need full access regardless of their own status
   if (role === "ADMIN" && isDashboard) {
@@ -63,9 +75,9 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", nextUrl));
   }
 
-  // ONBOARDING users on /pending — redirect to /onboarding
+  // ONBOARDING users on /pending — redirect to role-specific onboarding
   if (status === "ONBOARDING" && isPending) {
-    return NextResponse.redirect(new URL("/onboarding", nextUrl));
+    return NextResponse.redirect(new URL(onboardingPath, nextUrl));
   }
 
   // PENDING users on /onboarding — redirect to /pending
@@ -76,20 +88,7 @@ export default async function middleware(req: NextRequest) {
   // Dashboard routes require APPROVED status (non-ADMIN users)
   if (isDashboard) {
     if (status === "ONBOARDING") {
-      // Role-specific onboarding redirect
-      if (role === "AGENT") {
-        return NextResponse.redirect(new URL("/onboarding/agent", nextUrl));
-      }
-      if (role === "DRIVER") {
-        return NextResponse.redirect(new URL("/onboarding/driver", nextUrl));
-      }
-      if (role === "VENDOR") {
-        return NextResponse.redirect(new URL("/onboarding/vendor", nextUrl));
-      }
-      if (role === "CLIENT") {
-        return NextResponse.redirect(new URL("/onboarding/client", nextUrl));
-      }
-      return NextResponse.redirect(new URL("/onboarding", nextUrl));
+      return NextResponse.redirect(new URL(onboardingPath, nextUrl));
     }
     if (status === "PENDING") {
       return NextResponse.redirect(new URL("/pending", nextUrl));

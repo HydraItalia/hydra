@@ -2,14 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth";
-
-// Required documents for agent activation
-const REQUIRED_DOCUMENT_TYPES: string[] = [
-  "ID_DOCUMENT",
-  "TAX_CODE_CARD",
-  "CHAMBER_OF_COMMERCE_EXTRACT",
-  "ENASARCO_CERTIFICATE",
-];
+import { REQUIRED_DOCUMENTS } from "@/lib/schemas/agent-onboarding";
 
 export type AgentDashboardProfile = {
   // Base agent info
@@ -138,13 +131,13 @@ export async function fetchAgentDashboardProfile(): Promise<AgentDashboardProfil
 
   // Calculate activation readiness
   const presentDocTypes: string[] = documents.map((d) => d.type);
-  const missingRequiredDocs = REQUIRED_DOCUMENT_TYPES.filter(
+  const missingRequiredDocs = REQUIRED_DOCUMENTS.filter(
     (type) => !presentDocTypes.includes(type)
   );
   const allRequiredDocsHaveFiles =
     missingRequiredDocs.length === 0 &&
     documents
-      .filter((d) => REQUIRED_DOCUMENT_TYPES.includes(d.type))
+      .filter((d) => REQUIRED_DOCUMENTS.includes(d.type))
       .every((d) => d.hasFile);
 
   const hasProfile = !!agent.profile;
@@ -160,7 +153,7 @@ export async function fetchAgentDashboardProfile(): Promise<AgentDashboardProfil
   }
   if (!allRequiredDocsHaveFiles && missingRequiredDocs.length === 0) {
     const docsNeedingUpload = documents
-      .filter((d) => REQUIRED_DOCUMENT_TYPES.includes(d.type) && !d.hasFile)
+      .filter((d) => REQUIRED_DOCUMENTS.includes(d.type) && !d.hasFile)
       .map((d) => d.type.replace(/_/g, " "));
     if (docsNeedingUpload.length > 0) {
       missingRequirements.push(

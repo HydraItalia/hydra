@@ -248,13 +248,28 @@ async function AgentDashboard({
   }
 
   // Fetch agent profile and dashboard stats in parallel
-  const [agentProfile, stats, recentOrders, recentDeliveries] =
-    await Promise.all([
+  let agentProfile, stats, recentOrders, recentDeliveries;
+  try {
+    [agentProfile, stats, recentOrders, recentDeliveries] = await Promise.all([
       fetchAgentDashboardProfile(),
       getDashboardStats(),
       getRecentSubmittedOrders(5),
       getRecentDeliveries(5, true),
     ]);
+  } catch (error) {
+    console.error("Failed to fetch agent dashboard data:", error);
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Agent Dashboard"
+          subtitle={`Welcome back, ${user.name || user.email}`}
+        />
+        <div className="text-center text-muted-foreground">
+          Failed to load dashboard data. Please try again later.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
