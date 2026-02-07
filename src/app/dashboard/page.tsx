@@ -41,7 +41,10 @@ import {
 } from "@/actions/driver-shift";
 import { RouteProgressWidget } from "@/components/driver-route";
 import { fetchDriverDashboardProfile } from "@/data/driver-dashboard";
+import { fetchAgentDashboardProfile } from "@/data/agent-dashboard";
 import { Badge } from "@/components/ui/badge";
+import { AGENT_TYPE_LABELS } from "@/lib/schemas/agent-onboarding";
+import { MapPin, Building2, FileText, Briefcase } from "lucide-react";
 
 type DashboardPageProps = {
   searchParams?: Promise<{ error?: string }>;
@@ -65,8 +68,9 @@ export default async function DashboardPage({
   // Route to role-specific dashboard
   switch (user.role) {
     case "ADMIN":
+      return <AdminDashboard user={user} errorMessage={errorMessage} />;
     case "AGENT":
-      return <AdminAgentDashboard user={user} errorMessage={errorMessage} />;
+      return <AgentDashboard user={user} errorMessage={errorMessage} />;
     case "VENDOR":
       return <VendorDashboard user={user} errorMessage={errorMessage} />;
     case "CLIENT":
@@ -78,8 +82,8 @@ export default async function DashboardPage({
   }
 }
 
-// Admin/Agent Dashboard - Mission Control (Phase 9.0)
-async function AdminAgentDashboard({
+// Admin Dashboard - Mission Control (Phase 9.0)
+async function AdminDashboard({
   user,
   errorMessage,
 }: {
@@ -100,7 +104,7 @@ async function AdminAgentDashboard({
     return (
       <div className="space-y-6">
         <PageHeader
-          title={user.role === "ADMIN" ? "Admin Dashboard" : "Agent Dashboard"}
+          title="Admin Dashboard"
           subtitle="Mission control for daily operations"
         />
         <div className="text-center text-muted-foreground">
@@ -113,7 +117,7 @@ async function AdminAgentDashboard({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={user.role === "ADMIN" ? "Admin Dashboard" : "Agent Dashboard"}
+        title="Admin Dashboard"
         subtitle="Mission control for daily operations"
       />
 
@@ -164,17 +168,15 @@ async function AdminAgentDashboard({
             <span className="text-xs font-medium">Deliveries</span>
           </Link>
         </Button>
-        {user.role === "ADMIN" && (
-          <Button variant="outline" asChild className="h-auto py-3">
-            <Link
-              href="/dashboard/agents"
-              className="flex flex-col items-center gap-1"
-            >
-              <UserCog className="h-5 w-5" />
-              <span className="text-xs font-medium">Agents</span>
-            </Link>
-          </Button>
-        )}
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/agents"
+            className="flex flex-col items-center gap-1"
+          >
+            <UserCog className="h-5 w-5" />
+            <span className="text-xs font-medium">Agents</span>
+          </Link>
+        </Button>
       </div>
 
       {/* Real-time Stats - Action Required */}
@@ -227,6 +229,364 @@ async function AdminAgentDashboard({
           recentOrders={recentOrders}
           recentDeliveries={recentDeliveries}
           activeShifts={activeShifts}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Agent Dashboard
+async function AgentDashboard({
+  user,
+  errorMessage,
+}: {
+  user: { agentId?: string | null; name?: string | null; email: string };
+  errorMessage?: string | null;
+}) {
+  if (!user.agentId) {
+    return <div>No agent profile associated with this account</div>;
+  }
+
+  // Fetch agent profile and dashboard stats in parallel
+  let agentProfile, stats, recentOrders, recentDeliveries;
+  try {
+    [agentProfile, stats, recentOrders, recentDeliveries] = await Promise.all([
+      fetchAgentDashboardProfile(),
+      getDashboardStats(),
+      getRecentSubmittedOrders(5),
+      getRecentDeliveries(5, true),
+    ]);
+  } catch (error) {
+    console.error("Failed to fetch agent dashboard data:", error);
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Agent Dashboard"
+          subtitle={`Welcome back, ${user.name || user.email}`}
+        />
+        <div className="text-center text-muted-foreground">
+          Failed to load dashboard data. Please try again later.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Agent Dashboard"
+        subtitle={`Welcome back, ${user.name || user.email}`}
+      />
+
+      {/* Error Message */}
+      {errorMessage && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Agent Profile Status Section */}
+      {agentProfile && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {/* Status Card */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Account Status
+                <Badge
+                  variant={
+                    agentProfile.status === "APPROVED" ||
+                    agentProfile.status === "ACTIVE"
+                      ? "default"
+                      : agentProfile.status === "PENDING"
+                        ? "secondary"
+                        : "destructive"
+                  }
+                >
+                  {agentProfile.status}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Agent Type</span>
+                <span>
+                  {AGENT_TYPE_LABELS[
+                    agentProfile.agentType as keyof typeof AGENT_TYPE_LABELS
+                  ] || agentProfile.agentType}
+                </span>
+              </div>
+              {agentProfile.agentCode && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Agent Code</span>
+                  <span className="font-mono">{agentProfile.agentCode}</span>
+                </div>
+              )}
+              {agentProfile.enasarcoNumber && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">ENASARCO</span>
+                  <span className="font-mono">{agentProfile.enasarcoNumber}</span>
+                </div>
+              )}
+              {agentProfile.status === "PENDING" && (
+                <Alert>
+                  <Clock className="h-4 w-4" />
+                  <AlertTitle>Awaiting Review</AlertTitle>
+                  <AlertDescription>
+                    Your registration is being reviewed by an administrator.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {agentProfile.status === "SUSPENDED" && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Account Suspended</AlertTitle>
+                  <AlertDescription>
+                    Please contact support to resolve any issues.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Covered Territories */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Covered Territories
+              </CardTitle>
+              <CardDescription>
+                Regions where you operate
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {agentProfile.coveredTerritories.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No territories defined
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {agentProfile.coveredTerritories.map((territory) => (
+                    <Badge key={territory} variant="outline" className="text-xs">
+                      {territory}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Business Sectors */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Business Sectors
+              </CardTitle>
+              <CardDescription>
+                Industries you specialize in
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {agentProfile.sectors.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No sectors defined
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {agentProfile.sectors.map((sector) => (
+                    <Badge key={sector} variant="outline" className="text-xs">
+                      {sector}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Document Checklist & Expiring Documents */}
+      {agentProfile && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Document Checklist */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Documents
+              </CardTitle>
+              <CardDescription>Required documents for activation</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {agentProfile.documents.filter((doc) => doc.required).length ===
+              0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No required documents on file
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {agentProfile.documents
+                    .filter((doc) => doc.required)
+                    .map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span>{doc.type.replace(/_/g, " ")}</span>
+                        <div className="flex items-center gap-1">
+                          {doc.hasFile ? (
+                            <Badge variant="default" className="text-xs">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Uploaded
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">
+                              Pending
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+              {!agentProfile.activationReadiness.hasAllRequiredDocs && (
+                <p className="text-xs text-destructive mt-2">
+                  Some required documents are missing
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Expiring Documents Warning */}
+          {agentProfile.expiringDocuments.length > 0 && (
+            <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  Expiring Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {agentProfile.expiringDocuments.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span>{doc.type.replace(/_/g, " ")}</span>
+                      <Badge
+                        variant={
+                          doc.daysUntilExpiry <= 30 ? "destructive" : "secondary"
+                        }
+                      >
+                        {doc.daysUntilExpiry <= 0
+                          ? "EXPIRED"
+                          : `${doc.daysUntilExpiry} days`}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Activation Readiness CTA */}
+      {agentProfile &&
+        (agentProfile.status === "APPROVED" || agentProfile.status === "ACTIVE") &&
+        !agentProfile.activationReadiness.isReady && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Complete Your Profile</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc list-inside mt-1">
+                {agentProfile.activationReadiness.missingRequirements.map(
+                  (req, i) => (
+                    <li key={i}>{req}</li>
+                  )
+                )}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
+      {/* Quick Links */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/orders"
+            className="flex flex-col items-center gap-1"
+          >
+            <ShoppingCart className="h-5 w-5" />
+            <span className="text-xs font-medium">Orders</span>
+          </Link>
+        </Button>
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/clients"
+            className="flex flex-col items-center gap-1"
+          >
+            <Users className="h-5 w-5" />
+            <span className="text-xs font-medium">Clients</span>
+          </Link>
+        </Button>
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/vendors"
+            className="flex flex-col items-center gap-1"
+          >
+            <Store className="h-5 w-5" />
+            <span className="text-xs font-medium">Vendors</span>
+          </Link>
+        </Button>
+        <Button variant="outline" asChild className="h-auto py-3">
+          <Link
+            href="/dashboard/deliveries"
+            className="flex flex-col items-center gap-1"
+          >
+            <Truck className="h-5 w-5" />
+            <span className="text-xs font-medium">Deliveries</span>
+          </Link>
+        </Button>
+      </div>
+
+      {/* Real-time Stats */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <DataCard
+          title="Unassigned Orders"
+          value={stats.unassignedOrders}
+          icon={ClipboardList}
+          description="Orders needing agent assignment"
+          href="/dashboard/orders?unassigned=true"
+        />
+        <DataCard
+          title="Pending Deliveries"
+          value={stats.pendingDeliveries}
+          icon={Truck}
+          description="Orders ready for delivery"
+          href="/dashboard/orders?readyForDelivery=true"
+        />
+        <DataCard
+          title="Active Shifts"
+          value={stats.activeShifts}
+          icon={Clock}
+          description="Drivers currently on shift"
+        />
+      </div>
+
+      {/* Activity Feed */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
+        <ActivityFeed
+          recentOrders={recentOrders}
+          recentDeliveries={recentDeliveries}
+          activeShifts={[]}
         />
       </div>
     </div>
