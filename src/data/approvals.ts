@@ -186,6 +186,71 @@ export type DriverProfileDetail = {
   } | null;
 };
 
+export type AgentProfileDetail = {
+  // Agent base
+  id: string;
+  taxCode: string;
+  agentCode: string | null;
+  status: string;
+  approvedAt: string | null;
+  createdAt: string;
+  // Personal Data
+  fullName: string;
+  birthDate: string;
+  birthPlace: string;
+  nationality: string;
+  // Addresses
+  residentialAddress: any;
+  domicileAddress: any;
+  // Contact
+  phone: string;
+  email: string;
+  pecEmail: string | null;
+  // Professional
+  agentType: string;
+  chamberRegistrationNumber: string;
+  chamberRegistrationDate: string;
+  chamberName: string;
+  professionalAssociations: string | null;
+  coveredTerritories: string[];
+  sectors: string[];
+  // Fiscal
+  vatNumber: string;
+  taxRegime: string;
+  atecoCode: string;
+  sdiRecipientCode: string;
+  invoicingPecEmail: string;
+  enasarcoNumber: string;
+  enasarcoRegistrationDate: string;
+  // Banking
+  bankAccountHolder: string;
+  iban: string;
+  bankNameBranch: string;
+  preferredPaymentMethod: string;
+  commissionNotes: string | null;
+  // Consents
+  dataProcessingConsent: boolean;
+  dataProcessingTimestamp: string | null;
+  operationalCommsConsent: boolean;
+  operationalCommsTimestamp: string | null;
+  commercialImageConsent: boolean;
+  commercialImageTimestamp: string | null;
+  consentVersion: string | null;
+  // Documents
+  documents: Array<{
+    id: string;
+    type: string;
+    label: string;
+    fileName: string | null;
+    notes: string | null;
+    required: boolean;
+    fileUrl: string | null;
+    uploadedAt: string | null;
+    expiryDate: string | null;
+    isVerified: boolean;
+  }>;
+};
+
 export type ApprovalDetailResult = {
   id: string;
   email: string;
@@ -203,6 +268,8 @@ export type ApprovalDetailResult = {
   Vendor: { id: string; name: string } | null;
   Client: { id: string; name: string } | null;
   Driver: { id: string; name: string } | null;
+  Agent: { id: string; name: string } | null;
+  agentId: string | null;
   VendorUser: Array<{
     vendorId: string;
     role: string;
@@ -211,6 +278,7 @@ export type ApprovalDetailResult = {
   VendorProfile: VendorProfileDetail | null;
   ClientProfile: ClientProfileDetail | null;
   DriverProfile: DriverProfileDetail | null;
+  AgentProfile: AgentProfileDetail | null;
 };
 
 export async function fetchApprovalDetail(
@@ -234,6 +302,7 @@ export async function fetchApprovalDetail(
       vendorId: true,
       clientId: true,
       driverId: true,
+      agentId: true,
       Vendor: {
         select: {
           id: true,
@@ -421,6 +490,70 @@ export async function fetchApprovalDetail(
           },
         },
       },
+      agent: {
+        select: {
+          id: true,
+          name: true,
+          taxCode: true,
+          agentCode: true,
+          status: true,
+          approvedAt: true,
+          createdAt: true,
+          profile: {
+            select: {
+              fullName: true,
+              birthDate: true,
+              birthPlace: true,
+              nationality: true,
+              residentialAddress: true,
+              domicileAddress: true,
+              phone: true,
+              email: true,
+              pecEmail: true,
+              agentType: true,
+              chamberRegistrationNumber: true,
+              chamberRegistrationDate: true,
+              chamberName: true,
+              professionalAssociations: true,
+              coveredTerritories: true,
+              sectors: true,
+              vatNumber: true,
+              taxRegime: true,
+              atecoCode: true,
+              sdiRecipientCode: true,
+              invoicingPecEmail: true,
+              enasarcoNumber: true,
+              enasarcoRegistrationDate: true,
+              bankAccountHolder: true,
+              iban: true,
+              bankNameBranch: true,
+              preferredPaymentMethod: true,
+              commissionNotes: true,
+              dataProcessingConsent: true,
+              dataProcessingTimestamp: true,
+              operationalCommsConsent: true,
+              operationalCommsTimestamp: true,
+              commercialImageConsent: true,
+              commercialImageTimestamp: true,
+              consentVersion: true,
+            },
+          },
+          documents: {
+            select: {
+              id: true,
+              type: true,
+              label: true,
+              fileName: true,
+              notes: true,
+              required: true,
+              fileUrl: true,
+              uploadedAt: true,
+              expiryDate: true,
+              isVerified: true,
+            },
+          },
+        },
+      },
       VendorUser: {
         select: {
           vendorId: true,
@@ -438,12 +571,15 @@ export async function fetchApprovalDetail(
   const driver = user.Driver as any;
   const driverProfile = driver?.profile ?? null;
   const driverCompanyLink = driver?.companyLinks?.[0] ?? null;
+  const agent = user.agent as any;
+  const agentProfile = agent?.profile ?? null;
 
   return {
     ...user,
     Vendor: user.Vendor ? { id: user.Vendor.id, name: user.Vendor.name } : null,
     Client: user.Client ? { id: user.Client.id, name: user.Client.name } : null,
     Driver: user.Driver ? { id: user.Driver.id, name: user.Driver.name } : null,
+    Agent: agent ? { id: agent.id, name: agent.name } : null,
     createdAt: user.createdAt.toISOString(),
     approvedAt: user.approvedAt?.toISOString() ?? null,
     VendorProfile: vendorProfile
@@ -534,6 +670,68 @@ export async function fetchApprovalDetail(
                 linkedAt: driverCompanyLink.linkedAt.toISOString(),
               }
             : null,
+        }
+      : null,
+    AgentProfile: agentProfile
+      ? {
+          id: agent.id,
+          taxCode: agent.taxCode,
+          agentCode: agent.agentCode,
+          status: agent.status,
+          approvedAt: agent.approvedAt?.toISOString() ?? null,
+          createdAt: agent.createdAt.toISOString(),
+          fullName: agentProfile.fullName,
+          birthDate: agentProfile.birthDate.toISOString(),
+          birthPlace: agentProfile.birthPlace,
+          nationality: agentProfile.nationality,
+          residentialAddress: agentProfile.residentialAddress,
+          domicileAddress: agentProfile.domicileAddress,
+          phone: agentProfile.phone,
+          email: agentProfile.email,
+          pecEmail: agentProfile.pecEmail,
+          agentType: agentProfile.agentType,
+          chamberRegistrationNumber: agentProfile.chamberRegistrationNumber,
+          chamberRegistrationDate:
+            agentProfile.chamberRegistrationDate.toISOString(),
+          chamberName: agentProfile.chamberName,
+          professionalAssociations: agentProfile.professionalAssociations,
+          coveredTerritories: agentProfile.coveredTerritories,
+          sectors: agentProfile.sectors,
+          vatNumber: agentProfile.vatNumber,
+          taxRegime: agentProfile.taxRegime,
+          atecoCode: agentProfile.atecoCode,
+          sdiRecipientCode: agentProfile.sdiRecipientCode,
+          invoicingPecEmail: agentProfile.invoicingPecEmail,
+          enasarcoNumber: agentProfile.enasarcoNumber,
+          enasarcoRegistrationDate:
+            agentProfile.enasarcoRegistrationDate.toISOString(),
+          bankAccountHolder: agentProfile.bankAccountHolder,
+          iban: agentProfile.iban,
+          bankNameBranch: agentProfile.bankNameBranch,
+          preferredPaymentMethod: agentProfile.preferredPaymentMethod,
+          commissionNotes: agentProfile.commissionNotes,
+          dataProcessingConsent: agentProfile.dataProcessingConsent,
+          dataProcessingTimestamp:
+            agentProfile.dataProcessingTimestamp?.toISOString() ?? null,
+          operationalCommsConsent: agentProfile.operationalCommsConsent,
+          operationalCommsTimestamp:
+            agentProfile.operationalCommsTimestamp?.toISOString() ?? null,
+          commercialImageConsent: agentProfile.commercialImageConsent,
+          commercialImageTimestamp:
+            agentProfile.commercialImageTimestamp?.toISOString() ?? null,
+          consentVersion: agentProfile.consentVersion,
+          documents: agent.documents.map((doc: any) => ({
+            id: doc.id,
+            type: doc.type,
+            label: doc.label,
+            fileName: doc.fileName,
+            notes: doc.notes,
+            required: doc.required,
+            fileUrl: doc.fileUrl,
+            uploadedAt: doc.uploadedAt?.toISOString() ?? null,
+            expiryDate: doc.expiryDate?.toISOString() ?? null,
+            isVerified: doc.isVerified,
+          })),
         }
       : null,
   };
