@@ -32,6 +32,7 @@ vi.mock("@/lib/prisma", () => ({
     vendor: {
       create: vi.fn(),
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
     },
     vendorUser: {
       create: vi.fn(),
@@ -45,11 +46,44 @@ vi.mock("@/lib/prisma", () => ({
     client: {
       create: vi.fn(),
     },
+    clientProfile: {
+      create: vi.fn(),
+    },
+    clientDocument: {
+      createMany: vi.fn(),
+    },
     clientVendor: {
       create: vi.fn(),
     },
     driver: {
       create: vi.fn(),
+      findUnique: vi.fn(),
+    },
+    driverProfile: {
+      create: vi.fn(),
+    },
+    driverLicense: {
+      createMany: vi.fn(),
+    },
+    driverDocument: {
+      createMany: vi.fn(),
+    },
+    driverCompanyLink: {
+      create: vi.fn(),
+    },
+    driverInvite: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
+    agent: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    agentProfile: {
+      create: vi.fn(),
+    },
+    agentDocument: {
+      createMany: vi.fn(),
     },
     $transaction: mockTransaction,
   },
@@ -379,8 +413,8 @@ describe("submitDriverOnboarding (#159)", () => {
     mockTransaction.mockImplementation(async (fn: any) => fn(prisma));
     // Mock driver taxCode uniqueness check
     vi.mocked(prisma.driver.findUnique).mockResolvedValue(null);
-    // Mock vendor exists check
-    vi.mocked(prisma.vendor.findUnique).mockResolvedValue({
+    // Mock vendor exists check (uses findFirst with status filter)
+    vi.mocked(prisma.vendor.findFirst).mockResolvedValue({
       id: "vendor-1",
       name: "Test Vendor",
     } as any);
@@ -462,93 +496,185 @@ describe("submitDriverOnboarding (#159)", () => {
 
 // ─── Agent Onboarding ────────────────────────────────────────────────────────
 
+// Valid agent data for testing
+const validAgentData = {
+  // Dati Anagrafici
+  fullName: "Andrea Bianchi",
+  birthDate: "1985-03-15",
+  birthPlace: "Milano",
+  taxCode: "BNCNDR85C15F205X",
+  nationality: "Italiana",
+  residentialAddress: {
+    street: "Via Roma 1",
+    city: "Milano",
+    province: "MI",
+    postalCode: "20100",
+    country: "Italia",
+  },
+  phone: "+393331234567",
+  email: "andrea@example.com",
+  pecEmail: "andrea@pec.it",
+  // Dati Professionali
+  agentType: "MONOMANDATARIO" as const,
+  chamberRegistrationNumber: "MI-123456",
+  chamberRegistrationDate: "2020-01-15",
+  chamberName: "CCIAA Milano",
+  professionalAssociations: "FNAARC",
+  coveredTerritories: ["Lombardia", "Piemonte"],
+  sectors: ["Food & Beverage", "HORECA"],
+  // Dati Fiscali
+  vatNumber: "IT12345678901",
+  taxRegime: "ORDINARIO",
+  atecoCode: "46.19.01",
+  sdiRecipientCode: "ABC1234",
+  invoicingPecEmail: "fatture@pec.it",
+  enasarcoNumber: "EN-789012",
+  enasarcoRegistrationDate: "2020-02-01",
+  // Dati Bancari
+  bankAccountHolder: "Andrea Bianchi",
+  iban: "IT60X0542811101000000123456",
+  bankNameBranch: "Banca Intesa - Milano Centro",
+  preferredPaymentMethod: "BANK_TRANSFER" as const,
+  commissionNotes: "",
+  // Documenti
+  documents: [
+    { type: "ID_DOCUMENT" as const, label: "Carta d'identità" },
+    { type: "TAX_CODE_CARD" as const, label: "Codice fiscale" },
+  ],
+  // Consensi
+  dataProcessingConsent: true as const,
+  operationalCommsConsent: true,
+  commercialImageConsent: false,
+};
+
 describe("submitAgentOnboarding (#159)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: agent taxCode not taken
+    vi.mocked(prisma.agent.findUnique).mockResolvedValue(null);
+    // Default: transaction executes callback
+    mockTransaction.mockImplementation((cb: any) => cb(prisma));
   });
 
-  it("updates User with agent role and generated agentCode", async () => {
+  it("creates Agent, AgentProfile, AgentDocument and updates User", async () => {
     mockAuth("user-1");
-    mockFreshUser();
-    // First findUnique for idempotency check, subsequent for agent code uniqueness
-    vi.mocked(prisma.user.findUnique)
-      .mockResolvedValueOnce({
-        status: "PENDING",
-        role: "CLIENT",
-        onboardingData: null,
-      } as any)
-      .mockResolvedValueOnce(null); // agentCode not taken
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      status: "ONBOARDING",
+      role: "CLIENT",
+      onboardingData: null,
+      agentId: null,
+      agentCode: null,
+    } as any);
+    // Agent code uniqueness checks
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null);
+    vi.mocked(prisma.agent.findUnique).mockResolvedValueOnce(null);
+    // Agent creation in transaction
+    vi.mocked(prisma.agent.create).mockResolvedValue({ id: "agent-1" } as any);
 
-    const result = await submitAgentOnboarding({
-      fullName: "Andrea Bianchi",
-      phone: "+39 333",
-      region: "Napoli",
-    });
+    const result = await submitAgentOnboarding(validAgentData);
 
     expect(result).toEqual({ success: true });
-    expect(prisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          role: "AGENT",
-          status: "PENDING",
-          agentCode: "ANDREA", // First name uppercased
-        }),
-      }),
-    );
+    expect(mockTransaction).toHaveBeenCalled();
     expect(logAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        diff: expect.objectContaining({ role: "AGENT", agentCode: "ANDREA" }),
-      }),
-    );
-  });
-
-  it("appends suffix when agentCode is taken", async () => {
-    mockAuth("user-1");
-    vi.mocked(prisma.user.findUnique)
-      .mockResolvedValueOnce({
-        status: "PENDING",
-        role: "CLIENT",
-        onboardingData: null,
-      } as any)
-      .mockResolvedValueOnce({ id: "existing" } as any) // "ANDREA" is taken
-      .mockResolvedValueOnce(null); // "ANDREA1234" is free
-
-    const result = await submitAgentOnboarding({
-      fullName: "Andrea Bianchi",
-    });
-
-    expect(result).toEqual({ success: true });
-    expect(prisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
+        diff: expect.objectContaining({
           role: "AGENT",
-          agentCode: expect.stringMatching(/^ANDREA\d{4}$/),
+          agentType: "MONOMANDATARIO",
+          documentCount: 2,
+          territoriesCount: 2,
+          sectorsCount: 2,
         }),
       }),
     );
   });
 
-  it("rejects duplicate submission", async () => {
+  it("rejects duplicate taxCode", async () => {
     mockAuth("user-1");
-    mockAlreadyOnboardedUser();
-    const result = await submitAgentOnboarding({ fullName: "Test" });
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      status: "ONBOARDING",
+      role: "CLIENT",
+      onboardingData: null,
+      agentId: null,
+      agentCode: null,
+    } as any);
+    // taxCode already exists
+    vi.mocked(prisma.agent.findUnique).mockResolvedValueOnce({
+      id: "existing-agent",
+    } as any);
+
+    const result = await submitAgentOnboarding(validAgentData);
+    expect(result).toEqual({
+      success: false,
+      error: "Codice fiscale già registrato",
+    });
+  });
+
+  it("rejects duplicate submission (agentId already set)", async () => {
+    mockAuth("user-1");
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      status: "PENDING",
+      role: "AGENT",
+      onboardingData: { some: "data" },
+      agentId: "existing-agent-id",
+      agentCode: "ANDREA",
+    } as any);
+
+    const result = await submitAgentOnboarding(validAgentData);
     expect(result).toEqual({
       success: false,
       error: "Onboarding already submitted",
     });
   });
 
-  it("rejects empty full name", async () => {
+  it("rejects invalid taxCode format", async () => {
     mockAuth("user-1");
-    mockFreshUser();
-    // Need to also mock the agentCode check
     vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
-      status: "PENDING",
+      status: "ONBOARDING",
       role: "CLIENT",
       onboardingData: null,
+      agentId: null,
+      agentCode: null,
     } as any);
 
-    const result = await submitAgentOnboarding({ fullName: "" });
+    const result = await submitAgentOnboarding({
+      ...validAgentData,
+      taxCode: "INVALID",
+    });
+    expect(result.success).toBe(false);
+    expect(result).toHaveProperty("error");
+  });
+
+  it("rejects invalid IBAN format", async () => {
+    mockAuth("user-1");
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      status: "ONBOARDING",
+      role: "CLIENT",
+      onboardingData: null,
+      agentId: null,
+      agentCode: null,
+    } as any);
+
+    const result = await submitAgentOnboarding({
+      ...validAgentData,
+      iban: "INVALID_IBAN",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects empty territories", async () => {
+    mockAuth("user-1");
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      status: "ONBOARDING",
+      role: "CLIENT",
+      onboardingData: null,
+      agentId: null,
+      agentCode: null,
+    } as any);
+
+    const result = await submitAgentOnboarding({
+      ...validAgentData,
+      coveredTerritories: [],
+    });
     expect(result.success).toBe(false);
   });
 });

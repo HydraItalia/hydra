@@ -668,14 +668,13 @@ export async function submitDriverOnboarding(
 
 // ─── Agent Onboarding ─────────────────────────────────────────────────────────
 
-const agentOnboardingSchema = z.object({
-  fullName: z.string().min(1, "Full name is required").max(255),
-  phone: z.string().max(50).optional(),
-  region: z.string().max(100).optional(),
-  notes: z.string().max(2000).optional(),
-});
+import {
+  agentOnboardingSchema,
+  REQUIRED_DOCUMENTS as REQUIRED_AGENT_DOC_TYPES,
+  type AgentOnboardingInput,
+} from "@/lib/schemas/agent-onboarding";
 
-export type AgentOnboardingInput = z.infer<typeof agentOnboardingSchema>;
+export type { AgentOnboardingInput };
 
 /**
  * Generate a unique agent code from the user's name.
@@ -691,23 +690,35 @@ async function generateAgentCode(fullName: string): Promise<string> {
 
   const code = base || "AGENT";
 
-  // Check uniqueness, append suffix if needed
-  const existing = await prisma.user.findUnique({
-    where: { agentCode: code },
-    select: { id: true },
-  });
+  // Check uniqueness against both User.agentCode and Agent.agentCode
+  const [existingUser, existingAgent] = await Promise.all([
+    prisma.user.findUnique({
+      where: { agentCode: code },
+      select: { id: true },
+    }),
+    prisma.agent.findUnique({
+      where: { agentCode: code },
+      select: { id: true },
+    }),
+  ]);
 
-  if (!existing) return code;
+  if (!existingUser && !existingAgent) return code;
 
   // Add random suffix
   for (let i = 0; i < 10; i++) {
     const suffix = Math.floor(1000 + Math.random() * 9000).toString();
     const candidate = `${code}${suffix}`;
-    const taken = await prisma.user.findUnique({
-      where: { agentCode: candidate },
-      select: { id: true },
-    });
-    if (!taken) return candidate;
+    const [takenUser, takenAgent] = await Promise.all([
+      prisma.user.findUnique({
+        where: { agentCode: candidate },
+        select: { id: true },
+      }),
+      prisma.agent.findUnique({
+        where: { agentCode: candidate },
+        select: { id: true },
+      }),
+    ]);
+    if (!takenUser && !takenAgent) return candidate;
   }
 
   // Fallback to cuid-based code
@@ -715,7 +726,7 @@ async function generateAgentCode(fullName: string): Promise<string> {
 }
 
 export async function submitAgentOnboarding(
-  data: AgentOnboardingInput,
+  data: AgentOnboardingInput
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
     const session = await auth();
@@ -728,14 +739,20 @@ export async function submitAgentOnboarding(
     // Idempotency check
     const existingUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { status: true, role: true, onboardingData: true },
+      select: {
+        status: true,
+        role: true,
+        onboardingData: true,
+        agentId: true,
+        agentCode: true,
+      },
     });
 
     if (!existingUser) {
       return { success: false, error: "User not found" };
     }
 
-    if (existingUser.onboardingData !== null) {
+    if (existingUser.agentId || existingUser.onboardingData !== null) {
       return { success: false, error: "Onboarding already submitted" };
     }
 
@@ -749,27 +766,135 @@ export async function submitAgentOnboarding(
     }
 
     const validated = validation.data;
+    const now = new Date();
+
+    // Check taxCode uniqueness before transaction
+    const existingAgent = await prisma.agent.findUnique({
+      where: { taxCode: validated.taxCode },
+      select: { id: true },
+    });
+
+    if (existingAgent) {
+      return { success: false, error: "Codice fiscale già registrato" };
+    }
 
     // Generate unique agent code
     const agentCode = await generateAgentCode(validated.fullName);
 
-    // Update User
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        name: validated.fullName,
-        role: "AGENT",
-        status: "PENDING",
-        agentCode,
-        onboardingData: validated as any,
-      },
-    });
+    // Create Agent + AgentProfile + AgentDocument[] + update User
+    try {
+      await prisma.$transaction(async (tx) => {
+        // 1. Create Agent (core entity)
+        const agent = await tx.agent.create({
+          data: {
+            name: validated.fullName,
+            phone: validated.phone,
+            email: validated.email,
+            taxCode: validated.taxCode,
+            agentCode,
+            status: "PENDING",
+          },
+        });
 
+        // 2. Create AgentProfile (source of truth)
+        await tx.agentProfile.create({
+          data: {
+            agentId: agent.id,
+            // Section 1: Dati Anagrafici
+            fullName: validated.fullName,
+            birthDate: new Date(validated.birthDate),
+            birthPlace: validated.birthPlace,
+            nationality: validated.nationality,
+            residentialAddress: validated.residentialAddress,
+            domicileAddress: validated.domicileAddress ?? undefined,
+            phone: validated.phone,
+            email: validated.email,
+            pecEmail: validated.pecEmail || null,
+            // Section 2: Dati Professionali
+            agentType: validated.agentType,
+            chamberRegistrationNumber: validated.chamberRegistrationNumber,
+            chamberRegistrationDate: new Date(validated.chamberRegistrationDate),
+            chamberName: validated.chamberName,
+            professionalAssociations: validated.professionalAssociations || null,
+            coveredTerritories: validated.coveredTerritories,
+            sectors: validated.sectors,
+            // Section 3: Dati Fiscali
+            vatNumber: validated.vatNumber,
+            taxRegime: validated.taxRegime,
+            atecoCode: validated.atecoCode,
+            sdiRecipientCode: validated.sdiRecipientCode,
+            invoicingPecEmail: validated.invoicingPecEmail,
+            enasarcoNumber: validated.enasarcoNumber,
+            enasarcoRegistrationDate: new Date(validated.enasarcoRegistrationDate),
+            // Section 4: Dati Bancari
+            bankAccountHolder: validated.bankAccountHolder,
+            iban: validated.iban,
+            bankNameBranch: validated.bankNameBranch,
+            preferredPaymentMethod: validated.preferredPaymentMethod,
+            commissionNotes: validated.commissionNotes || null,
+            // Section 5: Consents with timestamps
+            dataProcessingConsent: validated.dataProcessingConsent,
+            dataProcessingTimestamp: validated.dataProcessingConsent ? now : null,
+            operationalCommsConsent: validated.operationalCommsConsent,
+            operationalCommsTimestamp: validated.operationalCommsConsent ? now : null,
+            commercialImageConsent: validated.commercialImageConsent,
+            commercialImageTimestamp: validated.commercialImageConsent ? now : null,
+            consentVersion: "1.0",
+          },
+        });
+
+        // 3. Create AgentDocument[] (metadata only)
+        if (validated.documents.length > 0) {
+          await tx.agentDocument.createMany({
+            data: validated.documents.map((doc) => ({
+              agentId: agent.id,
+              type: doc.type,
+              label: doc.label,
+              fileName: doc.fileName || null,
+              notes: doc.notes || null,
+              required: REQUIRED_AGENT_DOC_TYPES.includes(doc.type),
+            })),
+          });
+        }
+
+        // 4. Update User
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            name: validated.fullName,
+            role: "AGENT",
+            status: "PENDING",
+            agentId: agent.id,
+            agentCode, // Keep on User for backward compat
+            onboardingData: JSON.parse(JSON.stringify(validated)),
+          },
+        });
+      });
+    } catch (error) {
+      // Handle race condition on taxCode unique constraint
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        Array.isArray(error.meta?.target) &&
+        (error.meta.target as string[]).includes("taxCode")
+      ) {
+        return { success: false, error: "Codice fiscale già registrato" };
+      }
+      throw error;
+    }
+
+    // Audit log — no PII (no emails, phones, tax codes, addresses, IBAN)
     await logAction({
       entityType: "User",
       entityId: userId,
       action: AuditAction.ONBOARDING_SUBMITTED,
-      diff: { role: "AGENT", fullName: validated.fullName, agentCode },
+      diff: {
+        role: "AGENT",
+        agentType: validated.agentType,
+        documentCount: validated.documents.length,
+        territoriesCount: validated.coveredTerritories.length,
+        sectorsCount: validated.sectors.length,
+      },
     });
 
     revalidatePath("/pending");
