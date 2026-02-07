@@ -12,6 +12,7 @@ declare module "next-auth" {
       status: UserStatus;
       vendorId?: string | null;
       clientId?: string | null;
+      agentId?: string | null;
       agentCode?: string | null;
       driverId?: string | null;
     };
@@ -22,6 +23,7 @@ declare module "next-auth" {
     status: UserStatus;
     vendorId?: string | null;
     clientId?: string | null;
+    agentId?: string | null;
     agentCode?: string | null;
     driverId?: string | null;
   }
@@ -34,6 +36,7 @@ declare module "next-auth/jwt" {
     status: UserStatus;
     vendorId?: string | null;
     clientId?: string | null;
+    agentId?: string | null;
     agentCode?: string | null;
     driverId?: string | null;
   }

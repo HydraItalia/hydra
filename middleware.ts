@@ -76,6 +76,19 @@ export default async function middleware(req: NextRequest) {
   // Dashboard routes require APPROVED status (non-ADMIN users)
   if (isDashboard) {
     if (status === "ONBOARDING") {
+      // Role-specific onboarding redirect
+      if (role === "AGENT") {
+        return NextResponse.redirect(new URL("/onboarding/agent", nextUrl));
+      }
+      if (role === "DRIVER") {
+        return NextResponse.redirect(new URL("/onboarding/driver", nextUrl));
+      }
+      if (role === "VENDOR") {
+        return NextResponse.redirect(new URL("/onboarding/vendor", nextUrl));
+      }
+      if (role === "CLIENT") {
+        return NextResponse.redirect(new URL("/onboarding/client", nextUrl));
+      }
       return NextResponse.redirect(new URL("/onboarding", nextUrl));
     }
     if (status === "PENDING") {

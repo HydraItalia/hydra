@@ -164,6 +164,7 @@ export const {
             status: true,
             vendorId: true,
             clientId: true,
+            agentId: true,
             agentCode: true,
             driverId: true,
           },
@@ -175,6 +176,7 @@ export const {
           token.status = dbUser.status;
           token.vendorId = dbUser.vendorId;
           token.clientId = dbUser.clientId;
+          token.agentId = dbUser.agentId;
           token.agentCode = dbUser.agentCode;
           token.driverId = dbUser.driverId;
         } else {
@@ -191,6 +193,7 @@ export const {
         session.user.status = token.status as any;
         session.user.vendorId = token.vendorId as string | null;
         session.user.clientId = token.clientId as string | null;
+        session.user.agentId = token.agentId as string | null;
         session.user.agentCode = token.agentCode as string | null;
         session.user.driverId = token.driverId as string | null;
       }
