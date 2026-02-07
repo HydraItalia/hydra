@@ -13,7 +13,7 @@ export async function approveUser(userId: string): Promise<ActionResult> {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true, driverId: true },
+      select: { id: true, status: true, driverId: true, agentId: true },
     });
 
     if (!user) {
@@ -26,7 +26,7 @@ export async function approveUser(userId: string): Promise<ActionResult> {
 
     const now = new Date();
 
-    // Use transaction to update both User and Driver (if applicable)
+    // Use transaction to update User, Driver, and Agent (if applicable)
     await prisma.$transaction(async (tx) => {
       // Update user status
       await tx.user.update({
@@ -48,6 +48,17 @@ export async function approveUser(userId: string): Promise<ActionResult> {
           },
         });
       }
+
+      // If user has a linked agent, also update agent status
+      if (user.agentId) {
+        await tx.agent.update({
+          where: { id: user.agentId },
+          data: {
+            status: "ACTIVE",
+            approvedAt: now,
+          },
+        });
+      }
     });
 
     await logAction({
@@ -57,6 +68,7 @@ export async function approveUser(userId: string): Promise<ActionResult> {
       diff: {
         previousStatus: user.status,
         ...(user.driverId && { driverApproved: true }),
+        ...(user.agentId && { agentApproved: true }),
       },
     });
 
@@ -82,7 +94,7 @@ export async function rejectUser(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true, driverId: true },
+      select: { id: true, status: true, driverId: true, agentId: true },
     });
 
     if (!user) {
@@ -93,7 +105,7 @@ export async function rejectUser(
       return { success: false, error: "User is already rejected" };
     }
 
-    // Use transaction to update both User and Driver (if applicable)
+    // Use transaction to update User, Driver, and Agent (if applicable)
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
@@ -109,6 +121,16 @@ export async function rejectUser(
           },
         });
       }
+
+      // If user has a linked agent, also update agent status
+      if (user.agentId) {
+        await tx.agent.update({
+          where: { id: user.agentId },
+          data: {
+            status: "REJECTED",
+          },
+        });
+      }
     });
 
     await logAction({
@@ -119,6 +141,7 @@ export async function rejectUser(
         previousStatus: user.status,
         reason: reason || null,
         ...(user.driverId && { driverRejected: true }),
+        ...(user.agentId && { agentRejected: true }),
       },
     });
 
@@ -144,7 +167,7 @@ export async function suspendUser(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true, driverId: true },
+      select: { id: true, status: true, driverId: true, agentId: true },
     });
 
     if (!user) {
@@ -157,7 +180,7 @@ export async function suspendUser(
 
     const now = new Date();
 
-    // Use transaction to update both User and Driver (if applicable)
+    // Use transaction to update User, Driver, and Agent (if applicable)
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
@@ -175,6 +198,18 @@ export async function suspendUser(
           },
         });
       }
+
+      // If user has a linked agent, also update agent status
+      if (user.agentId) {
+        await tx.agent.update({
+          where: { id: user.agentId },
+          data: {
+            status: "SUSPENDED",
+            suspendedAt: now,
+            suspendedReason: reason || null,
+          },
+        });
+      }
     });
 
     await logAction({
@@ -185,6 +220,7 @@ export async function suspendUser(
         previousStatus: user.status,
         reason: reason || null,
         ...(user.driverId && { driverSuspended: true }),
+        ...(user.agentId && { agentSuspended: true }),
       },
     });
 
@@ -207,7 +243,7 @@ export async function reactivateUser(userId: string): Promise<ActionResult> {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true, driverId: true },
+      select: { id: true, status: true, driverId: true, agentId: true },
     });
 
     if (!user) {
@@ -220,7 +256,7 @@ export async function reactivateUser(userId: string): Promise<ActionResult> {
 
     const now = new Date();
 
-    // Use transaction to update both User and Driver (if applicable)
+    // Use transaction to update User, Driver, and Agent (if applicable)
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
@@ -243,6 +279,19 @@ export async function reactivateUser(userId: string): Promise<ActionResult> {
           },
         });
       }
+
+      // If user has a linked agent, also reactivate agent
+      if (user.agentId) {
+        await tx.agent.update({
+          where: { id: user.agentId },
+          data: {
+            status: "ACTIVE",
+            approvedAt: now,
+            suspendedAt: null,
+            suspendedReason: null,
+          },
+        });
+      }
     });
 
     await logAction({
@@ -252,6 +301,7 @@ export async function reactivateUser(userId: string): Promise<ActionResult> {
       diff: {
         previousStatus: user.status,
         ...(user.driverId && { driverReactivated: true }),
+        ...(user.agentId && { agentReactivated: true }),
       },
     });
 

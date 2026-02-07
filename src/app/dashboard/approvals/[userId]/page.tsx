@@ -53,13 +53,23 @@ import type {
   VendorProfileDetail,
   ClientProfileDetail,
   DriverProfileDetail,
+  AgentProfileDetail,
 } from "@/data/approvals";
+import { AGENT_TYPE_LABELS } from "@/lib/schemas/agent-onboarding";
 
 // Required driver documents for approval checklist
 const REQUIRED_DRIVER_DOCUMENTS = [
   "ID_DOCUMENT",
   "DRIVING_LICENSE",
   "SIGNED_GDPR_FORM",
+];
+
+// Required agent documents for approval checklist
+const REQUIRED_AGENT_DOCUMENTS = [
+  "ID_DOCUMENT",
+  "TAX_CODE_CARD",
+  "CHAMBER_OF_COMMERCE_EXTRACT",
+  "ENASARCO_CERTIFICATE",
 ];
 
 function renderOnboardingData(data: any) {
@@ -787,6 +797,273 @@ function renderDriverProfile(profile: DriverProfileDetail) {
   );
 }
 
+function renderAgentProfile(profile: AgentProfileDetail) {
+  const section = (
+    title: string,
+    items: Array<{ label: string; value: string | null }>,
+  ) => {
+    const visible = items.filter((i) => i.value);
+    if (visible.length === 0) return null;
+    return (
+      <div>
+        <p className="text-sm font-semibold mb-2">{title}</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+          {visible.map((f) => (
+            <div key={f.label}>
+              <dt className="text-xs font-medium text-muted-foreground">
+                {f.label}
+              </dt>
+              <dd className="text-sm">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  };
+
+  // Check if all required documents are present
+  const presentDocTypes = profile.documents.map((d) => d.type);
+  const missingRequired = REQUIRED_AGENT_DOCUMENTS.filter(
+    (type) => !presentDocTypes.includes(type),
+  );
+  const allRequiredPresent = missingRequired.length === 0;
+
+  return (
+    <div className="space-y-5">
+      {/* Agent Status Badge */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge
+          variant={
+            profile.status === "ACTIVE"
+              ? "default"
+              : profile.status === "REJECTED"
+                ? "destructive"
+                : profile.status === "SUSPENDED"
+                  ? "destructive"
+                  : "secondary"
+          }
+        >
+          Agent: {profile.status}
+        </Badge>
+        <Badge variant="outline">
+          {AGENT_TYPE_LABELS[profile.agentType as keyof typeof AGENT_TYPE_LABELS] || profile.agentType}
+        </Badge>
+        {profile.agentCode && (
+          <span className="text-sm font-mono text-muted-foreground">
+            Code: {profile.agentCode}
+          </span>
+        )}
+        {profile.taxCode && (
+          <span className="text-sm font-mono text-muted-foreground">
+            CF: {profile.taxCode}
+          </span>
+        )}
+      </div>
+
+      {/* Personal Details */}
+      {section("Dati Anagrafici", [
+        { label: "Nome Completo", value: profile.fullName },
+        {
+          label: "Data di Nascita",
+          value: new Date(profile.birthDate).toLocaleDateString("it-IT"),
+        },
+        { label: "Luogo di Nascita", value: profile.birthPlace },
+        { label: "Nazionalità", value: profile.nationality },
+        { label: "Telefono", value: profile.phone },
+        { label: "Email", value: profile.email },
+        { label: "PEC", value: profile.pecEmail },
+      ])}
+
+      {/* Addresses */}
+      {section("Indirizzi", [
+        {
+          label: "Residenza",
+          value: formatAddress(profile.residentialAddress),
+        },
+        {
+          label: "Domicilio",
+          value: formatAddress(profile.domicileAddress),
+        },
+      ])}
+
+      {/* Professional Info */}
+      {section("Dati Professionali", [
+        { label: "Camera di Commercio", value: profile.chamberName },
+        { label: "Numero Iscrizione", value: profile.chamberRegistrationNumber },
+        {
+          label: "Data Iscrizione",
+          value: new Date(profile.chamberRegistrationDate).toLocaleDateString("it-IT"),
+        },
+        { label: "Associazioni", value: profile.professionalAssociations },
+      ])}
+
+      {/* Territories */}
+      {profile.coveredTerritories.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold mb-2">Zone Coperte</p>
+          <div className="flex flex-wrap gap-1">
+            {profile.coveredTerritories.map((territory) => (
+              <Badge key={territory} variant="outline" className="text-xs">
+                {territory}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sectors */}
+      {profile.sectors.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold mb-2">Settori</p>
+          <div className="flex flex-wrap gap-1">
+            {profile.sectors.map((sector) => (
+              <Badge key={sector} variant="secondary" className="text-xs">
+                {sector}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Fiscal Info */}
+      {section("Dati Fiscali", [
+        { label: "Partita IVA", value: profile.vatNumber },
+        { label: "Regime Fiscale", value: profile.taxRegime },
+        { label: "Codice ATECO", value: profile.atecoCode },
+        { label: "Codice SDI", value: profile.sdiRecipientCode },
+        { label: "PEC Fatturazione", value: profile.invoicingPecEmail },
+      ])}
+
+      {/* ENASARCO */}
+      {section("ENASARCO", [
+        { label: "Numero Posizione", value: profile.enasarcoNumber },
+        {
+          label: "Data Iscrizione",
+          value: new Date(profile.enasarcoRegistrationDate).toLocaleDateString("it-IT"),
+        },
+      ])}
+
+      {/* Banking */}
+      {section("Dati Bancari", [
+        { label: "Intestatario", value: profile.bankAccountHolder },
+        { label: "IBAN", value: profile.iban },
+        { label: "Banca", value: profile.bankNameBranch },
+        {
+          label: "Metodo Pagamento",
+          value: profile.preferredPaymentMethod?.replace(/_/g, " ") ?? null,
+        },
+        { label: "Note Commissioni", value: profile.commissionNotes },
+      ])}
+
+      {/* Documents with Required Indicator */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-sm font-semibold">Documenti</p>
+          <Badge variant={allRequiredPresent ? "default" : "destructive"}>
+            {allRequiredPresent
+              ? "Tutti i documenti richiesti presenti"
+              : `Mancanti: ${missingRequired.length}`}
+          </Badge>
+        </div>
+        {!allRequiredPresent && (
+          <p className="text-xs text-destructive mb-2">
+            Mancanti: {missingRequired.map((t) => t.replace(/_/g, " ")).join(", ")}
+          </p>
+        )}
+        {profile.documents.length > 0 ? (
+          <div className="space-y-1">
+            {profile.documents.map((doc) => (
+              <div key={doc.id} className="flex items-center gap-2 text-sm">
+                <Badge
+                  variant={doc.required ? "default" : "outline"}
+                  className="text-xs"
+                >
+                  {doc.type.replace(/_/g, " ")}
+                </Badge>
+                <span>{doc.label}</span>
+                {doc.fileName && (
+                  <span className="text-muted-foreground">({doc.fileName})</span>
+                )}
+                {doc.fileUrl ? (
+                  <Badge variant="default" className="text-xs">
+                    Caricato
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs">
+                    In attesa
+                  </Badge>
+                )}
+                {doc.isVerified && (
+                  <Badge variant="default" className="text-xs">
+                    Verificato
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Nessun documento.</p>
+        )}
+      </div>
+
+      {/* Consents */}
+      <div>
+        <p className="text-sm font-semibold mb-2">Consensi</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-2">
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Trattamento Dati
+            </dt>
+            <dd className="text-sm">
+              <Badge
+                variant={
+                  profile.dataProcessingConsent ? "default" : "destructive"
+                }
+              >
+                {profile.dataProcessingConsent ? "Accettato" : "Non accettato"}
+              </Badge>
+              {profile.dataProcessingTimestamp && (
+                <span className="text-xs text-muted-foreground ml-1">
+                  {new Date(profile.dataProcessingTimestamp).toLocaleDateString("it-IT")}
+                </span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Comunicazioni Operative
+            </dt>
+            <dd className="text-sm">
+              <Badge
+                variant={profile.operationalCommsConsent ? "default" : "outline"}
+              >
+                {profile.operationalCommsConsent ? "Accettato" : "Rifiutato"}
+              </Badge>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              Immagine Commerciale
+            </dt>
+            <dd className="text-sm">
+              <Badge
+                variant={profile.commercialImageConsent ? "default" : "outline"}
+              >
+                {profile.commercialImageConsent ? "Accettato" : "Rifiutato"}
+              </Badge>
+            </dd>
+          </div>
+        </dl>
+        {profile.consentVersion && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Versione: {profile.consentVersion}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default async function ApprovalDetailPage({ params }: PageProps) {
   await requireRole("ADMIN");
 
@@ -850,7 +1127,7 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
           </div>
 
           {/* Linked entities */}
-          {(user.agentCode || user.Vendor || user.Client || user.Driver) && (
+          {(user.agentCode || user.Vendor || user.Client || user.Driver || user.Agent) && (
             <>
               <Separator className="my-4" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -884,6 +1161,14 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
                       Driver
                     </p>
                     <p className="text-sm mt-1">{user.Driver.name}</p>
+                  </div>
+                )}
+                {user.Agent && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Agent
+                    </p>
+                    <p className="text-sm mt-1">{user.Agent.name}</p>
                   </div>
                 )}
               </div>
@@ -944,10 +1229,24 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
         </Card>
       )}
 
-      {/* Legacy Onboarding Data (non-vendor/client/driver roles or legacy without profile) */}
+      {/* Agent Profile (structured data from new onboarding) */}
+      {user.AgentProfile && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Agent Profile</CardTitle>
+            <CardDescription>
+              Detailed agent information submitted during onboarding.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>{renderAgentProfile(user.AgentProfile)}</CardContent>
+        </Card>
+      )}
+
+      {/* Legacy Onboarding Data (non-vendor/client/driver/agent roles or legacy without profile) */}
       {(!user.VendorProfile || user.role !== "VENDOR") &&
         (!user.ClientProfile || user.role !== "CLIENT") &&
-        !user.DriverProfile && (
+        !user.DriverProfile &&
+        !user.AgentProfile && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Onboarding Data</CardTitle>
