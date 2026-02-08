@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { logAction, AuditAction } from "@/lib/audit";
 import { validateRow, loadExistingCategories } from "@/lib/import/catalog-csv";
 import type { NormalizedRow } from "@/lib/import/catalog-csv";
@@ -98,7 +99,7 @@ export async function POST(
           where: { id: row.id },
           data: {
             status: result.valid ? "VALID" : "ERROR",
-            errors: result.errors.length > 0 ? result.errors : null,
+            errors: result.errors.length > 0 ? result.errors : Prisma.JsonNull,
           },
         });
 
