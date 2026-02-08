@@ -488,6 +488,7 @@ model Product {
   ProductCategory ProductCategory @relation(fields: [categoryId], references: [id])
   VendorProduct   VendorProduct[]
   TaxProfile      TaxProfile?     @relation(fields: [taxProfileId], references: [id])
+  ImportBatchRow  ImportBatchRow[]
 
   @@index([categoryId])
   @@index([name])
@@ -577,6 +578,7 @@ model User {
   ClientVendorApprovals                 ClientVendor[] @relation("ClientVendorApprovedBy")
   VendorUser                            VendorUser[]
   Cart                                  Cart[]
+  ImportBatch                           ImportBatch[]
   Order_Order_assignedAgentUserIdToUser Order[]        @relation("Order_assignedAgentUserIdToUser")
   Order_Order_submitterUserIdToUser     Order[]        @relation("Order_submitterUserIdToUser")
   Session                               Session[]
@@ -615,6 +617,7 @@ model Vendor {
   AgentVendor   AgentVendor[]
   Agreement     Agreement[]
   ClientVendor  ClientVendor[]
+  ImportBatch   ImportBatch[]
   User          User?
   VendorUser    VendorUser[]
   VendorProduct VendorProduct[]
@@ -643,6 +646,7 @@ model VendorProduct {
   updatedAt      DateTime    @updatedAt
   deletedAt      DateTime?
   CartItem       CartItem[]
+  ImportBatchRow ImportBatchRow[]
   OrderItem      OrderItem[]
   Product        Product     @relation(fields: [productId], references: [id])
   Vendor         Vendor      @relation(fields: [vendorId], references: [id])
@@ -1342,4 +1346,78 @@ model AgentDocument {
 
   @@index([agentId])
   @@index([type])
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CSV IMPORT STAGING MODELS
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum ImportBatchStatus {
+  DRAFT
+  PARSING
+  PARSED
+  VALIDATING
+  VALIDATED
+  COMMITTING
+  COMMITTED
+  FAILED
+}
+
+enum ImportBatchRowStatus {
+  PENDING
+  VALID
+  ERROR
+  SKIPPED
+  COMMITTED
+}
+
+enum ImportSourceType {
+  TEXT
+  FILE
+}
+
+model ImportBatch {
+  id               String            @id @default(cuid())
+  vendorId         String
+  createdByUserId  String
+  status           ImportBatchStatus  @default(DRAFT)
+  sourceType       ImportSourceType   @default(TEXT)
+  originalFilename String?
+  fileUrl          String?
+  parseError       String?
+  rowCount         Int               @default(0)
+  errorCount       Int               @default(0)
+  lockedAt         DateTime?
+  lockedByUserId   String?
+  committedAt      DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  Vendor        Vendor           @relation(fields: [vendorId], references: [id])
+  CreatedByUser User             @relation(fields: [createdByUserId], references: [id])
+  Rows          ImportBatchRow[]
+
+  @@index([vendorId])
+  @@index([createdByUserId])
+  @@index([status])
+}
+
+model ImportBatchRow {
+  id              String               @id @default(cuid())
+  batchId         String
+  rowIndex        Int
+  rawData         Json
+  normalizedData  Json?
+  errors          Json?
+  status          ImportBatchRowStatus  @default(PENDING)
+  productId       String?
+  vendorProductId String?
+
+  Batch         ImportBatch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  Product       Product?       @relation(fields: [productId], references: [id])
+  VendorProduct VendorProduct? @relation(fields: [vendorProductId], references: [id])
+
+  @@unique([batchId, rowIndex])
+  @@index([batchId])
+  @@index([batchId, status])
 }
