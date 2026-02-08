@@ -102,7 +102,7 @@ export async function POST(
         (r) => r.normalizedData !== null,
       );
       const normalizedRows = rowsWithData.map(
-        (r) => r.normalizedData as NormalizedRow,
+        (r) => r.normalizedData as unknown as NormalizedRow,
       );
 
       // Commit products + update row/batch status all inside one transaction
