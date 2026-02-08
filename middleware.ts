@@ -52,17 +52,10 @@ export default async function middleware(req: NextRequest) {
   const isOnboarding = pathname.startsWith("/onboarding");
   const isPending = pathname.startsWith("/pending");
 
-  // Compute role-specific onboarding path
-  const onboardingPath =
-    role === "AGENT"
-      ? "/onboarding/agent"
-      : role === "DRIVER"
-        ? "/onboarding/driver"
-        : role === "VENDOR"
-          ? "/onboarding/vendor"
-          : role === "CLIENT"
-            ? "/onboarding/client"
-            : "/onboarding";
+  // ONBOARDING users always start at the role-chooser (/onboarding).
+  // New accounts get role=CLIENT by default in the DB, so we can't rely
+  // on the role to pick a sub-route until the user has actually chosen.
+  const onboardingPath = "/onboarding";
 
   // ADMIN users bypass onboarding/status gating for dashboard routes
   // Admins need full access regardless of their own status
