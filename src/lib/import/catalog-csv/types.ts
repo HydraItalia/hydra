@@ -1,14 +1,18 @@
 import { ProductUnit, CategoryGroupType } from "@prisma/client";
 
-/** Raw row as parsed from CSV (all string values) */
+/**
+ * Raw row as parsed from CSV (all string values).
+ * Fields are optional because the CSV may not contain all columns.
+ * Downstream normalizeRow() handles missing fields with defaults.
+ */
 export interface RawCsvRow {
-  vendor_name: string;
-  category: string;
-  name: string;
-  unit: string;
-  price_cents: string;
-  in_stock: string;
-  product_code: string;
+  vendor_name?: string;
+  category?: string;
+  name?: string;
+  unit?: string;
+  price_cents?: string;
+  in_stock?: string;
+  product_code?: string;
   source_price_raw?: string;
 }
 

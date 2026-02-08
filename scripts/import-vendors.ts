@@ -106,7 +106,9 @@ async function main() {
   }
 
   console.log(`Found ${files.length} CSV file(s):`);
-  files.forEach((f) => console.log(`  - ${f}`));
+  for (const f of files) {
+    console.log(`  - ${f}`);
+  }
 
   for (const file of files) {
     await importCsv(path.join(vendorsDir, file));

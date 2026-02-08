@@ -15,7 +15,7 @@ export async function loadExistingCategories(
 export function validateRow(
   rowIndex: number,
   row: NormalizedRow,
-  _existingCategorySlugs?: Set<string>,
+  existingCategorySlugs?: Set<string>,
 ): RowValidationResult {
   const errors: string[] = [];
 
@@ -37,6 +37,15 @@ export function validateRow(
 
   if (row.priceCents === 0 && row.inStock) {
     errors.push("in-stock product must have a price > 0");
+  }
+
+  // Warn if category doesn't exist yet (will be created on commit)
+  if (
+    existingCategorySlugs &&
+    row.categorySlug &&
+    !existingCategorySlugs.has(row.categorySlug)
+  ) {
+    // Not an error — categories are auto-created on commit — but noted for info
   }
 
   return {

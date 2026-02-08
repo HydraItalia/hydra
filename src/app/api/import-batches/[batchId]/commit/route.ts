@@ -21,10 +21,15 @@ export async function POST(
   try {
     // Parse mode from query param
     const { searchParams } = new URL(req.url);
-    const modeParsed = commitModeSchema.safeParse(
-      searchParams.get("mode") || "all",
-    );
-    const mode = modeParsed.success ? modeParsed.data : "all";
+    const modeRaw = searchParams.get("mode") || "all";
+    const modeParsed = commitModeSchema.safeParse(modeRaw);
+    if (!modeParsed.success) {
+      return NextResponse.json(
+        { error: `Invalid mode "${modeRaw}". Must be "all" or "valid_only"` },
+        { status: 400 },
+      );
+    }
+    const mode = modeParsed.data;
 
     const batch = await prisma.importBatch.findUnique({
       where: { id: batchId },
@@ -92,55 +97,69 @@ export async function POST(
         });
       }
 
-      // Extract normalized data
-      const normalizedRows = validRows
-        .map((r) => r.normalizedData as NormalizedRow | null)
-        .filter((r): r is NormalizedRow => r !== null);
+      // Build a map of row DB records by index, filtering out rows with no normalized data
+      const rowsWithData = validRows.filter(
+        (r) => r.normalizedData !== null,
+      );
+      const normalizedRows = rowsWithData.map(
+        (r) => r.normalizedData as NormalizedRow,
+      );
 
-      // Commit in a single transaction
+      // Commit products + update row/batch status all inside one transaction
       const commitResults = await prisma.$transaction(
         async (tx) => {
-          return commitRows(tx as any, batch.vendorId, normalizedRows);
+          const results = await commitRows(
+            tx as any,
+            batch.vendorId,
+            normalizedRows,
+          );
+
+          // Update each row record with product/vendorProduct IDs
+          for (let i = 0; i < results.length; i++) {
+            const result = results[i];
+            const row = rowsWithData[i];
+            await tx.importBatchRow.update({
+              where: { id: row.id },
+              data: {
+                status: "COMMITTED",
+                productId: result.productId,
+                vendorProductId: result.vendorProductId,
+              },
+            });
+          }
+
+          // Update batch to COMMITTED
+          await tx.importBatch.update({
+            where: { id: batchId },
+            data: {
+              status: "COMMITTED",
+              committedAt: new Date(),
+              lockedAt: null,
+              lockedByUserId: null,
+            },
+          });
+
+          return results;
         },
         { timeout: 60_000 },
       );
 
-      // Update row records with product/vendorProduct IDs
-      for (let i = 0; i < commitResults.length; i++) {
-        const result = commitResults[i];
-        const row = validRows[i];
-        await prisma.importBatchRow.update({
-          where: { id: row.id },
-          data: {
-            status: "COMMITTED",
-            productId: result.productId,
-            vendorProductId: result.vendorProductId,
+      // Audit log is best-effort — don't let it fail the operation
+      try {
+        await logAction({
+          entityType: "ImportBatch",
+          entityId: batchId,
+          action: AuditAction.IMPORT_BATCH_COMMITTED,
+          diff: {
+            mode,
+            committedRows: commitResults.length,
+            newProducts: commitResults.filter((r) => r.created).length,
+            updatedProducts: commitResults.filter((r) => !r.created).length,
           },
         });
+      } catch {
+        // Audit failure is non-fatal
       }
-
-      // Update batch to COMMITTED
-      await prisma.importBatch.update({
-        where: { id: batchId },
-        data: {
-          status: "COMMITTED",
-          committedAt: new Date(),
-          lockedAt: null,
-          lockedByUserId: null,
-        },
-      });
-
-      await logAction({
-        entityType: "ImportBatch",
-        entityId: batchId,
-        action: AuditAction.IMPORT_BATCH_COMMITTED,
-        diff: {
-          mode,
-          committedRows: commitResults.length,
-          newProducts: commitResults.filter((r) => r.created).length,
-          updatedProducts: commitResults.filter((r) => !r.created).length,
-        },
-      });
 
       return NextResponse.json({
         id: batchId,
@@ -161,15 +180,19 @@ export async function POST(
         },
       });
 
-      await logAction({
-        entityType: "ImportBatch",
-        entityId: batchId,
-        action: AuditAction.IMPORT_BATCH_FAILED,
-        diff: {
-          phase: "commit",
-          error: err instanceof Error ? err.message : String(err),
-        },
-      });
+      try {
+        await logAction({
+          entityType: "ImportBatch",
+          entityId: batchId,
+          action: AuditAction.IMPORT_BATCH_FAILED,
+          diff: {
+            phase: "commit",
+            error: err instanceof Error ? err.message : String(err),
+          },
+        });
+      } catch {
+        // Audit failure is non-fatal
+      }
 
       return NextResponse.json({ error: "Commit failed" }, { status: 500 });
     }

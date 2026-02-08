@@ -1417,6 +1417,7 @@ model ImportBatchRow {
   Product       Product?       @relation(fields: [productId], references: [id])
   VendorProduct VendorProduct? @relation(fields: [vendorProductId], references: [id])
 
+  @@unique([batchId, rowIndex])
   @@index([batchId])
   @@index([batchId, status])
 }

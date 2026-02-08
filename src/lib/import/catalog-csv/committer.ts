@@ -70,10 +70,11 @@ export async function commitRows(
     const created = !product;
 
     if (!product) {
+      // Store the canonicalized name so future lookups match consistently
       product = await tx.product.create({
         data: {
           id: createId(),
-          name: row.name.trim(),
+          name: canonicalizeName(row.name),
           description: "",
           unit: row.unit,
           categoryId,

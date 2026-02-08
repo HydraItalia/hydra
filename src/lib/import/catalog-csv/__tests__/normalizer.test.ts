@@ -86,6 +86,12 @@ describe("getCategoryGroup", () => {
     expect(getCategoryGroup("Packaging")).toBe("SERVICES");
   });
 
+  it("is case-insensitive", () => {
+    expect(getCategoryGroup("wine")).toBe("BEVERAGE");
+    expect(getCategoryGroup("WINE")).toBe("BEVERAGE");
+    expect(getCategoryGroup("seafood")).toBe("FOOD");
+  });
+
   it("defaults to FOOD for unknown categories", () => {
     expect(getCategoryGroup("Unknown Category")).toBe("FOOD");
   });

@@ -8,7 +8,7 @@ import type { NormalizedRow } from "@/lib/import/catalog-csv";
 
 /** POST /api/import-batches/[batchId]/validate — Validate all staged rows */
 export async function POST(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ batchId: string }> },
 ) {
   const user = await currentUser();
@@ -74,16 +74,16 @@ export async function POST(
 
       let errorCount = 0;
 
-      // Validate each row and update status
+      // Validate each row and collect updates
+      const validIds: string[] = [];
+      const errorUpdates: { id: string; errors: string[] }[] = [];
+
       for (const row of rows) {
         const normalizedData = row.normalizedData as NormalizedRow | null;
         if (!normalizedData) {
-          await prisma.importBatchRow.update({
-            where: { id: row.id },
-            data: {
-              status: "ERROR",
-              errors: ["Row has no normalized data"],
-            },
+          errorUpdates.push({
+            id: row.id,
+            errors: ["Row has no normalized data"],
           });
           errorCount++;
           continue;
@@ -95,18 +95,31 @@ export async function POST(
           existingCategories,
         );
 
-        await prisma.importBatchRow.update({
-          where: { id: row.id },
-          data: {
-            status: result.valid ? "VALID" : "ERROR",
-            errors: result.errors.length > 0 ? result.errors : Prisma.JsonNull,
-          },
-        });
-
-        if (!result.valid) errorCount++;
+        if (result.valid) {
+          validIds.push(row.id);
+        } else {
+          errorUpdates.push({ id: row.id, errors: result.errors });
+          errorCount++;
+        }
       }
 
-      // Update batch
+      // Batch update: mark all valid rows at once
+      if (validIds.length > 0) {
+        await prisma.importBatchRow.updateMany({
+          where: { id: { in: validIds } },
+          data: { status: "VALID", errors: Prisma.JsonNull },
+        });
+      }
+
+      // Update error rows individually (each has unique error messages)
+      for (const { id, errors } of errorUpdates) {
+        await prisma.importBatchRow.update({
+          where: { id },
+          data: { status: "ERROR", errors },
+        });
+      }
+
+      // Update batch status
       await prisma.importBatch.update({
         where: { id: batchId },
         data: {
@@ -117,12 +130,17 @@ export async function POST(
         },
       });
 
-      await logAction({
-        entityType: "ImportBatch",
-        entityId: batchId,
-        action: AuditAction.IMPORT_BATCH_VALIDATED,
-        diff: { rowCount: rows.length, errorCount },
-      });
+      // Audit log is best-effort — don't let it fail the operation
+      try {
+        await logAction({
+          entityType: "ImportBatch",
+          entityId: batchId,
+          action: AuditAction.IMPORT_BATCH_VALIDATED,
+          diff: { rowCount: rows.length, errorCount },
+        });
+      } catch {
+        // Audit failure is non-fatal
+      }
 
       return NextResponse.json({
         id: batchId,
@@ -142,15 +160,19 @@ export async function POST(
         },
       });
 
-      await logAction({
-        entityType: "ImportBatch",
-        entityId: batchId,
-        action: AuditAction.IMPORT_BATCH_FAILED,
-        diff: {
-          phase: "validate",
-          error: err instanceof Error ? err.message : String(err),
-        },
-      });
+      try {
+        await logAction({
+          entityType: "ImportBatch",
+          entityId: batchId,
+          action: AuditAction.IMPORT_BATCH_FAILED,
+          diff: {
+            phase: "validate",
+            error: err instanceof Error ? err.message : String(err),
+          },
+        });
+      } catch {
+        // Audit failure is non-fatal
+      }
 
       return NextResponse.json({ error: "Validation failed" }, { status: 500 });
     }

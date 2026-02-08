@@ -31,33 +31,31 @@ export function normalizeUnit(unitStr: string): ProductUnit {
   const normalized = unitStr.toLowerCase().trim();
 
   // Weight units
-  if (normalized.includes("kg") || normalized.includes("kilogram")) {
+  if (/\bkg\b/.test(normalized) || /\bkilogram/.test(normalized)) {
     return "KG";
   }
 
-  // Service (check before "l" to avoid false match on "delivery")
-  if (normalized.includes("service") || normalized.includes("delivery")) {
+  // Service
+  if (/\bservice\b/.test(normalized) || /\bdelivery\b/.test(normalized)) {
     return "SERVICE";
   }
 
-  // Box/case (check before "l" to avoid false match on "castle" etc.)
+  // Box/case
   if (
-    normalized.includes("box") ||
-    normalized.includes("case") ||
-    normalized.includes("crate")
+    /\bbox\b/.test(normalized) ||
+    /\bcase\b/.test(normalized) ||
+    /\bcrate\b/.test(normalized)
   ) {
     return "BOX";
   }
 
-  // Volume units — use word boundary or exact match to avoid false positives
-  // "l" alone, or compound units like "ml", "cl", "liter", "litre"
+  // Volume units — word boundaries to avoid matching "small", "clams", etc.
   if (
-    normalized === "l" ||
-    normalized.includes("liter") ||
-    normalized.includes("litre") ||
-    normalized.includes("ml") ||
-    normalized.includes("cl") ||
-    /\bl\b/.test(normalized)
+    /\bl\b/.test(normalized) ||
+    /\bliter\b/.test(normalized) ||
+    /\blitre\b/.test(normalized) ||
+    /\bml\b/.test(normalized) ||
+    /\bcl\b/.test(normalized)
   ) {
     return "L";
   }
@@ -76,9 +74,14 @@ export function slugifyCategory(category: string): string {
   return category.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
-/** Determine the CategoryGroupType for a category name */
+/** Case-insensitive lookup index built once from categoryGroupMap */
+const categoryGroupLookup = new Map<string, CategoryGroupType>(
+  Object.entries(categoryGroupMap).map(([k, v]) => [k.toLowerCase(), v]),
+);
+
+/** Determine the CategoryGroupType for a category name (case-insensitive) */
 export function getCategoryGroup(categoryName: string): CategoryGroupType {
-  return categoryGroupMap[categoryName] || "FOOD";
+  return categoryGroupLookup.get(categoryName.toLowerCase()) || "FOOD";
 }
 
 /** Normalize a single raw CSV row into typed values */
