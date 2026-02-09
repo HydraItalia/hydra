@@ -83,7 +83,9 @@ async function verifyBatchOwnership(
     where: { id: batchId },
   });
   if (!batch) throw new Error("Batch not found");
-  if (role === "VENDOR" && batch.vendorId !== vendorId) {
+  if (role === "VENDOR") {
+    if (!vendorId || batch.vendorId !== vendorId) throw new Error("Forbidden");
+  } else if (role !== "ADMIN") {
     throw new Error("Forbidden");
   }
   return batch;
@@ -113,12 +115,16 @@ export async function createBatch(
     },
   });
 
-  await logAction({
-    entityType: "ImportBatch",
-    entityId: batch.id,
-    action: AuditAction.IMPORT_BATCH_CREATED,
-    diff: { vendorId, filename },
-  });
+  try {
+    await logAction({
+      entityType: "ImportBatch",
+      entityId: batch.id,
+      action: AuditAction.IMPORT_BATCH_CREATED,
+      diff: { vendorId, filename },
+    });
+  } catch {
+    // Audit failure is non-fatal
+  }
 
   return { id: batch.id, vendorId: batch.vendorId, status: batch.status };
 }
@@ -677,6 +683,10 @@ export async function listBatches(opts: {
   statusFilter?: string;
 }) {
   const { vendorId, role, page = 1, pageSize = 20, statusFilter } = opts;
+
+  if (role !== "ADMIN" && role !== "VENDOR") {
+    throw new Error("Forbidden");
+  }
 
   const where: any = {};
   if (role === "VENDOR") {

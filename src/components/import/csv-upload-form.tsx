@@ -76,14 +76,22 @@ export function CsvUploadForm() {
 
           <TabsContent value="file" className="space-y-4">
             <div
-              className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              role="button"
+              tabIndex={0}
+              className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
             >
               <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 {selectedFile
                   ? selectedFile.name
-                  : "Click to select a CSV file or drag and drop"}
+                  : "Click to select a CSV file"}
               </p>
               <input
                 ref={fileInputRef}

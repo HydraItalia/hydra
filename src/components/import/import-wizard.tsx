@@ -18,8 +18,9 @@ function getStepFromStatus(status: string): number {
       return 1; // Preview
     case "VALIDATING":
     case "VALIDATED":
-      return 2; // Validate / Commit
+      return 2; // Validate
     case "COMMITTING":
+      return 3; // Commit
     case "COMMITTED":
       return 4; // Done
     case "FAILED":

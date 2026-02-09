@@ -28,7 +28,8 @@ export default async function VendorImportPage(props: PageProps) {
     );
   }
 
-  const page = parseInt(searchParams.page || "1", 10);
+  const pageParam = parseInt(searchParams.page ?? "1", 10);
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
   const result = await getImportBatches(page);
 
   if (!result.success || !result.data) {

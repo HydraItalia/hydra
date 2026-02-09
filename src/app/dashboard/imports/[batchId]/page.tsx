@@ -27,10 +27,11 @@ export default async function AdminImportBatchPage(props: PageProps) {
         <ImportWizard initialBatch={batch} readOnly />
       </div>
     );
-  } catch {
+  } catch (error) {
+    console.error("Failed to load import batch:", error);
     return (
       <div className="space-y-8">
-        <PageHeader title="Error" subtitle="Batch not found" />
+        <PageHeader title="Error" subtitle="Unable to load batch" />
       </div>
     );
   }

@@ -15,7 +15,8 @@ export default async function AdminImportsPage(props: PageProps) {
   const searchParams = await props.searchParams;
   await requireRole("ADMIN");
 
-  const page = parseInt(searchParams.page || "1", 10);
+  const pageParam = parseInt(searchParams.page ?? "1", 10);
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
   const status = searchParams.status || undefined;
 
   const result = await fetchAllImportBatches({ page, status });

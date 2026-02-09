@@ -67,14 +67,6 @@ export function ImportPreviewTable({
     fetchPage(1, newFilter);
   };
 
-  if (rows.length === 0 && !isPending) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        No rows to display
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-3">
       {/* Filter toggles */}
@@ -129,7 +121,17 @@ export function ImportPreviewTable({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {rows.length === 0 && !isPending ? (
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
+                    No rows to display
+                  </td>
+                </tr>
+              ) : (
+              rows.map((row) => {
                 const normalized = row.normalizedData as Record<string, any> | null;
                 const errors = Array.isArray(row.errors)
                   ? (row.errors as string[])
@@ -175,7 +177,8 @@ export function ImportPreviewTable({
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>
