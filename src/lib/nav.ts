@@ -16,6 +16,7 @@ import {
   CreditCard,
   AlertCircle,
   ShieldCheck,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 
@@ -58,6 +59,11 @@ export function getNavItems(role: Role): NavItem[] {
           label: "Approvals",
           href: "/dashboard/approvals",
           icon: ShieldCheck,
+        },
+        {
+          label: "Imports",
+          href: "/dashboard/imports",
+          icon: Upload,
         },
         {
           label: "Catalog",
@@ -161,6 +167,11 @@ export function getNavItems(role: Role): NavItem[] {
           label: "My Inventory",
           href: "/dashboard/inventory",
           icon: Warehouse,
+        },
+        {
+          label: "CSV Import",
+          href: "/dashboard/vendor/import",
+          icon: Upload,
         },
         {
           label: "Orders",
