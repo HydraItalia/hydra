@@ -13,10 +13,13 @@ describe("getGroups", () => {
     expect(groups.map((g) => g.key)).toEqual(["FOOD", "BEVERAGE", "SERVICES"]);
   });
 
-  it("returns groups sorted by order", () => {
+  it("returns groups sorted by ascending order", () => {
     const groups = getGroups("IT");
     const orders = groups.map((g) => g.order);
-    expect(orders).toEqual([1, 2, 3]);
+    // Verify every element is <= the next (invariant, not just a snapshot)
+    for (let i = 1; i < orders.length; i++) {
+      expect(orders[i]).toBeGreaterThanOrEqual(orders[i - 1]);
+    }
   });
 
   it("each group has label and icon", () => {

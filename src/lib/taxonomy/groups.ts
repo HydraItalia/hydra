@@ -15,7 +15,7 @@ const GROUP_META: Record<Market, GroupMeta[]> = {
 
 /** Get all group metadata for a market, sorted by display order. */
 export function getGroups(market: Market = "IT"): GroupMeta[] {
-  return GROUP_META[market];
+  return [...GROUP_META[market]].sort((a, b) => a.order - b.order);
 }
 
 /** Get valid CategoryGroupType values for a market. */

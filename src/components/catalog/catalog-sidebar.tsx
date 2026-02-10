@@ -34,7 +34,7 @@ const iconComponents = {
   package: Package,
   coffee: Coffee,
   wrench: Wrench,
-} as const;
+} as const satisfies Record<GroupMeta["icon"], typeof Package>;
 
 /** Get the Lucide icon component for a group via taxonomy metadata */
 function getGroupIcon(meta: GroupMeta) {
