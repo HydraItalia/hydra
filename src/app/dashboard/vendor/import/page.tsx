@@ -4,7 +4,7 @@ import { currentUser } from "@/lib/auth";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { ImportBatchesTable } from "@/components/import/import-batches-table";
 import { getImportBatches } from "@/actions/vendor-import";
 
@@ -55,12 +55,20 @@ export default async function VendorImportPage(props: PageProps) {
         title="CSV Import"
         subtitle={`${total} import${total !== 1 ? "s" : ""}`}
         action={
-          <Button asChild>
-            <Link href="/dashboard/vendor/import/new">
-              <Plus className="mr-2 h-4 w-4" />
-              New Import
-            </Link>
-          </Button>
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/vendor/import/templates">
+                <FileText className="mr-2 h-4 w-4" />
+                Templates
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/dashboard/vendor/import/new">
+                <Plus className="mr-2 h-4 w-4" />
+                New Import
+              </Link>
+            </Button>
+          </>
         }
       />
 

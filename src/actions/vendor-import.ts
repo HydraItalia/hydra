@@ -430,7 +430,7 @@ export async function archiveImportTemplate(
 
 export async function suggestImportTemplate(
   csvText: string,
-): Promise<ActionResult<TemplateSuggestion | null>> {
+): Promise<ActionResult<{ suggestion: TemplateSuggestion | null; headers: string[] }>> {
   try {
     const auth = await getVendorAuth();
     if ("error" in auth) return { success: false, error: auth.error };
@@ -442,11 +442,11 @@ export async function suggestImportTemplate(
 
     const headers = extractCsvHeaders(csvText);
     if (headers.length === 0) {
-      return { success: true, data: null };
+      return { success: true, data: { suggestion: null, headers: [] } };
     }
 
-    const result = await suggestTemplateForCsv(vendorId, headers);
-    return { success: true, data: result };
+    const suggestion = await suggestTemplateForCsv(vendorId, headers);
+    return { success: true, data: { suggestion, headers } };
   } catch (error) {
     return {
       success: false,
