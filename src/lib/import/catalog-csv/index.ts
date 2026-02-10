@@ -1,4 +1,5 @@
-export { parseCsv, CsvParseError } from "./parser";
+export { parseCsv, extractCsvHeaders, CsvParseError } from "./parser";
+export type { ParseCsvOpts } from "./parser";
 export {
   normalizeRow,
   normalizeUnit,
@@ -9,6 +10,20 @@ export {
 } from "./normalizer";
 export { validateRow, loadExistingCategories } from "./validator";
 export { commitRows } from "./committer";
+export {
+  normalizeHeader,
+  buildColumnMapping,
+  applyColumnMapping,
+  scoreTemplateMatch,
+  suggestTemplate,
+} from "./mapping";
+export type {
+  TemplateMapping,
+  TemplateMappingField,
+  BuildResult,
+  MatchScore,
+  TemplateSuggestion,
+} from "./mapping";
 export type {
   RawCsvRow,
   NormalizedRow,

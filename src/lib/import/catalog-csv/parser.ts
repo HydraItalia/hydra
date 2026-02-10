@@ -13,11 +13,19 @@ export class CsvParseError extends Error {
   }
 }
 
+export type ParseCsvOpts = {
+  /** When true, keep all columns instead of stripping unknown ones */
+  keepAllColumns?: boolean;
+};
+
 /**
- * Parse CSV text into raw rows, stripping unknown columns.
+ * Parse CSV text into raw rows, optionally stripping unknown columns.
  * Throws CsvParseError if safety limits are exceeded or parsing fails.
  */
-export function parseCsv(input: string): RawCsvRow[] {
+export function parseCsv(
+  input: string,
+  opts?: ParseCsvOpts,
+): RawCsvRow[] {
   if (!input.trim()) {
     throw new CsvParseError("CSV input is empty");
   }
@@ -55,6 +63,11 @@ export function parseCsv(input: string): RawCsvRow[] {
     );
   }
 
+  // When keepAllColumns is set, return all columns (for template mapping)
+  if (opts?.keepAllColumns) {
+    return allRows as unknown as RawCsvRow[];
+  }
+
   // Strip unknown columns, keep only known ones
   const knownSet = new Set<string>(KNOWN_CSV_COLUMNS as readonly string[]);
 
@@ -67,4 +80,35 @@ export function parseCsv(input: string): RawCsvRow[] {
     }
     return cleaned as unknown as RawCsvRow;
   });
+}
+
+/**
+ * Safely extract CSV headers using csv-parse.
+ * Handles quoted commas, multiline headers, etc.
+ */
+export function extractCsvHeaders(input: string): string[] {
+  if (!input.trim()) return [];
+
+  let rows: string[][];
+  try {
+    rows = parse(input, {
+      columns: false,
+      trim: true,
+      relax_column_count: true,
+      to: 1,
+    });
+  } catch (err) {
+    throw new CsvParseError(
+      `CSV parse failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  const headers = (rows[0] as string[]) || [];
+  if (headers.length > CSV_LIMITS.MAX_COLUMNS) {
+    throw new CsvParseError(
+      `CSV has ${headers.length} columns (max ${CSV_LIMITS.MAX_COLUMNS})`,
+    );
+  }
+
+  return headers;
 }

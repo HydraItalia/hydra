@@ -17,8 +17,10 @@ import {
   canonicalizeName,
   slugifyCategory,
   getCategoryGroup,
+  buildColumnMapping,
+  applyColumnMapping,
 } from "@/lib/import/catalog-csv";
-import type { NormalizedRow } from "@/lib/import/catalog-csv";
+import type { NormalizedRow, TemplateMapping } from "@/lib/import/catalog-csv";
 
 const ROWS_PER_PAGE = 100;
 const MAX_ERROR_EXPORT_ROWS = 5_000;
@@ -132,12 +134,18 @@ export async function createBatch(
   return { id: batch.id, vendorId: batch.vendorId, status: batch.status };
 }
 
+export type ParseBatchOpts = {
+  templateId?: string;
+  mappingOverride?: TemplateMapping;
+};
+
 export async function parseBatch(
   batchId: string,
   csvText: string,
   userId: string,
   vendorId: string | null,
   role: string,
+  opts?: ParseBatchOpts,
 ) {
   const batch = await verifyBatchOwnership(batchId, vendorId, role);
 
@@ -160,7 +168,48 @@ export async function parseBatch(
   }
 
   try {
-    const rawRows = parseCsv(csvText);
+    // Resolve template mapping
+    let templateMapping: TemplateMapping | undefined;
+    let templateDefaults: Record<string, string> | undefined;
+
+    if (opts?.mappingOverride) {
+      templateMapping = opts.mappingOverride;
+    } else if (opts?.templateId) {
+      const template = await prisma.importTemplate.findUnique({
+        where: { id: opts.templateId },
+      });
+      if (!template) throw new Error("Template not found");
+      if (template.status !== "ACTIVE") {
+        throw new Error("Template is archived");
+      }
+      if (template.vendorId !== batch.vendorId) {
+        throw new Error("Template does not belong to this vendor");
+      }
+      templateMapping = template.mapping as TemplateMapping;
+      templateDefaults =
+        (template.defaults as Record<string, string>) ?? undefined;
+    }
+
+    // Parse CSV — keep all columns when mapping is present
+    const rawRows = parseCsv(
+      csvText,
+      templateMapping ? { keepAllColumns: true } : undefined,
+    );
+
+    // Apply column mapping if present
+    let mappedRows: Record<string, string>[];
+    if (templateMapping) {
+      const csvHeaders = Object.keys(rawRows[0] || {});
+      const { columnMap } = buildColumnMapping(templateMapping, csvHeaders);
+      mappedRows = applyColumnMapping(
+        rawRows as unknown as Record<string, string>[],
+        columnMap,
+        templateMapping,
+        templateDefaults,
+      );
+    } else {
+      mappedRows = rawRows as unknown as Record<string, string>[];
+    }
 
     // Auto-fill vendor name from the batch's vendor so CSV doesn't need it
     const vendor = await prisma.vendor.findUnique({
@@ -169,8 +218,8 @@ export async function parseBatch(
     });
     const vendorName = vendor?.name || "";
 
-    const rowData = rawRows.map((raw, index) => {
-      const normalized = normalizeRow(raw);
+    const rowData = mappedRows.map((raw, index) => {
+      const normalized = normalizeRow(raw as any);
       // If the CSV row doesn't have vendor_name, fill from the batch's vendor
       if (!normalized.vendorName && vendorName) {
         normalized.vendorName = vendorName;

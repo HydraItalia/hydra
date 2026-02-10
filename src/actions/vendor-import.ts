@@ -18,8 +18,19 @@ import type {
   BatchDetail,
   BatchListItem,
   BatchRow,
+  ParseBatchOpts,
 } from "@/lib/import/batch-service";
-import type { NormalizedRow } from "@/lib/import/catalog-csv";
+import {
+  createTemplate,
+  listTemplates,
+  getTemplate,
+  updateTemplate,
+  archiveTemplate,
+  suggestTemplateForCsv,
+} from "@/lib/import/template-service";
+import type { TemplateListItem } from "@/lib/import/template-service";
+import { extractCsvHeaders } from "@/lib/import/catalog-csv";
+import type { NormalizedRow, TemplateMapping, TemplateSuggestion } from "@/lib/import/catalog-csv";
 
 type ActionResult<T> = {
   success: boolean;
@@ -70,6 +81,7 @@ export async function createImportBatch(
 export async function parseImportBatch(
   batchId: string,
   csvText: string,
+  opts?: ParseBatchOpts,
 ): Promise<ActionResult<{ rowCount: number }>> {
   try {
     const auth = await getVendorAuth();
@@ -82,6 +94,7 @@ export async function parseImportBatch(
       user.id,
       vendorId,
       user.role,
+      opts,
     );
     return { success: true, data: { rowCount: result.rowCount } };
   } catch (error) {
@@ -303,6 +316,144 @@ export async function updateImportRow(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to update row",
+    };
+  }
+}
+
+// ── Import Template Actions ──────────────────────────────────────────────────
+
+export async function createImportTemplate(
+  name: string,
+  mapping: TemplateMapping,
+  defaults?: Record<string, string>,
+): Promise<ActionResult<TemplateListItem>> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { vendorId } = auth;
+
+    if (!vendorId) {
+      return { success: false, error: "vendorId is required" };
+    }
+
+    const result = await createTemplate(vendorId, name, mapping, defaults);
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to create template",
+    };
+  }
+}
+
+export async function getImportTemplates(
+  includeArchived?: boolean,
+): Promise<ActionResult<TemplateListItem[]>> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { user, vendorId } = auth;
+
+    const result = await listTemplates(vendorId, user.role, includeArchived);
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to fetch templates",
+    };
+  }
+}
+
+export async function getImportTemplate(
+  templateId: string,
+): Promise<ActionResult<TemplateListItem>> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { user, vendorId } = auth;
+
+    const result = await getTemplate(templateId, vendorId, user.role);
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to fetch template",
+    };
+  }
+}
+
+export async function updateImportTemplate(
+  templateId: string,
+  patch: {
+    name?: string;
+    mapping?: TemplateMapping;
+    defaults?: Record<string, string> | null;
+  },
+): Promise<ActionResult<TemplateListItem>> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { user, vendorId } = auth;
+
+    const result = await updateTemplate(templateId, vendorId, user.role, patch);
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to update template",
+    };
+  }
+}
+
+export async function archiveImportTemplate(
+  templateId: string,
+): Promise<ActionResult<null>> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { user, vendorId } = auth;
+
+    await archiveTemplate(templateId, vendorId, user.role);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to archive template",
+    };
+  }
+}
+
+export async function suggestImportTemplate(
+  csvText: string,
+): Promise<ActionResult<TemplateSuggestion | null>> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { vendorId } = auth;
+
+    if (!vendorId) {
+      return { success: false, error: "vendorId is required" };
+    }
+
+    const headers = extractCsvHeaders(csvText);
+    if (headers.length === 0) {
+      return { success: true, data: null };
+    }
+
+    const result = await suggestTemplateForCsv(vendorId, headers);
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to suggest template",
     };
   }
 }
