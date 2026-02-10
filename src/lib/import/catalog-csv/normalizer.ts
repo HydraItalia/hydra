@@ -1,30 +1,9 @@
 import { ProductUnit, CategoryGroupType } from "@prisma/client";
 import { RawCsvRow, NormalizedRow } from "./types";
-
-/** Category name → CategoryGroupType mapping */
-export const categoryGroupMap: Record<string, CategoryGroupType> = {
-  Beverage: "BEVERAGE",
-  Beverages: "BEVERAGE",
-  Drinks: "BEVERAGE",
-  Wine: "BEVERAGE",
-  Spirits: "BEVERAGE",
-  Beer: "BEVERAGE",
-  Food: "FOOD",
-  Produce: "FOOD",
-  Seafood: "FOOD",
-  Fish: "FOOD",
-  Meat: "FOOD",
-  Dairy: "FOOD",
-  Bakery: "FOOD",
-  Pantry: "FOOD",
-  Frozen: "FOOD",
-  "Specialty Produce": "FOOD",
-  Services: "SERVICES",
-  Packaging: "SERVICES",
-  Supplies: "SERVICES",
-  Disposables: "SERVICES",
-  "Cleaning & Disposables": "SERVICES",
-};
+import {
+  slugifyCategory as taxonomySlugify,
+  resolveCategory,
+} from "@/lib/taxonomy";
 
 /** Normalize a unit string to ProductUnit enum */
 export function normalizeUnit(unitStr: string): ProductUnit {
@@ -69,20 +48,50 @@ export function canonicalizeName(name: string): string {
   return name.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-/** Create a URL-safe slug from a category name */
+/**
+ * Create a URL-safe slug from a category name.
+ * Delegates to taxonomy slugify (accent-stripping, punctuation-safe).
+ */
 export function slugifyCategory(category: string): string {
-  return category.trim().toLowerCase().replace(/\s+/g, "-");
+  return taxonomySlugify(category);
 }
 
-/** Case-insensitive lookup index built once from categoryGroupMap */
-const categoryGroupLookup = new Map<string, CategoryGroupType>(
-  Object.entries(categoryGroupMap).map(([k, v]) => [k.toLowerCase(), v]),
-);
-
-/** Determine the CategoryGroupType for a category name (case-insensitive) */
+/**
+ * Determine the CategoryGroupType for a category name (case-insensitive).
+ * Delegates to taxonomy resolver.
+ */
 export function getCategoryGroup(categoryName: string): CategoryGroupType {
-  return categoryGroupLookup.get(categoryName.toLowerCase()) || "FOOD";
+  return resolveCategory(categoryName, "IT").group;
 }
+
+/**
+ * Backward-compatible categoryGroupMap.
+ * Kept as a re-export for any code that reads it directly.
+ * @deprecated Use resolveCategory() from @/lib/taxonomy instead.
+ */
+export const categoryGroupMap: Record<string, CategoryGroupType> = {
+  Beverage: "BEVERAGE",
+  Beverages: "BEVERAGE",
+  Drinks: "BEVERAGE",
+  Wine: "BEVERAGE",
+  Spirits: "BEVERAGE",
+  Beer: "BEVERAGE",
+  Food: "FOOD",
+  Produce: "FOOD",
+  Seafood: "FOOD",
+  Fish: "FOOD",
+  Meat: "FOOD",
+  Dairy: "FOOD",
+  Bakery: "FOOD",
+  Pantry: "FOOD",
+  Frozen: "FOOD",
+  "Specialty Produce": "FOOD",
+  Services: "SERVICES",
+  Packaging: "SERVICES",
+  Supplies: "SERVICES",
+  Disposables: "SERVICES",
+  "Cleaning & Disposables": "SERVICES",
+};
 
 /** Normalize a single raw CSV row into typed values */
 export function normalizeRow(raw: RawCsvRow): NormalizedRow {
@@ -92,11 +101,13 @@ export function normalizeRow(raw: RawCsvRow): NormalizedRow {
   const priceCentsStr = raw.price_cents || "0";
   const inStockStr = (raw.in_stock || "").toLowerCase();
 
+  const resolved = resolveCategory(category, "IT");
+
   return {
     vendorName: (raw.vendor_name || "").trim(),
     category,
-    categorySlug: slugifyCategory(category),
-    categoryGroup: getCategoryGroup(category),
+    categorySlug: resolved.canonicalSlug,
+    categoryGroup: resolved.group,
     name,
     canonicalName: canonicalizeName(name),
     unit: normalizeUnit(unitStr),

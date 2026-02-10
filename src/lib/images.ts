@@ -3,6 +3,8 @@
  * Uses Pexels API for category-based placeholder images with randomization
  */
 
+import { getImageKeyForCategorySlug } from "@/lib/taxonomy";
+
 /**
  * Map category slugs to arrays of Pexels photo IDs for variety
  * Multiple images per category for randomization based on product name
@@ -221,8 +223,9 @@ export function getProductImageUrl(
     return imageUrl;
   }
 
-  // Get category-specific images array from Pexels
-  const imageArray = categoryImageMap[categorySlug];
+  // Bridge the DB slug to the image map key (e.g. "seafood" → "pesce")
+  const imageKey = getImageKeyForCategorySlug(categorySlug);
+  const imageArray = categoryImageMap[imageKey] ?? categoryImageMap[categorySlug];
 
   if (imageArray && imageArray.length > 0) {
     // Use hash of product name to consistently select an image from the array

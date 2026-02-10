@@ -58,13 +58,20 @@ describe("canonicalizeName", () => {
 describe("slugifyCategory", () => {
   it("creates URL-safe slug", () => {
     expect(slugifyCategory("Specialty Produce")).toBe("specialty-produce");
+  });
+
+  it("strips ampersands and special characters", () => {
     expect(slugifyCategory("Cleaning & Disposables")).toBe(
-      "cleaning-&-disposables",
+      "cleaning-disposables",
     );
   });
 
   it("handles single word", () => {
     expect(slugifyCategory("Beverage")).toBe("beverage");
+  });
+
+  it("strips accents", () => {
+    expect(slugifyCategory("Caffè")).toBe("caffe");
   });
 });
 
@@ -121,6 +128,21 @@ describe("normalizeRow", () => {
       inStock: true,
       productCode: "WD-001",
     });
+  });
+
+  it("resolves Seafood to canonical slug via taxonomy", () => {
+    const result = normalizeRow({
+      vendor_name: "CD Fish",
+      category: "Seafood",
+      name: "Salmon",
+      unit: "kg",
+      price_cents: "2000",
+      in_stock: "true",
+      product_code: "CF-001",
+    });
+
+    expect(result.categorySlug).toBe("pesce");
+    expect(result.categoryGroup).toBe("FOOD");
   });
 
   it("handles missing optional fields", () => {

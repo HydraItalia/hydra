@@ -2,7 +2,6 @@ import {
   PrismaClient,
   Role,
   UserStatus,
-  CategoryGroupType,
   ProductUnit,
   PriceMode,
   OrderStatus,
@@ -14,6 +13,8 @@ import { createId } from "@paralleldrive/cuid2";
 import fs from "fs";
 import path from "path";
 import { parse } from "csv-parse/sync";
+import { resolveCategory, slugifyCategory } from "../src/lib/taxonomy";
+import { normalizeUnit } from "../src/lib/import/catalog-csv/normalizer";
 
 const prisma = new PrismaClient();
 
@@ -35,63 +36,9 @@ type CsvRow = {
   source_price_raw?: string;
 };
 
-// Category name to CategoryGroup mapping
-const categoryGroupMap: Record<string, CategoryGroupType> = {
-  Beverage: "BEVERAGE",
-  Beverages: "BEVERAGE",
-  Drinks: "BEVERAGE",
-  Wine: "BEVERAGE",
-  Spirits: "BEVERAGE",
-  Beer: "BEVERAGE",
-  Food: "FOOD",
-  Produce: "FOOD",
-  Seafood: "FOOD",
-  Fish: "FOOD",
-  Meat: "FOOD",
-  Dairy: "FOOD",
-  Bakery: "FOOD",
-  Pantry: "FOOD",
-  Frozen: "FOOD",
-  "Specialty Produce": "FOOD",
-  Services: "SERVICES",
-  Packaging: "SERVICES",
-  Supplies: "SERVICES",
-  Disposables: "SERVICES",
-  "Cleaning & Disposables": "SERVICES",
-};
-
-// Normalize unit strings to ProductUnit enum
-function normalizeUnit(unitStr: string): ProductUnit {
-  const normalized = unitStr.toLowerCase().trim();
-
-  if (normalized.includes("kg") || normalized.includes("kilogram")) {
-    return "KG";
-  }
-  if (
-    normalized.includes("l") ||
-    normalized.includes("liter") ||
-    normalized.includes("litre") ||
-    normalized.includes("ml") ||
-    normalized.includes("cl")
-  ) {
-    return "L";
-  }
-  if (
-    normalized.includes("box") ||
-    normalized.includes("case") ||
-    normalized.includes("crate")
-  ) {
-    return "BOX";
-  }
-  if (normalized.includes("service") || normalized.includes("delivery")) {
-    return "SERVICE";
-  }
-  return "PIECE";
-}
-
-// Get or create CategoryGroup for a category name
+// Get or create CategoryGroup for a category name (uses taxonomy resolver)
 async function getOrCreateCategoryGroup(categoryName: string): Promise<string> {
-  const groupType = categoryGroupMap[categoryName] || "FOOD";
+  const { group: groupType } = resolveCategory(categoryName, "IT");
 
   const group = await prisma.categoryGroup.upsert({
     where: { name: groupType },
@@ -164,12 +111,9 @@ async function importVendorsFromCSV() {
           vendorCache.set(vendorName, vendorId);
         }
 
-        // Get or create category
+        // Get or create category (using taxonomy resolver for slug + group)
         const groupId = await getOrCreateCategoryGroup(row.category.trim());
-        const categorySlug = row.category
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, "-");
+        const categorySlug = slugifyCategory(row.category.trim());
 
         const category = await prisma.productCategory.upsert({
           where: { slug: categorySlug },
