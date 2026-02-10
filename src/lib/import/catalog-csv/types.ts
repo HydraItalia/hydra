@@ -1,4 +1,4 @@
-import { ProductUnit, CategoryGroupType } from "@prisma/client";
+import { ProductUnit, CategoryGroupType, PrismaClient } from "@prisma/client";
 
 /**
  * Raw row as parsed from CSV (all string values).
@@ -42,7 +42,17 @@ export interface NormalizedRow {
   priceCents: number;
   inStock: boolean;
   productCode: string;
+  /** Canonical display name from the taxonomy (e.g. "Pesce" for input "Seafood") */
+  canonicalCategoryName: string;
+  /** true when the category didn't match any canonical taxonomy entry */
+  didFallback: boolean;
 }
+
+/** Prisma transaction client type (reusable across committer, batch-service, etc.) */
+export type TransactionClient = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
 /** Result of validating a single row */
 export interface RowValidationResult {

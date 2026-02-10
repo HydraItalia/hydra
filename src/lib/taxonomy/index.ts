@@ -7,9 +7,12 @@ export {
   isValidGroup,
   getGroupMeta,
 } from "./groups";
+export { getAllCanonicalCategories } from "./registry";
+export { suggestCanonicalCategories } from "./suggestions";
 export type {
   Market,
   CanonicalCategory,
   ResolvedCategory,
   GroupMeta,
 } from "./types";
+export type { CategorySuggestion } from "./suggestions";

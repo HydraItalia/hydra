@@ -127,6 +127,8 @@ describe("normalizeRow", () => {
       priceCents: 1500,
       inStock: true,
       productCode: "WD-001",
+      canonicalCategoryName: "Beverage",
+      didFallback: false,
     });
   });
 
@@ -143,6 +145,22 @@ describe("normalizeRow", () => {
 
     expect(result.categorySlug).toBe("pesce");
     expect(result.categoryGroup).toBe("FOOD");
+    expect(result.didFallback).toBe(false);
+  });
+
+  it("sets didFallback: true for unknown categories", () => {
+    const result = normalizeRow({
+      vendor_name: "Test",
+      category: "Exotic Mushrooms",
+      name: "Truffle",
+      unit: "kg",
+      price_cents: "5000",
+      in_stock: "true",
+      product_code: "",
+    });
+
+    expect(result.didFallback).toBe(true);
+    expect(result.categorySlug).toBe("exotic-mushrooms");
   });
 
   it("handles missing optional fields", () => {
@@ -160,6 +178,7 @@ describe("normalizeRow", () => {
     expect(result.priceCents).toBe(0);
     expect(result.inStock).toBe(false);
     expect(result.productCode).toBe("");
+    expect(result.didFallback).toBe(false);
   });
 
   it("parses in_stock as '1'", () => {

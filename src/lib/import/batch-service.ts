@@ -6,6 +6,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { createId } from "@paralleldrive/cuid2";
 import { logAction, AuditAction } from "@/lib/audit";
 import {
   parseCsv,
@@ -15,12 +16,15 @@ import {
   loadExistingCategories,
   commitRows,
   canonicalizeName,
-  slugifyCategory,
-  getCategoryGroup,
   buildColumnMapping,
   applyColumnMapping,
 } from "@/lib/import/catalog-csv";
-import type { NormalizedRow, TemplateMapping } from "@/lib/import/catalog-csv";
+import type {
+  NormalizedRow,
+  TemplateMapping,
+  TransactionClient,
+} from "@/lib/import/catalog-csv";
+import { resolveCategory, getAllCanonicalCategories } from "@/lib/taxonomy";
 
 const ROWS_PER_PAGE = 100;
 const MAX_ERROR_EXPORT_ROWS = 5_000;
@@ -94,6 +98,86 @@ async function verifyBatchOwnership(
     throw new Error("Forbidden");
   }
   return batch;
+}
+
+// ----- Vendor category mapping helpers -----
+
+/**
+ * Load all vendor category mappings as a Map<rawCategory, canonicalSlug>.
+ */
+async function loadVendorMappings(
+  vendorId: string,
+): Promise<Map<string, string>> {
+  const mappings = await prisma.vendorCategoryMapping.findMany({
+    where: { vendorId },
+  });
+  const map = new Map<string, string>();
+  for (const m of mappings) {
+    map.set(m.rawCategory, m.canonicalSlug);
+  }
+  return map;
+}
+
+/**
+ * Apply a vendor mapping to a NormalizedRow if it has didFallback: true.
+ * Mutates the row in-place if a mapping exists.
+ */
+function applyVendorMapping(
+  row: NormalizedRow,
+  mappings: Map<string, string>,
+): void {
+  if (!row.didFallback) return;
+
+  const key = row.category.trim().toLowerCase();
+  const canonicalSlug = mappings.get(key);
+  if (!canonicalSlug) return;
+
+  // Re-resolve through taxonomy to confirm the mapped slug is canonical
+  const resolved = resolveCategory(canonicalSlug, "IT");
+  if (resolved.didFallback) return; // mapped slug isn't canonical — leave didFallback true
+  row.categorySlug = resolved.canonicalSlug;
+  row.categoryGroup = resolved.group;
+  row.canonicalCategoryName = resolved.canonicalName;
+  row.didFallback = false;
+}
+
+/**
+ * Ensure all canonical categories from the taxonomy registry exist in the DB.
+ * Called inside the commit transaction before commitRows.
+ */
+async function ensureCanonicalCategories(tx: TransactionClient): Promise<void> {
+  const categories = getAllCanonicalCategories("IT");
+
+  // Collect unique groups
+  const groups = new Set(categories.map((c) => c.group));
+
+  // Upsert category groups
+  for (const groupName of groups) {
+    await tx.categoryGroup.upsert({
+      where: { name: groupName },
+      update: {},
+      create: { id: createId(), name: groupName },
+    });
+  }
+
+  // Now upsert each canonical category
+  for (const cat of categories) {
+    const group = await tx.categoryGroup.findUnique({
+      where: { name: cat.group },
+    });
+    if (!group) continue;
+
+    await tx.productCategory.upsert({
+      where: { slug: cat.slug },
+      update: { groupId: group.id },
+      create: {
+        id: createId(),
+        name: cat.name,
+        slug: cat.slug,
+        groupId: group.id,
+      },
+    });
+  }
 }
 
 // ----- Service functions -----
@@ -218,12 +302,17 @@ export async function parseBatch(
     });
     const vendorName = vendor?.name || "";
 
+    // Load vendor category mappings for fallback resolution
+    const vendorMappings = await loadVendorMappings(batch.vendorId);
+
     const rowData = mappedRows.map((raw, index) => {
       const normalized = normalizeRow(raw as any);
       // If the CSV row doesn't have vendor_name, fill from the batch's vendor
       if (!normalized.vendorName && vendorName) {
         normalized.vendorName = vendorName;
       }
+      // Apply vendor category mapping if the category fell back
+      applyVendorMapping(normalized, vendorMappings);
       return {
         batchId,
         rowIndex: index,
@@ -582,6 +671,9 @@ export async function commitBatch(
 
     const commitResults = await prisma.$transaction(
       async (tx) => {
+        // Ensure all canonical categories exist before committing rows
+        await ensureCanonicalCategories(tx as unknown as TransactionClient);
+
         const results = await commitRows(
           tx as any,
           batch.vendorId,
@@ -681,9 +773,7 @@ export async function updateAndRevalidateRow(
   const batch = await verifyBatchOwnership(batchId, vendorId, role);
 
   if (batch.status !== "VALIDATED") {
-    throw new Error(
-      `Batch status must be VALIDATED, got ${batch.status}`,
-    );
+    throw new Error(`Batch status must be VALIDATED, got ${batch.status}`);
   }
 
   const row = await prisma.importBatchRow.findUnique({
@@ -694,13 +784,23 @@ export async function updateAndRevalidateRow(
   }
 
   // Merge updates into existing normalizedData
-  const existing = (row.normalizedData as unknown as NormalizedRow) || {} as NormalizedRow;
+  const existing =
+    (row.normalizedData as unknown as NormalizedRow) || ({} as NormalizedRow);
   const merged: NormalizedRow = { ...existing, ...updates };
 
-  // Recompute derived fields
+  // Recompute derived fields using taxonomy resolver
   merged.canonicalName = canonicalizeName(merged.name);
-  merged.categorySlug = slugifyCategory(merged.category);
-  merged.categoryGroup = getCategoryGroup(merged.category);
+  const resolved = resolveCategory(merged.category, "IT");
+  merged.categorySlug = resolved.canonicalSlug;
+  merged.categoryGroup = resolved.group;
+  merged.canonicalCategoryName = resolved.canonicalName;
+  merged.didFallback = resolved.didFallback;
+
+  // If still a fallback, check vendor mappings
+  if (merged.didFallback) {
+    const vendorMappings = await loadVendorMappings(batch.vendorId);
+    applyVendorMapping(merged, vendorMappings);
+  }
 
   // Re-validate
   const existingCategories = await loadExistingCategories(prisma);

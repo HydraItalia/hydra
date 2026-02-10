@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,16 +22,23 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { updateImportRow } from "@/actions/vendor-import";
+import {
+  updateImportRow,
+  getCanonicalCategories,
+  saveVendorCategoryMapping,
+} from "@/actions/vendor-import";
 import type { BatchRow } from "@/lib/import/batch-service";
 
 const UNIT_OPTIONS = ["KG", "L", "PIECE", "BOX", "SERVICE"] as const;
@@ -43,9 +50,12 @@ const editRowSchema = z.object({
   priceEuros: z.coerce.number().min(0, "Price must be non-negative"),
   inStock: z.boolean(),
   productCode: z.string().optional(),
+  saveMapping: z.boolean().optional(),
 });
 
 type EditRowFormValues = z.infer<typeof editRowSchema>;
+
+type CanonicalCategoryItem = { slug: string; name: string; group: string };
 
 interface EditRowDialogProps {
   batchId: string;
@@ -61,6 +71,16 @@ interface EditRowDialogProps {
   ) => void;
 }
 
+/** Parse suggestion names from an UNMAPPED_CATEGORY error message */
+function parseSuggestions(error: string): string[] {
+  const match = error.match(/Did you mean:\s*(.+)\?$/);
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export function EditRowDialog({
   batchId,
   row,
@@ -69,8 +89,35 @@ export function EditRowDialog({
   onRowUpdated,
 }: EditRowDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [canonicalCategories, setCanonicalCategories] = useState<
+    CanonicalCategoryItem[]
+  >([]);
   const normalized = row.normalizedData as Record<string, any> | null;
   const errors = Array.isArray(row.errors) ? (row.errors as string[]) : [];
+
+  // Check if there's an UNMAPPED_CATEGORY error
+  const unmappedError = errors.find((e) => e.startsWith("UNMAPPED_CATEGORY:"));
+  const suggestions = unmappedError ? parseSuggestions(unmappedError) : [];
+  const rawCategory = normalized?.category || "";
+
+  // Load canonical categories on mount
+  useEffect(() => {
+    getCanonicalCategories().then((res) => {
+      if (res.success && res.data) {
+        setCanonicalCategories(res.data);
+      }
+    });
+  }, []);
+
+  // Group categories by group type for the select dropdown
+  const groupedCategories = useMemo(() => {
+    const groups: Record<string, CanonicalCategoryItem[]> = {};
+    for (const cat of canonicalCategories) {
+      if (!groups[cat.group]) groups[cat.group] = [];
+      groups[cat.group].push(cat);
+    }
+    return groups;
+  }, [canonicalCategories]);
 
   const form = useForm<EditRowFormValues>({
     resolver: zodResolver(editRowSchema),
@@ -78,15 +125,39 @@ export function EditRowDialog({
       name: normalized?.name || "",
       category: normalized?.category || "",
       unit: (normalized?.unit as (typeof UNIT_OPTIONS)[number]) || "PIECE",
-      priceEuros: normalized?.priceCents != null ? normalized.priceCents / 100 : 0,
+      priceEuros:
+        normalized?.priceCents != null ? normalized.priceCents / 100 : 0,
       inStock: normalized?.inStock ?? false,
       productCode: normalized?.productCode || "",
+      saveMapping: false,
     },
   });
 
   const onSubmit = async (values: EditRowFormValues) => {
     setIsSubmitting(true);
     try {
+      // If "save mapping" is checked and user selected a canonical category,
+      // persist the mapping so future imports auto-resolve
+      if (
+        values.saveMapping &&
+        rawCategory &&
+        values.category !== rawCategory
+      ) {
+        // Find the canonical slug for the selected category name
+        const selected = canonicalCategories.find(
+          (c) => c.name === values.category,
+        );
+        if (selected) {
+          const mapResult = await saveVendorCategoryMapping(
+            rawCategory,
+            selected.slug,
+          );
+          if (!mapResult.success) {
+            toast.error(`Mapping save failed: ${mapResult.error}`);
+          }
+        }
+      }
+
       const result = await updateImportRow(batchId, row.id, {
         name: values.name,
         category: values.category,
@@ -139,6 +210,24 @@ export function EditRowDialog({
           </div>
         )}
 
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <span className="text-xs text-muted-foreground self-center">
+              Suggestions:
+            </span>
+            {suggestions.map((name) => (
+              <Badge
+                key={name}
+                variant="outline"
+                className="cursor-pointer hover:bg-accent"
+                onClick={() => form.setValue("category", name)}
+              >
+                {name}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -161,9 +250,27 @@ export function EditRowDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Category</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.entries(groupedCategories).map(
+                        ([group, cats]) => (
+                          <SelectGroup key={group}>
+                            <SelectLabel>{group}</SelectLabel>
+                            {cats.map((cat) => (
+                              <SelectItem key={cat.slug} value={cat.name}>
+                                {cat.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -241,6 +348,31 @@ export function EditRowDialog({
                 </FormItem>
               )}
             />
+
+            {unmappedError && (
+              <FormField
+                control={form.control}
+                name="saveMapping"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-0.5 leading-none">
+                      <FormLabel className="font-normal">
+                        Save mapping for &ldquo;{rawCategory}&rdquo;
+                      </FormLabel>
+                      <p className="text-xs text-muted-foreground">
+                        Future imports with this category will auto-resolve
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button

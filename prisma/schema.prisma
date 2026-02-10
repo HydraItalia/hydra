@@ -622,8 +622,9 @@ model Vendor {
   VendorUser    VendorUser[]
   VendorProduct VendorProduct[]
   SubOrder      SubOrder[]
-  VendorProfile  VendorProfile?
-  ImportTemplate ImportTemplate[]
+  VendorProfile          VendorProfile?
+  ImportTemplate         ImportTemplate[]
+  VendorCategoryMapping  VendorCategoryMapping[]
 
   // Driver onboarding relations
   driverCompanyLinks DriverCompanyLink[]
@@ -1443,4 +1444,19 @@ model ImportTemplate {
   @@unique([vendorId, name])
   @@index([vendorId])
   @@index([vendorId, status])
+}
+
+model VendorCategoryMapping {
+  id             String   @id @default(cuid())
+  vendorId       String
+  rawCategory    String   // lowercased/trimmed vendor-supplied category string
+  canonicalSlug  String   // slug from the canonical taxonomy registry
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  Vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, rawCategory])
+  @@index([vendorId])
+  @@index([canonicalSlug])
 }

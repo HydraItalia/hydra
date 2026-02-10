@@ -28,9 +28,17 @@ import {
   archiveTemplate,
   suggestTemplateForCsv,
 } from "@/lib/import/template-service";
+import {
+  listVendorMappings,
+  upsertVendorMapping,
+  deleteVendorMapping,
+} from "@/lib/import/mapping-service";
+import type { VendorMappingItem } from "@/lib/import/mapping-service";
 import type { TemplateListItem } from "@/lib/import/template-service";
 import { extractCsvHeaders } from "@/lib/import/catalog-csv";
 import type { NormalizedRow, TemplateMapping, TemplateSuggestion } from "@/lib/import/catalog-csv";
+import { getAllCanonicalCategories } from "@/lib/taxonomy";
+import type { CanonicalCategory } from "@/lib/taxonomy";
 
 type ActionResult<T> = {
   success: boolean;
@@ -454,6 +462,105 @@ export async function suggestImportTemplate(
         error instanceof Error
           ? error.message
           : "Failed to suggest template",
+    };
+  }
+}
+
+// ── Vendor Category Mapping Actions ──────────────────────────────────────────
+
+export async function getVendorCategoryMappings(): Promise<
+  ActionResult<VendorMappingItem[]>
+> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { vendorId } = auth;
+
+    if (!vendorId) {
+      return { success: false, error: "vendorId is required" };
+    }
+
+    const result = await listVendorMappings(vendorId);
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to fetch mappings",
+    };
+  }
+}
+
+export async function saveVendorCategoryMapping(
+  rawCategory: string,
+  canonicalSlug: string,
+): Promise<ActionResult<VendorMappingItem>> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { vendorId } = auth;
+
+    if (!vendorId) {
+      return { success: false, error: "vendorId is required" };
+    }
+
+    const result = await upsertVendorMapping(vendorId, rawCategory, canonicalSlug);
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to save mapping",
+    };
+  }
+}
+
+export async function removeVendorCategoryMapping(
+  rawCategory: string,
+): Promise<ActionResult<null>> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { vendorId } = auth;
+
+    if (!vendorId) {
+      return { success: false, error: "vendorId is required" };
+    }
+
+    await deleteVendorMapping(vendorId, rawCategory);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to remove mapping",
+    };
+  }
+}
+
+export async function getCanonicalCategories(): Promise<
+  ActionResult<{ slug: string; name: string; group: string }[]>
+> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+
+    const categories = getAllCanonicalCategories("IT");
+    return {
+      success: true,
+      data: categories.map((c) => ({
+        slug: c.slug,
+        name: c.name,
+        group: c.group,
+      })),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch canonical categories",
     };
   }
 }
