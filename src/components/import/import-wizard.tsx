@@ -8,6 +8,17 @@ import { ImportPreviewStep } from "./import-preview-step";
 import { ImportCommitStep } from "./import-commit-step";
 import { ImportDoneStep } from "./import-done-step";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -58,7 +69,6 @@ export function ImportWizard({ initialBatch, readOnly }: ImportWizardProps) {
   }, [batch.id]);
 
   const handleDelete = () => {
-    if (!confirm("Delete this import batch? This cannot be undone.")) return;
     startDeleteTransition(async () => {
       const result = await deleteImportBatch(batch.id);
       if (result.success) {
@@ -101,16 +111,37 @@ export function ImportWizard({ initialBatch, readOnly }: ImportWizardProps) {
       {/* Cancel / Delete */}
       {canDelete && (
         <div className="border-t pt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-destructive"
-            onClick={handleDelete}
-            disabled={isDeleting}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            {isDeleting ? "Deleting..." : "Delete this import"}
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                disabled={isDeleting}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {isDeleting ? "Deleting..." : "Delete this import"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this import?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete this import batch and all its
+                  rows. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
     </div>

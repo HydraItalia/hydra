@@ -6,6 +6,17 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { BatchStatusBadge } from "./batch-status-badge";
 import { deleteImportBatch } from "@/actions/vendor-import";
 import type { BatchListItem } from "@/lib/import/batch-service";
@@ -23,7 +34,6 @@ function DeleteBatchButton({ batchId }: { batchId: string }) {
   const router = useRouter();
 
   const handleDelete = () => {
-    if (!confirm("Delete this import batch? This cannot be undone.")) return;
     startTransition(async () => {
       const result = await deleteImportBatch(batchId);
       if (result.success) {
@@ -36,16 +46,37 @@ function DeleteBatchButton({ batchId }: { batchId: string }) {
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-      onClick={handleDelete}
-      disabled={isPending}
-      title="Delete batch"
-    >
-      <Trash2 className="h-4 w-4" />
-    </Button>
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+          disabled={isPending}
+          title="Delete batch"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this import?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will permanently delete this import batch and all its rows.
+            This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
