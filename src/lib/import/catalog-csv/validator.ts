@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { NormalizedRow, RowValidationResult } from "./types";
+import { suggestCanonicalCategories } from "@/lib/taxonomy";
 
 /** Cached set of existing category slugs for validation */
 export async function loadExistingCategories(
@@ -39,13 +40,13 @@ export function validateRow(
     errors.push("in-stock product must have a price > 0");
   }
 
-  // Warn if category doesn't exist yet (will be created on commit)
-  if (
-    existingCategorySlugs &&
-    row.categorySlug &&
-    !existingCategorySlugs.has(row.categorySlug)
-  ) {
-    // Not an error — categories are auto-created on commit — but noted for info
+  // Enforce canonical taxonomy: if didFallback is true, the category is unmapped
+  if (row.didFallback ?? false) {
+    const suggestions = suggestCanonicalCategories(row.category, "IT", 5);
+    const suggestionNames = suggestions.map((s) => s.name).join(", ");
+    errors.push(
+      `UNMAPPED_CATEGORY: "${row.category}" is not a recognized category. Did you mean: ${suggestionNames}?`,
+    );
   }
 
   return {

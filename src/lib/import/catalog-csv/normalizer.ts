@@ -97,5 +97,6 @@ export function normalizeRow(raw: RawCsvRow): NormalizedRow {
     priceCents: parseInt(priceCentsStr, 10) || 0,
     inStock: inStockStr === "true" || inStockStr === "1",
     productCode: (raw.product_code || "").trim(),
+    didFallback: resolved.didFallback,
   };
 }

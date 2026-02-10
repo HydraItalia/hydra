@@ -1,16 +1,14 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { createId } from "@paralleldrive/cuid2";
-import { NormalizedRow, CommitRowResult } from "./types";
+import { NormalizedRow, CommitRowResult, TransactionClient } from "./types";
 import { canonicalizeName } from "./normalizer";
-
-type TransactionClient = Omit<
-  PrismaClient,
-  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
->;
 
 /**
  * Commit validated rows to the database within a transaction.
  * Handles CategoryGroup, ProductCategory, Product, and VendorProduct upserts.
+ *
+ * IMPORTANT: ensureCanonicalCategories() must be called before this function
+ * to guarantee all canonical categories exist in the DB.
  *
  * Product lookup: categoryId + case-insensitive name + unit
  */
@@ -28,7 +26,7 @@ export async function commitRows(
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
 
-    // 1. CategoryGroup: upsert by name
+    // 1. CategoryGroup: upsert by name (groups are seeded by ensureCanonicalCategories)
     let groupId = categoryGroupCache.get(row.categoryGroup);
     if (!groupId) {
       const group = await tx.categoryGroup.upsert({
@@ -40,19 +38,17 @@ export async function commitRows(
       categoryGroupCache.set(row.categoryGroup, groupId);
     }
 
-    // 2. ProductCategory: upsert by slug
+    // 2. ProductCategory: find by slug (must exist via ensureCanonicalCategories)
     let categoryId = categoryCache.get(row.categorySlug);
     if (!categoryId) {
-      const category = await tx.productCategory.upsert({
+      const category = await tx.productCategory.findUnique({
         where: { slug: row.categorySlug },
-        update: { groupId },
-        create: {
-          id: createId(),
-          name: row.category,
-          slug: row.categorySlug,
-          groupId,
-        },
       });
+      if (!category) {
+        throw new Error(
+          `Category slug "${row.categorySlug}" not found. ensureCanonicalCategories must run before commitRows.`,
+        );
+      }
       categoryId = category.id;
       categoryCache.set(row.categorySlug, categoryId);
     }
@@ -61,7 +57,10 @@ export async function commitRows(
     let product = await tx.product.findFirst({
       where: {
         categoryId,
-        name: { equals: canonicalizeName(row.name), mode: "insensitive" as Prisma.QueryMode },
+        name: {
+          equals: canonicalizeName(row.name),
+          mode: "insensitive" as Prisma.QueryMode,
+        },
         unit: row.unit,
         deletedAt: null,
       },

@@ -29,5 +29,6 @@ export type {
   NormalizedRow,
   RowValidationResult,
   CommitRowResult,
+  TransactionClient,
 } from "./types";
 export { KNOWN_CSV_COLUMNS, CSV_LIMITS } from "./types";
