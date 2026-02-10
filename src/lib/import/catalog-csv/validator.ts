@@ -16,7 +16,7 @@ export async function loadExistingCategories(
 export function validateRow(
   rowIndex: number,
   row: NormalizedRow,
-  existingCategorySlugs?: Set<string>,
+  _existingCategorySlugs?: Set<string>,
 ): RowValidationResult {
   const errors: string[] = [];
 
