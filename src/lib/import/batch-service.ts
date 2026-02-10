@@ -159,8 +159,19 @@ export async function parseBatch(
   try {
     const rawRows = parseCsv(csvText);
 
+    // Auto-fill vendor name from the batch's vendor so CSV doesn't need it
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: batch.vendorId },
+      select: { name: true },
+    });
+    const vendorName = vendor?.name || "";
+
     const rowData = rawRows.map((raw, index) => {
       const normalized = normalizeRow(raw);
+      // If the CSV row doesn't have vendor_name, fill from the batch's vendor
+      if (!normalized.vendorName && vendorName) {
+        normalized.vendorName = vendorName;
+      }
       return {
         batchId,
         rowIndex: index,
