@@ -3,8 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { CategoryGroupType } from "@prisma/client";
 
 /**
- * Get all category groups with their categories (cached)
- * Revalidates every 60 seconds
+ * Get all category groups with their categories (cached).
+ * Includes product counts per category (global, not filter-specific)
+ * and parentId for future subcategory tree rendering.
+ * Revalidates every 60 seconds.
  */
 export const getCategoryGroups = unstable_cache(
   async () => {
@@ -12,13 +14,26 @@ export const getCategoryGroups = unstable_cache(
       include: {
         ProductCategory: {
           orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            parentId: true,
+            _count: {
+              select: {
+                Product: {
+                  where: { deletedAt: null },
+                },
+              },
+            },
+          },
         },
       },
       orderBy: { name: "asc" },
     });
   },
   ["category-groups"],
-  { revalidate: 60 }
+  { revalidate: 60 },
 );
 
 /**
@@ -33,5 +48,5 @@ export const getCategoriesByGroup = unstable_cache(
     });
   },
   ["categories"],
-  { revalidate: 60 }
+  { revalidate: 60 },
 );

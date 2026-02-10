@@ -13,6 +13,7 @@ import { Pagination } from "@/components/catalog/pagination";
 import { CategoryGroupType, ProductUnit } from "@prisma/client";
 import { parseBoolParam } from "@/lib/url";
 import { fetchCatalogPage } from "@/data/catalog";
+import { isValidGroup } from "@/lib/taxonomy";
 
 type SearchParams = {
   group?: string;
@@ -89,10 +90,9 @@ export default async function CatalogPage({
   if (params.inStock) searchParamsObj.set("inStock", params.inStock);
   const inStockOnly = parseBoolParam(searchParamsObj, "inStock");
 
-  // Validate group (optional - if not provided, show all)
-  const validGroups: CategoryGroupType[] = ["FOOD", "BEVERAGE", "SERVICES"];
+  // Validate group via taxonomy (no hardcoded list)
   const selectedGroup =
-    groupParam && validGroups.includes(groupParam) ? groupParam : undefined;
+    groupParam && isValidGroup(groupParam) ? groupParam : undefined;
 
   // Fetch category groups and categories (cached)
   const categoryGroups = await getCategoryGroups();
