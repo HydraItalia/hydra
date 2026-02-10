@@ -191,7 +191,23 @@ export function ImportPreviewTable({
                         {normalized?.name || "-"}
                       </td>
                       <td className="py-2 px-4 text-sm">
-                        {normalized?.category || "-"}
+                        {normalized?.category
+                          ? normalized.canonicalCategoryName &&
+                            normalized.canonicalCategoryName !== normalized.category &&
+                            !normalized.didFallback
+                            ? (
+                                <span>
+                                  <span className="text-muted-foreground">
+                                    {normalized.category}
+                                  </span>
+                                  {" → "}
+                                  <span className="font-medium">
+                                    {normalized.canonicalCategoryName}
+                                  </span>
+                                </span>
+                              )
+                            : normalized.category
+                          : "-"}
                       </td>
                       <td className="py-2 px-4 text-sm">
                         {normalized?.unit || "-"}

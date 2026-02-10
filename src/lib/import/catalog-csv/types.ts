@@ -42,6 +42,8 @@ export interface NormalizedRow {
   priceCents: number;
   inStock: boolean;
   productCode: string;
+  /** Canonical display name from the taxonomy (e.g. "Pesce" for input "Seafood") */
+  canonicalCategoryName: string;
   /** true when the category didn't match any canonical taxonomy entry */
   didFallback: boolean;
 }

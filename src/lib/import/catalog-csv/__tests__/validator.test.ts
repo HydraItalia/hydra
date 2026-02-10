@@ -14,6 +14,7 @@ function makeRow(overrides: Partial<NormalizedRow> = {}): NormalizedRow {
     priceCents: 1000,
     inStock: true,
     productCode: "TP-001",
+    canonicalCategoryName: "Beverage",
     didFallback: false,
     ...overrides,
   };

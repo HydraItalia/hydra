@@ -137,6 +137,7 @@ function applyVendorMapping(
   if (resolved.didFallback) return; // mapped slug isn't canonical — leave didFallback true
   row.categorySlug = resolved.canonicalSlug;
   row.categoryGroup = resolved.group;
+  row.canonicalCategoryName = resolved.canonicalName;
   row.didFallback = false;
 }
 
@@ -792,6 +793,7 @@ export async function updateAndRevalidateRow(
   const resolved = resolveCategory(merged.category, "IT");
   merged.categorySlug = resolved.canonicalSlug;
   merged.categoryGroup = resolved.group;
+  merged.canonicalCategoryName = resolved.canonicalName;
   merged.didFallback = resolved.didFallback;
 
   // If still a fallback, check vendor mappings

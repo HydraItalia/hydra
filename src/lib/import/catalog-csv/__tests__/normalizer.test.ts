@@ -127,6 +127,7 @@ describe("normalizeRow", () => {
       priceCents: 1500,
       inStock: true,
       productCode: "WD-001",
+      canonicalCategoryName: "Beverage",
       didFallback: false,
     });
   });
