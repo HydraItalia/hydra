@@ -622,7 +622,8 @@ model Vendor {
   VendorUser    VendorUser[]
   VendorProduct VendorProduct[]
   SubOrder      SubOrder[]
-  VendorProfile VendorProfile?
+  VendorProfile  VendorProfile?
+  ImportTemplate ImportTemplate[]
 
   // Driver onboarding relations
   driverCompanyLinks DriverCompanyLink[]
@@ -1376,6 +1377,11 @@ enum ImportSourceType {
   FILE
 }
 
+enum ImportTemplateStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 model ImportBatch {
   id               String            @id @default(cuid())
   vendorId         String
@@ -1420,4 +1426,21 @@ model ImportBatchRow {
   @@unique([batchId, rowIndex])
   @@index([batchId])
   @@index([batchId, status])
+}
+
+model ImportTemplate {
+  id        String               @id @default(cuid())
+  vendorId  String
+  name      String
+  mapping   Json
+  defaults  Json?
+  status    ImportTemplateStatus @default(ACTIVE)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  Vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  @@unique([vendorId, name])
+  @@index([vendorId])
+  @@index([vendorId, status])
 }
