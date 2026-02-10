@@ -1,6 +1,8 @@
-import { PrismaClient, ProductUnit } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { resolveCategory } from "../src/lib/taxonomy";
+import { normalizeUnit } from "../src/lib/import/catalog-csv/normalizer";
 
 const prisma = new PrismaClient();
 
@@ -43,29 +45,6 @@ function parseCSV(content: string): CSVRow[] {
     });
     return row as CSVRow;
   });
-}
-
-function mapUnit(csvUnit: string): ProductUnit {
-  const unitLower = csvUnit.toLowerCase().trim();
-
-  // Map common units
-  if (unitLower.includes("kg") || unitLower === "g") return "KG";
-  if (unitLower.includes("lt") || unitLower.includes("l ")) return "L";
-  if (unitLower.includes("unit")) return "PIECE";
-  if (unitLower.includes("box") || unitLower.includes("crt")) return "BOX";
-  if (unitLower.includes("service")) return "SERVICE";
-
-  // Default to PIECE for anything else
-  return "PIECE";
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // Remove accents
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 async function main() {
@@ -115,34 +94,16 @@ async function main() {
           console.log(`   ✓ Created vendor: ${vendor.name}`);
         }
 
-        // Get or create category
-        const categorySlug = slugify(row.category);
+        // Get or create category (using taxonomy resolver for canonical slug + group)
+        const resolved = resolveCategory(row.category, "IT");
+        const categorySlug = resolved.canonicalSlug;
         let category = await prisma.productCategory.findFirst({
           where: { slug: categorySlug },
         });
 
         if (!category) {
-          // Determine category group based on category name
-          let groupName = "FOOD";
-          const catLower = row.category.toLowerCase();
-          if (
-            catLower.includes("beverage") ||
-            catLower.includes("drink") ||
-            catLower.includes("water") ||
-            catLower.includes("wine") ||
-            catLower.includes("beer")
-          ) {
-            groupName = "BEVERAGE";
-          } else if (
-            catLower.includes("service") ||
-            catLower.includes("cleaning") ||
-            catLower.includes("maintenance")
-          ) {
-            groupName = "SERVICES";
-          }
-
           const categoryGroup = await prisma.categoryGroup.findFirst({
-            where: { name: groupName as any },
+            where: { name: resolved.group },
           });
 
           if (categoryGroup) {
@@ -176,7 +137,7 @@ async function main() {
             data: {
               categoryId: category.id,
               name: row.name.trim(),
-              unit: mapUnit(row.unit),
+              unit: normalizeUnit(row.unit),
             },
           });
           totalProducts++;
