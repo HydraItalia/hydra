@@ -1,12 +1,24 @@
+"use client";
+
+import { useState } from "react";
 import { VendorInventoryItem } from "@/actions/vendor-inventory";
 import { InventoryRow } from "./inventory-row";
 
 interface InventoryTableProps {
   items: VendorInventoryItem[];
+  onItemDeleted?: () => void;
 }
 
-export function InventoryTable({ items }: InventoryTableProps) {
-  if (items.length === 0) {
+export function InventoryTable({ items, onItemDeleted }: InventoryTableProps) {
+  const [visibleItems, setVisibleItems] =
+    useState<VendorInventoryItem[]>(items);
+
+  const handleDeleted = (id: string) => {
+    setVisibleItems((prev) => prev.filter((item) => item.id !== id));
+    onItemDeleted?.();
+  };
+
+  if (visibleItems.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         No inventory items found
@@ -41,8 +53,12 @@ export function InventoryTable({ items }: InventoryTableProps) {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <InventoryRow key={item.id} item={item} />
+            {visibleItems.map((item) => (
+              <InventoryRow
+                key={item.id}
+                item={item}
+                onDeleted={handleDeleted}
+              />
             ))}
           </tbody>
         </table>

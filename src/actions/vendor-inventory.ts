@@ -8,6 +8,8 @@
 
 import { currentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/audit";
+import { AuditAction } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { VendorProduct, Product } from "@prisma/client";
 
@@ -186,6 +188,110 @@ export async function updateVendorInventoryItem(
     return {
       success: false,
       error: "Failed to update inventory item",
+    };
+  }
+}
+
+/**
+ * Soft-delete a vendor inventory item
+ */
+export async function deleteVendorInventoryItem(
+  vendorProductId: string
+): Promise<ActionResult<null>> {
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    if (user.role !== "VENDOR") {
+      return { success: false, error: "Unauthorized: Vendor access required" };
+    }
+
+    if (!user.vendorId) {
+      return {
+        success: false,
+        error: "No vendor associated with this account",
+      };
+    }
+
+    // Verify ownership
+    const existingProduct = await prisma.vendorProduct.findUnique({
+      where: { id: vendorProductId },
+      include: { Product: { select: { name: true } } },
+    });
+
+    if (!existingProduct) {
+      return { success: false, error: "Product not found" };
+    }
+
+    if (existingProduct.vendorId !== user.vendorId) {
+      return {
+        success: false,
+        error: "Unauthorized: You do not own this product",
+      };
+    }
+
+    if (existingProduct.deletedAt) {
+      return { success: false, error: "Product is already deleted" };
+    }
+
+    // Safety check: reject if product is in an active cart
+    const activeCartItemCount = await prisma.cartItem.count({
+      where: {
+        vendorProductId,
+        Cart: { status: "ACTIVE" },
+      },
+    });
+
+    if (activeCartItemCount > 0) {
+      return {
+        success: false,
+        error:
+          "Cannot remove: this product is in an active cart. Wait until the cart is ordered or cleared.",
+      };
+    }
+
+    // Safety check: reject if product has unfulfilled order items
+    const unfulfilledOrderItemCount = await prisma.orderItem.count({
+      where: {
+        vendorProductId,
+        Order: {
+          status: { notIn: ["DELIVERED", "CANCELED"] },
+        },
+      },
+    });
+
+    if (unfulfilledOrderItemCount > 0) {
+      return {
+        success: false,
+        error:
+          "Cannot remove: this product has unfulfilled orders. Complete or cancel them first.",
+      };
+    }
+
+    // Soft-delete
+    await prisma.vendorProduct.update({
+      where: { id: vendorProductId },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+
+    await logAction({
+      entityType: "VendorProduct",
+      entityId: vendorProductId,
+      action: AuditAction.VENDOR_PRODUCT_DELETED,
+      diff: { productName: existingProduct.Product.name },
+    });
+
+    revalidatePath("/dashboard/inventory");
+
+    return { success: true, data: null };
+  } catch (error) {
+    console.error("Error deleting vendor inventory item:", error);
+    return {
+      success: false,
+      error: "Failed to remove inventory item",
     };
   }
 }
