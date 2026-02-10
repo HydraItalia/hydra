@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { resolveCategory, slugifyCategory } from "../src/lib/taxonomy";
+import { resolveCategory } from "../src/lib/taxonomy";
 import { normalizeUnit } from "../src/lib/import/catalog-csv/normalizer";
 
 const prisma = new PrismaClient();
@@ -94,9 +94,9 @@ async function main() {
           console.log(`   ✓ Created vendor: ${vendor.name}`);
         }
 
-        // Get or create category (using taxonomy resolver)
+        // Get or create category (using taxonomy resolver for canonical slug + group)
         const resolved = resolveCategory(row.category, "IT");
-        const categorySlug = slugifyCategory(row.category);
+        const categorySlug = resolved.canonicalSlug;
         let category = await prisma.productCategory.findFirst({
           where: { slug: categorySlug },
         });

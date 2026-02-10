@@ -13,7 +13,7 @@ import { createId } from "@paralleldrive/cuid2";
 import fs from "fs";
 import path from "path";
 import { parse } from "csv-parse/sync";
-import { resolveCategory, slugifyCategory } from "../src/lib/taxonomy";
+import { resolveCategory } from "../src/lib/taxonomy";
 import { normalizeUnit } from "../src/lib/import/catalog-csv/normalizer";
 
 const prisma = new PrismaClient();
@@ -111,9 +111,10 @@ async function importVendorsFromCSV() {
           vendorCache.set(vendorName, vendorId);
         }
 
-        // Get or create category (using taxonomy resolver for slug + group)
+        // Get or create category (using taxonomy resolver for canonical slug + group)
         const groupId = await getOrCreateCategoryGroup(row.category.trim());
-        const categorySlug = slugifyCategory(row.category.trim());
+        const resolved = resolveCategory(row.category.trim(), "IT");
+        const categorySlug = resolved.canonicalSlug;
 
         const category = await prisma.productCategory.upsert({
           where: { slug: categorySlug },

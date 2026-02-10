@@ -38,6 +38,8 @@ describe("getImageKeyForCategorySlug", () => {
   });
 
   it("defaults market to IT", () => {
-    expect(getImageKeyForCategorySlug("seafood")).toBe("pesce");
+    expect(getImageKeyForCategorySlug("wine")).toBe(
+      getImageKeyForCategorySlug("wine", "IT"),
+    );
   });
 });

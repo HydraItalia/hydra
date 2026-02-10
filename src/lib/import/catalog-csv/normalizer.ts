@@ -4,6 +4,7 @@ import {
   slugifyCategory as taxonomySlugify,
   resolveCategory,
 } from "@/lib/taxonomy";
+import { IT_CATEGORIES } from "@/lib/taxonomy/registry.it";
 
 /** Normalize a unit string to ProductUnit enum */
 export function normalizeUnit(unitStr: string): ProductUnit {
@@ -65,33 +66,15 @@ export function getCategoryGroup(categoryName: string): CategoryGroupType {
 }
 
 /**
- * Backward-compatible categoryGroupMap.
- * Kept as a re-export for any code that reads it directly.
+ * Backward-compatible categoryGroupMap derived from the taxonomy registry.
  * @deprecated Use resolveCategory() from @/lib/taxonomy instead.
  */
-export const categoryGroupMap: Record<string, CategoryGroupType> = {
-  Beverage: "BEVERAGE",
-  Beverages: "BEVERAGE",
-  Drinks: "BEVERAGE",
-  Wine: "BEVERAGE",
-  Spirits: "BEVERAGE",
-  Beer: "BEVERAGE",
-  Food: "FOOD",
-  Produce: "FOOD",
-  Seafood: "FOOD",
-  Fish: "FOOD",
-  Meat: "FOOD",
-  Dairy: "FOOD",
-  Bakery: "FOOD",
-  Pantry: "FOOD",
-  Frozen: "FOOD",
-  "Specialty Produce": "FOOD",
-  Services: "SERVICES",
-  Packaging: "SERVICES",
-  Supplies: "SERVICES",
-  Disposables: "SERVICES",
-  "Cleaning & Disposables": "SERVICES",
-};
+export const categoryGroupMap: Record<string, CategoryGroupType> =
+  Object.fromEntries(
+    IT_CATEGORIES.flatMap((cat) =>
+      [cat.name, ...cat.aliases].map((alias) => [alias, cat.group]),
+    ),
+  );
 
 /** Normalize a single raw CSV row into typed values */
 export function normalizeRow(raw: RawCsvRow): NormalizedRow {

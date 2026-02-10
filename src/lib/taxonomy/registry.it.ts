@@ -63,7 +63,7 @@ export const IT_CATEGORIES: CanonicalCategory[] = [
     slug: "latticini",
     group: "FOOD",
     imageKey: "food",
-    aliases: ["dairy", "dairy-eggs", "latticini", "formaggi", "cheese"],
+    aliases: ["dairy", "dairy-eggs", "latticini", "formaggi", "cheese", "eggs", "uova"],
   },
   {
     name: "Surgelati",
