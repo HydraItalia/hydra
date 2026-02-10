@@ -86,6 +86,9 @@ export async function deleteVendorMapping(
   rawCategory: string,
 ): Promise<void> {
   const key = rawCategory.trim().toLowerCase();
+  if (!key) {
+    throw new Error("rawCategory cannot be empty");
+  }
   await prisma.vendorCategoryMapping.delete({
     where: {
       vendorId_rawCategory: { vendorId, rawCategory: key },

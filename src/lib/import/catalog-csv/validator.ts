@@ -41,11 +41,12 @@ export function validateRow(
   }
 
   // Enforce canonical taxonomy: if didFallback is true, the category is unmapped
-  if (row.didFallback ?? false) {
+  if ((row.didFallback ?? false) && row.category) {
     const suggestions = suggestCanonicalCategories(row.category, "IT", 5);
     const suggestionNames = suggestions.map((s) => s.name).join(", ");
+    const hint = suggestionNames ? ` Did you mean: ${suggestionNames}?` : "";
     errors.push(
-      `UNMAPPED_CATEGORY: "${row.category}" is not a recognized category. Did you mean: ${suggestionNames}?`,
+      `UNMAPPED_CATEGORY: "${row.category}" is not a recognized category.${hint}`,
     );
   }
 

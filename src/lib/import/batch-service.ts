@@ -132,8 +132,9 @@ function applyVendorMapping(
   const canonicalSlug = mappings.get(key);
   if (!canonicalSlug) return;
 
-  // Re-resolve through taxonomy to get the canonical name and group
+  // Re-resolve through taxonomy to confirm the mapped slug is canonical
   const resolved = resolveCategory(canonicalSlug, "IT");
+  if (resolved.didFallback) return; // mapped slug isn't canonical — leave didFallback true
   row.categorySlug = resolved.canonicalSlug;
   row.categoryGroup = resolved.group;
   row.didFallback = false;
