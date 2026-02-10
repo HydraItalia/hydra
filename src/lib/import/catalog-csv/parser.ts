@@ -89,12 +89,26 @@ export function parseCsv(
 export function extractCsvHeaders(input: string): string[] {
   if (!input.trim()) return [];
 
-  const rows = parse(input, {
-    columns: false,
-    trim: true,
-    relax_column_count: true,
-    to: 1,
-  });
+  let rows: string[][];
+  try {
+    rows = parse(input, {
+      columns: false,
+      trim: true,
+      relax_column_count: true,
+      to: 1,
+    });
+  } catch (err) {
+    throw new CsvParseError(
+      `CSV parse failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 
-  return (rows[0] as string[]) || [];
+  const headers = (rows[0] as string[]) || [];
+  if (headers.length > CSV_LIMITS.MAX_COLUMNS) {
+    throw new CsvParseError(
+      `CSV has ${headers.length} columns (max ${CSV_LIMITS.MAX_COLUMNS})`,
+    );
+  }
+
+  return headers;
 }

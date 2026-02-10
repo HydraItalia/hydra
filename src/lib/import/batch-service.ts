@@ -179,6 +179,9 @@ export async function parseBatch(
         where: { id: opts.templateId },
       });
       if (!template) throw new Error("Template not found");
+      if (template.status !== "ACTIVE") {
+        throw new Error("Template is archived");
+      }
       if (template.vendorId !== batch.vendorId) {
         throw new Error("Template does not belong to this vendor");
       }

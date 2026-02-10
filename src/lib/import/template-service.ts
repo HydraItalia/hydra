@@ -4,7 +4,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { ImportTemplateStatus, Prisma } from "@prisma/client";
 import { logAction, AuditAction } from "@/lib/audit";
 import { suggestTemplate } from "@/lib/import/catalog-csv";
 import type {
@@ -117,7 +117,7 @@ export async function listTemplates(
     where.vendorId = vendorId;
   }
   if (!includeArchived) {
-    where.status = "ACTIVE";
+    where.status = ImportTemplateStatus.ACTIVE;
   }
 
   const templates = await prisma.importTemplate.findMany({
@@ -187,7 +187,7 @@ export async function archiveTemplate(
 
   await prisma.importTemplate.update({
     where: { id: templateId },
-    data: { status: "ARCHIVED" },
+    data: { status: ImportTemplateStatus.ARCHIVED },
   });
 
   try {
@@ -206,7 +206,7 @@ export async function suggestTemplateForCsv(
   csvHeaders: string[],
 ): Promise<TemplateSuggestionResult | null> {
   const templates = await prisma.importTemplate.findMany({
-    where: { vendorId, status: "ACTIVE" },
+    where: { vendorId, status: ImportTemplateStatus.ACTIVE },
   });
 
   if (templates.length === 0) return null;
