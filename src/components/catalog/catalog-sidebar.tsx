@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Package, Coffee, Wrench, Loader2 } from "lucide-react";
 import { CategoryGroupType } from "@prisma/client";
+import { getGroups } from "@/lib/taxonomy";
+import type { GroupMeta } from "@/lib/taxonomy";
 
 type CategoryGroup = {
   id: string;
@@ -16,6 +18,7 @@ type Category = {
   id: string;
   name: string;
   slug: string;
+  _count?: { Product: number };
   CategoryGroup: { name: CategoryGroupType };
 };
 
@@ -26,11 +29,17 @@ type CatalogSidebarProps = {
   allCategories: Category[];
 };
 
-const groupIcons = {
-  FOOD: Package,
-  BEVERAGE: Coffee,
-  SERVICES: Wrench,
-};
+/** Map taxonomy icon hints to Lucide components */
+const iconComponents = {
+  package: Package,
+  coffee: Coffee,
+  wrench: Wrench,
+} as const;
+
+/** Get the Lucide icon component for a group via taxonomy metadata */
+function getGroupIcon(meta: GroupMeta) {
+  return iconComponents[meta.icon];
+}
 
 export function CatalogSidebar({
   categoryGroups,
@@ -42,10 +51,15 @@ export function CatalogSidebar({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // Filter categories by selected group
-  const categories = selectedGroup
-    ? allCategories.filter((cat) => cat.CategoryGroup.name === selectedGroup)
-    : allCategories;
+  // Get group metadata from taxonomy (labels, icons, order)
+  const groups = getGroups("IT");
+
+  // Filter categories by selected group, hide empty ones
+  const categories = (
+    selectedGroup
+      ? allCategories.filter((cat) => cat.CategoryGroup.name === selectedGroup)
+      : allCategories
+  ).filter((cat) => !cat._count || cat._count.Product > 0);
 
   const updateGroup = (group: CategoryGroupType | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -81,9 +95,7 @@ export function CatalogSidebar({
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">
-              Loading products...
-            </p>
+            <p className="text-sm text-muted-foreground">Loading products...</p>
           </div>
         </div>
       )}
@@ -101,23 +113,25 @@ export function CatalogSidebar({
             >
               All Products
             </Button>
-            {categoryGroups.map((group) => {
-              const Icon = groupIcons[group.name];
-              const isSelected = group.name === selectedGroup;
+            {groups
+              .filter((meta) => categoryGroups.some((g) => g.name === meta.key))
+              .map((meta) => {
+                const Icon = getGroupIcon(meta);
+                const isSelected = meta.key === selectedGroup;
 
-              return (
-                <Button
-                  key={group.id}
-                  variant={isSelected ? "secondary" : "ghost"}
-                  className="w-full justify-start"
-                  onClick={() => updateGroup(group.name)}
-                  disabled={isPending}
-                >
-                  <Icon className="mr-2 h-4 w-4" />
-                  {group.name}
-                </Button>
-              );
-            })}
+                return (
+                  <Button
+                    key={meta.key}
+                    variant={isSelected ? "secondary" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => updateGroup(meta.key)}
+                    disabled={isPending}
+                  >
+                    <Icon className="mr-2 h-4 w-4" />
+                    {meta.label}
+                  </Button>
+                );
+              })}
           </div>
         </div>
 
@@ -138,17 +152,23 @@ export function CatalogSidebar({
             </Button>
             {categories.map((category) => {
               const isSelected = category.slug === selectedCategory;
+              const count = category._count?.Product;
 
               return (
                 <Button
                   key={category.id}
                   variant={isSelected ? "secondary" : "ghost"}
                   size="sm"
-                  className="w-full justify-start"
+                  className="w-full justify-between"
                   onClick={() => updateCategory(category.slug)}
                   disabled={isPending}
                 >
-                  {category.name}
+                  <span>{category.name}</span>
+                  {count !== undefined && (
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {count}
+                    </span>
+                  )}
                 </Button>
               );
             })}

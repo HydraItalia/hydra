@@ -15,6 +15,17 @@ export interface CanonicalCategory {
   aliases: string[];
 }
 
+export interface GroupMeta {
+  /** Prisma enum value */
+  key: CategoryGroupType;
+  /** Human-readable label */
+  label: string;
+  /** Hint for which Lucide icon to render (UI maps this to a component) */
+  icon: "package" | "coffee" | "wrench";
+  /** Display order (lower = first) */
+  order: number;
+}
+
 export interface ResolvedCategory {
   canonicalName: string;
   canonicalSlug: string;
