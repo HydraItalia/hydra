@@ -673,6 +673,29 @@ function escapeCsvField(value: string): string {
 }
 
 /**
+ * Delete a batch and all its rows. Only non-COMMITTED batches can be deleted.
+ * Also rejects deletion of batches currently being processed (locked).
+ */
+export async function deleteBatch(
+  batchId: string,
+  vendorId: string | null,
+  role: string,
+) {
+  const batch = await verifyBatchOwnership(batchId, vendorId, role);
+
+  if (batch.status === "COMMITTED") {
+    throw new Error("Cannot delete a committed batch");
+  }
+
+  if (batch.lockedAt) {
+    throw new Error("Batch is currently being processed");
+  }
+
+  // Rows cascade-delete via the schema's onDelete: Cascade
+  await prisma.importBatch.delete({ where: { id: batchId } });
+}
+
+/**
  * List batches — VENDOR sees own, ADMIN sees all with optional filters.
  */
 export async function listBatches(opts: {

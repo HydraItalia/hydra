@@ -1,12 +1,19 @@
 "use client";
 
 import { useState, useTransition, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { ImportWizardProgress } from "./import-wizard-progress";
 import { ImportSummaryCards } from "./import-summary-cards";
 import { ImportPreviewStep } from "./import-preview-step";
 import { ImportCommitStep } from "./import-commit-step";
 import { ImportDoneStep } from "./import-done-step";
-import { getImportBatchDetail } from "@/actions/vendor-import";
+import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  getImportBatchDetail,
+  deleteImportBatch,
+} from "@/actions/vendor-import";
 import type { BatchDetail } from "@/lib/import/batch-service";
 
 function getStepFromStatus(status: string): number {
@@ -37,7 +44,9 @@ interface ImportWizardProps {
 
 export function ImportWizard({ initialBatch, readOnly }: ImportWizardProps) {
   const [batch, setBatch] = useState(initialBatch);
+  const [isDeleting, startDeleteTransition] = useTransition();
   const [, startTransition] = useTransition();
+  const router = useRouter();
 
   const refreshBatch = useCallback(() => {
     startTransition(async () => {
@@ -48,7 +57,21 @@ export function ImportWizard({ initialBatch, readOnly }: ImportWizardProps) {
     });
   }, [batch.id]);
 
+  const handleDelete = () => {
+    if (!confirm("Delete this import batch? This cannot be undone.")) return;
+    startDeleteTransition(async () => {
+      const result = await deleteImportBatch(batch.id);
+      if (result.success) {
+        toast.success("Import batch deleted");
+        router.push("/dashboard/vendor/import");
+      } else {
+        toast.error(result.error || "Failed to delete batch");
+      }
+    });
+  };
+
   const currentStep = getStepFromStatus(batch.status);
+  const canDelete = !readOnly && batch.status !== "COMMITTED";
 
   return (
     <div className="space-y-6">
@@ -74,6 +97,22 @@ export function ImportWizard({ initialBatch, readOnly }: ImportWizardProps) {
       )}
 
       {batch.status === "COMMITTED" && <ImportDoneStep batch={batch} />}
+
+      {/* Cancel / Delete */}
+      {canDelete && (
+        <div className="border-t pt-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            {isDeleting ? "Deleting..." : "Delete this import"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

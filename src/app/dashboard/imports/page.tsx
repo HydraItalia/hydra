@@ -45,6 +45,7 @@ export default async function AdminImportsPage(props: PageProps) {
             batches={result.data}
             linkBase="/dashboard/imports"
             showVendor
+            readOnly
           />
 
           {result.totalPages > 1 && (

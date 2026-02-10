@@ -11,6 +11,7 @@ import {
   commitBatch,
   getErrorRowsCsv,
   listBatches,
+  deleteBatch,
 } from "@/lib/import/batch-service";
 import type {
   BatchDetail,
@@ -242,6 +243,26 @@ export async function downloadImportErrors(
         error instanceof Error
           ? error.message
           : "Failed to download error rows",
+    };
+  }
+}
+
+export async function deleteImportBatch(
+  batchId: string,
+): Promise<ActionResult<null>> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { user, vendorId } = auth;
+
+    await deleteBatch(batchId, vendorId, user.role);
+    revalidatePath("/dashboard/vendor/import");
+    revalidatePath("/dashboard/imports");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to delete batch",
     };
   }
 }

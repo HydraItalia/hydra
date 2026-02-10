@@ -1,17 +1,59 @@
+"use client";
+
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { BatchStatusBadge } from "./batch-status-badge";
+import { deleteImportBatch } from "@/actions/vendor-import";
 import type { BatchListItem } from "@/lib/import/batch-service";
 
 interface ImportBatchesTableProps {
   batches: BatchListItem[];
   linkBase: string; // e.g. "/dashboard/vendor/import" or "/dashboard/imports"
   showVendor?: boolean;
+  /** Hide delete actions (e.g. admin read-only view) */
+  readOnly?: boolean;
+}
+
+function DeleteBatchButton({ batchId }: { batchId: string }) {
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const handleDelete = () => {
+    if (!confirm("Delete this import batch? This cannot be undone.")) return;
+    startTransition(async () => {
+      const result = await deleteImportBatch(batchId);
+      if (result.success) {
+        toast.success("Import batch deleted");
+        router.refresh();
+      } else {
+        toast.error(result.error || "Failed to delete batch");
+      }
+    });
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+      onClick={handleDelete}
+      disabled={isPending}
+      title="Delete batch"
+    >
+      <Trash2 className="h-4 w-4" />
+    </Button>
+  );
 }
 
 export function ImportBatchesTable({
   batches,
   linkBase,
   showVendor,
+  readOnly,
 }: ImportBatchesTableProps) {
   if (batches.length === 0) {
     return (
@@ -47,6 +89,11 @@ export function ImportBatchesTable({
               <th className="text-left py-3 px-4 font-medium text-sm whitespace-nowrap">
                 Created
               </th>
+              {!readOnly && (
+                <th className="py-3 px-4 w-12">
+                  <span className="sr-only">Actions</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -77,6 +124,13 @@ export function ImportBatchesTable({
                 <td className="py-2 px-4 text-sm text-muted-foreground">
                   {new Date(batch.createdAt).toLocaleDateString()}
                 </td>
+                {!readOnly && (
+                  <td className="py-2 px-4">
+                    {batch.status !== "COMMITTED" && (
+                      <DeleteBatchButton batchId={batch.id} />
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
