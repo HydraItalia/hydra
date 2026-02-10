@@ -16,6 +16,7 @@ import {
   parseImportBatch,
   suggestImportTemplate,
   createImportTemplate,
+  getImportTemplate,
 } from "@/actions/vendor-import";
 import { TemplateSuggestionBanner } from "./template-suggestion-banner";
 import { ColumnMappingEditor } from "./column-mapping-editor";
@@ -50,7 +51,11 @@ export function CsvUploadForm() {
   const allRequiredMapped = REQUIRED_CANONICAL_KEYS.every(
     (key) => !!selections[key],
   );
-  const canSubmit = csvText.trim() && allRequiredMapped && !isPending;
+  const canSubmit =
+    csvText.trim() &&
+    allRequiredMapped &&
+    (!saveAsTemplate || !!templateName.trim()) &&
+    !isPending;
 
   const applyTemplateMapping = useCallback(
     (mapping: TemplateMapping, headers: string[]) => {
@@ -95,29 +100,14 @@ export function CsvUploadForm() {
         setSuggestion(sug);
 
         if (sug?.autoApply && sug.templateId) {
-          // Auto-apply: populate selections from suggestion matched fields
-          const sugMapping: Record<string, string> = {};
-          // We need to derive selections from the suggestion's matched fields
-          // The suggestion tells us which canonical fields matched, but we need
-          // the actual header mapping. Re-fetch the template or derive from headers.
-          // Since suggestTemplate returns matchedFields (canonical names), and the
-          // template sources matched headers, we use a simple approach:
-          // call the server action to get the template mapping, then apply it.
-          // For now, derive from the suggestion + headers using canonical name matching.
-          for (const field of sug.matchedFields) {
-            // Find header that maps to this canonical field by checking
-            // if the template sources match any header
-            const canonicalNormalized = field.toLowerCase().replace(/_/g, " ");
-            const matched = headers.find((h) => {
-              const normalized = h.toLowerCase().replace(/[_\-.]/g, " ").trim();
-              return normalized === canonicalNormalized;
-            });
-            if (matched) {
-              sugMapping[field] = matched;
-            }
+          // Auto-apply: fetch the actual template mapping from the server
+          const tmpl = await getImportTemplate(sug.templateId);
+          if (tmpl.success && tmpl.data) {
+            applyTemplateMapping(tmpl.data.mapping, headers);
+            setShowMapping(false); // collapsed for auto-apply
+          } else {
+            setShowMapping(true);
           }
-          setSelections(sugMapping);
-          setShowMapping(false); // collapsed for auto-apply
         } else if (sug) {
           setShowMapping(true);
         } else {
@@ -176,6 +166,8 @@ export function CsvUploadForm() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      lastSuggestedRef.current = "";
+      setSuggestionDismissed(false);
       setSelectedFile(file);
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -197,8 +189,6 @@ export function CsvUploadForm() {
 
     if (!suggestion) return;
 
-    // Try to get the actual template mapping from the server
-    const { getImportTemplate } = await import("@/actions/vendor-import");
     const result = await getImportTemplate(templateId);
     if (result.success && result.data) {
       applyTemplateMapping(result.data.mapping, csvHeaders);
@@ -212,6 +202,10 @@ export function CsvUploadForm() {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
+    if (saveAsTemplate && !templateName.trim()) {
+      toast.error("Template name is required to save a template");
+      return;
+    }
 
     startTransition(async () => {
       // Optionally save as template first

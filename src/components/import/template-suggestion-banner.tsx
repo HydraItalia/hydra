@@ -49,6 +49,7 @@ export function TemplateSuggestionBanner({
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0"
+              aria-label="Dismiss template suggestion"
               onClick={onDismiss}
             >
               <X className="h-3.5 w-3.5" />
@@ -80,6 +81,7 @@ export function TemplateSuggestionBanner({
             variant="ghost"
             size="sm"
             className="h-6 w-6 p-0"
+            aria-label="Dismiss template suggestion"
             onClick={onDismiss}
           >
             <X className="h-3.5 w-3.5" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,28 +58,22 @@ export function TemplateEditDialog({
 }: TemplateEditDialogProps) {
   const [isPending, startTransition] = useTransition();
 
-  // Derive initial state from template
-  const initial = template ? deriveSelectionsFromMapping(template) : null;
+  const [name, setName] = useState("");
+  const [selections, setSelections] = useState<Record<string, string>>({});
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
 
-  const [name, setName] = useState(template?.name || "");
-  const [selections, setSelections] = useState<Record<string, string>>(
-    initial?.selections || {},
-  );
-  const [csvHeaders] = useState<string[]>(initial?.headers || []);
-
-  // Reset state when template changes
-  const [lastTemplateId, setLastTemplateId] = useState<string | undefined>();
-  if (template?.id !== lastTemplateId) {
-    setLastTemplateId(template?.id);
+  useEffect(() => {
     if (template) {
       const derived = deriveSelectionsFromMapping(template);
       setName(template.name);
       setSelections(derived.selections);
+      setCsvHeaders(derived.headers);
     } else {
       setName("");
       setSelections({});
+      setCsvHeaders([]);
     }
-  }
+  }, [template]);
 
   const allRequiredMapped = REQUIRED_CANONICAL_KEYS.every(
     (key) => !!selections[key],
