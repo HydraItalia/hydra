@@ -26,6 +26,10 @@ export function CsvUploadForm() {
         const text = ev.target?.result as string;
         setCsvText(text);
       };
+      reader.onerror = () => {
+        toast.error("Failed to read file");
+        setSelectedFile(null);
+      };
       reader.readAsText(file);
     }
   };
@@ -103,7 +107,8 @@ export function CsvUploadForm() {
             </div>
             {selectedFile && (
               <p className="text-sm text-muted-foreground">
-                {csvText.split("\n").length - 1} data lines detected
+                {csvText.split("\n").filter((line) => line.trim()).length - 1}{" "}
+                data lines detected
               </p>
             )}
           </TabsContent>

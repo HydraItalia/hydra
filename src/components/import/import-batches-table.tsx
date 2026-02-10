@@ -107,7 +107,8 @@ export function ImportBatchesTable({
                     href={`${linkBase}/${batch.id}`}
                     className="text-primary hover:underline"
                   >
-                    {batch.originalFilename || `Batch ${batch.id.slice(0, 8)}...`}
+                    {batch.originalFilename ||
+                      `Batch ${batch.id.slice(0, 8)}...`}
                   </Link>
                 </td>
                 <td className="py-2 px-4">
@@ -122,7 +123,7 @@ export function ImportBatchesTable({
                   )}
                 </td>
                 <td className="py-2 px-4 text-sm text-muted-foreground">
-                  {new Date(batch.createdAt).toLocaleDateString()}
+                  {new Date(batch.createdAt).toLocaleDateString("en-US")}
                 </td>
                 {!readOnly && (
                   <td className="py-2 px-4">

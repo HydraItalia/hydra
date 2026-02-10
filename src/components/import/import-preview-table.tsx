@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import { getImportBatchRows } from "@/actions/vendor-import";
 import type { BatchRow } from "@/lib/import/batch-service";
 
@@ -57,6 +58,8 @@ export function ImportPreviewTable({
         setPage(result.data.page);
         setTotalPages(result.data.totalPages);
         setTotal(result.data.total);
+      } else {
+        toast.error(result.error || "Failed to load rows");
       }
     });
   };
@@ -131,53 +134,56 @@ export function ImportPreviewTable({
                   </td>
                 </tr>
               ) : (
-              rows.map((row) => {
-                const normalized = row.normalizedData as Record<string, any> | null;
-                const errors = Array.isArray(row.errors)
-                  ? (row.errors as string[])
-                  : [];
-                const isError = row.status === "ERROR";
+                rows.map((row) => {
+                  const normalized = row.normalizedData as Record<
+                    string,
+                    any
+                  > | null;
+                  const errors = Array.isArray(row.errors)
+                    ? (row.errors as string[])
+                    : [];
+                  const isError = row.status === "ERROR";
 
-                return (
-                  <tr
-                    key={row.id}
-                    className={
-                      isError ? "bg-red-50 dark:bg-red-950/20" : undefined
-                    }
-                  >
-                    <td className="py-2 px-4 text-sm">{row.rowIndex + 1}</td>
-                    <td className="py-2 px-4">
-                      <Badge variant={rowStatusVariant(row.status)}>
-                        {row.status}
-                      </Badge>
-                    </td>
-                    <td className="py-2 px-4 text-sm">
-                      {normalized?.name || "-"}
-                    </td>
-                    <td className="py-2 px-4 text-sm">
-                      {normalized?.category || "-"}
-                    </td>
-                    <td className="py-2 px-4 text-sm">
-                      {normalized?.unit || "-"}
-                    </td>
-                    <td className="py-2 px-4 text-sm">
-                      {normalized?.priceCents != null
-                        ? `${(normalized.priceCents / 100).toFixed(2)}`
-                        : "-"}
-                    </td>
-                    <td className="py-2 px-4 text-sm">
-                      {normalized?.inStock != null
-                        ? normalized.inStock
-                          ? "Yes"
-                          : "No"
-                        : "-"}
-                    </td>
-                    <td className="py-2 px-4 text-sm text-red-600">
-                      {errors.length > 0 ? errors.join("; ") : ""}
-                    </td>
-                  </tr>
-                );
-              })
+                  return (
+                    <tr
+                      key={row.id}
+                      className={
+                        isError ? "bg-red-50 dark:bg-red-950/20" : undefined
+                      }
+                    >
+                      <td className="py-2 px-4 text-sm">{row.rowIndex + 1}</td>
+                      <td className="py-2 px-4">
+                        <Badge variant={rowStatusVariant(row.status)}>
+                          {row.status}
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-4 text-sm">
+                        {normalized?.name || "-"}
+                      </td>
+                      <td className="py-2 px-4 text-sm">
+                        {normalized?.category || "-"}
+                      </td>
+                      <td className="py-2 px-4 text-sm">
+                        {normalized?.unit || "-"}
+                      </td>
+                      <td className="py-2 px-4 text-sm">
+                        {normalized?.priceCents != null
+                          ? `${(normalized.priceCents / 100).toFixed(2)}`
+                          : "-"}
+                      </td>
+                      <td className="py-2 px-4 text-sm">
+                        {normalized?.inStock != null
+                          ? normalized.inStock
+                            ? "Yes"
+                            : "No"
+                          : "-"}
+                      </td>
+                      <td className="py-2 px-4 text-sm text-red-600">
+                        {errors.length > 0 ? errors.join("; ") : ""}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
