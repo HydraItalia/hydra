@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Loader2, Download, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,11 @@ export function ImportCommitStep({
 }: ImportCommitStepProps) {
   const [isPending, startTransition] = useTransition();
   const [isDownloading, startDownload] = useTransition();
+  const [errorCount, setErrorCount] = useState(batch.summary.error);
+  const [validCount, setValidCount] = useState(batch.summary.valid);
 
-  const hasErrors = batch.summary.error > 0;
-  const hasValid = batch.summary.valid > 0;
+  const hasErrors = errorCount > 0;
+  const hasValid = validCount > 0;
 
   const handleCommit = (mode: "all" | "valid_only") => {
     startTransition(async () => {
@@ -60,6 +62,12 @@ export function ImportCommitStep({
     });
   };
 
+  const handleRowUpdated = (batchErrorCount: number) => {
+    const totalDataRows = batch.summary.error + batch.summary.valid + batch.summary.pending + batch.summary.skipped;
+    setErrorCount(batchErrorCount);
+    setValidCount(totalDataRows - batchErrorCount - batch.summary.pending - batch.summary.skipped - batch.summary.committed);
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -90,7 +98,7 @@ export function ImportCommitStep({
                 )}
                 {isPending
                   ? "Committing..."
-                  : `Commit Valid Only (${batch.summary.valid})`}
+                  : `Commit Valid Only (${validCount})`}
               </Button>
             )}
             {hasErrors && (
@@ -111,7 +119,7 @@ export function ImportCommitStep({
 
           {!hasValid && hasErrors && !readOnly && (
             <p className="text-sm text-red-600">
-              All rows have errors. Fix them and re-import.
+              All rows have errors. Click a row to fix it.
             </p>
           )}
         </CardContent>
@@ -128,6 +136,8 @@ export function ImportCommitStep({
             initialPage={batch.page}
             initialTotalPages={Math.ceil(batch.totalRows / batch.pageSize)}
             initialTotal={batch.totalRows}
+            editable={!readOnly}
+            onRowUpdated={handleRowUpdated}
           />
         </CardContent>
       </Card>

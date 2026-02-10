@@ -12,12 +12,14 @@ import {
   getErrorRowsCsv,
   listBatches,
   deleteBatch,
+  updateAndRevalidateRow,
 } from "@/lib/import/batch-service";
 import type {
   BatchDetail,
   BatchListItem,
   BatchRow,
 } from "@/lib/import/batch-service";
+import type { NormalizedRow } from "@/lib/import/catalog-csv";
 
 type ActionResult<T> = {
   success: boolean;
@@ -263,6 +265,44 @@ export async function deleteImportBatch(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to delete batch",
+    };
+  }
+}
+
+export async function updateImportRow(
+  batchId: string,
+  rowId: string,
+  updates: Partial<
+    Pick<
+      NormalizedRow,
+      "name" | "category" | "unit" | "priceCents" | "inStock" | "productCode"
+    >
+  >,
+): Promise<
+  ActionResult<{
+    status: string;
+    errors: string[];
+    normalizedData: NormalizedRow;
+    batchErrorCount: number;
+  }>
+> {
+  try {
+    const auth = await getVendorAuth();
+    if ("error" in auth) return { success: false, error: auth.error };
+    const { user, vendorId } = auth;
+
+    const result = await updateAndRevalidateRow(
+      batchId,
+      rowId,
+      updates,
+      vendorId,
+      user.role,
+    );
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update row",
     };
   }
 }

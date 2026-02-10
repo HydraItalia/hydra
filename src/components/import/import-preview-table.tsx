@@ -3,9 +3,10 @@
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { getImportBatchRows } from "@/actions/vendor-import";
+import { EditRowDialog } from "./edit-row-dialog";
 import type { BatchRow } from "@/lib/import/batch-service";
 
 interface ImportPreviewTableProps {
@@ -14,6 +15,8 @@ interface ImportPreviewTableProps {
   initialPage: number;
   initialTotalPages: number;
   initialTotal: number;
+  editable?: boolean;
+  onRowUpdated?: (batchErrorCount: number) => void;
 }
 
 function rowStatusVariant(status: string) {
@@ -37,6 +40,8 @@ export function ImportPreviewTable({
   initialPage,
   initialTotalPages,
   initialTotal,
+  editable,
+  onRowUpdated,
 }: ImportPreviewTableProps) {
   const [rows, setRows] = useState(initialRows);
   const [page, setPage] = useState(initialPage);
@@ -46,6 +51,7 @@ export function ImportPreviewTable({
     undefined,
   );
   const [isPending, startTransition] = useTransition();
+  const [editingRow, setEditingRow] = useState<BatchRow | null>(null);
 
   const fetchPage = (newPage: number, filter?: string) => {
     startTransition(async () => {
@@ -68,6 +74,23 @@ export function ImportPreviewTable({
     const newFilter = statusFilter === filter ? undefined : filter;
     setStatusFilter(newFilter);
     fetchPage(1, newFilter);
+  };
+
+  const handleRowUpdated = (
+    rowId: string,
+    status: string,
+    errors: string[],
+    normalizedData: Record<string, unknown>,
+    batchErrorCount: number,
+  ) => {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? { ...r, status, errors, normalizedData }
+          : r,
+      ),
+    );
+    onRowUpdated?.(batchErrorCount);
   };
 
   return (
@@ -143,13 +166,20 @@ export function ImportPreviewTable({
                     ? (row.errors as string[])
                     : [];
                   const isError = row.status === "ERROR";
+                  const isClickable = editable && isError;
 
                   return (
                     <tr
                       key={row.id}
-                      className={
-                        isError ? "bg-red-50 dark:bg-red-950/20" : undefined
-                      }
+                      className={[
+                        isError ? "bg-red-50 dark:bg-red-950/20" : undefined,
+                        isClickable
+                          ? "cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
+                          : undefined,
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || undefined}
+                      onClick={isClickable ? () => setEditingRow(row) : undefined}
                     >
                       <td className="py-2 px-4 text-sm">{row.rowIndex + 1}</td>
                       <td className="py-2 px-4">
@@ -179,7 +209,12 @@ export function ImportPreviewTable({
                           : "-"}
                       </td>
                       <td className="py-2 px-4 text-sm text-red-600">
-                        {errors.length > 0 ? errors.join("; ") : ""}
+                        <span className="flex items-center gap-1.5">
+                          {errors.length > 0 ? errors.join("; ") : ""}
+                          {isClickable && (
+                            <Pencil className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                          )}
+                        </span>
                       </td>
                     </tr>
                   );
@@ -217,6 +252,19 @@ export function ImportPreviewTable({
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Edit dialog */}
+      {editingRow && (
+        <EditRowDialog
+          batchId={batchId}
+          row={editingRow}
+          open={!!editingRow}
+          onOpenChange={(open) => {
+            if (!open) setEditingRow(null);
+          }}
+          onRowUpdated={handleRowUpdated}
+        />
       )}
     </div>
   );

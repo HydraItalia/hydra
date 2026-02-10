@@ -14,6 +14,9 @@ import {
   validateRow,
   loadExistingCategories,
   commitRows,
+  canonicalizeName,
+  slugifyCategory,
+  getCategoryGroup,
 } from "@/lib/import/catalog-csv";
 import type { NormalizedRow } from "@/lib/import/catalog-csv";
 
@@ -612,6 +615,76 @@ export async function commitBatch(
 
     throw new Error("Commit failed");
   }
+}
+
+export async function updateAndRevalidateRow(
+  batchId: string,
+  rowId: string,
+  updates: Partial<
+    Pick<
+      NormalizedRow,
+      "name" | "category" | "unit" | "priceCents" | "inStock" | "productCode"
+    >
+  >,
+  vendorId: string | null,
+  role: string,
+) {
+  const batch = await verifyBatchOwnership(batchId, vendorId, role);
+
+  if (batch.status !== "VALIDATED") {
+    throw new Error(
+      `Batch status must be VALIDATED, got ${batch.status}`,
+    );
+  }
+
+  const row = await prisma.importBatchRow.findUnique({
+    where: { id: rowId },
+  });
+  if (!row || row.batchId !== batchId) {
+    throw new Error("Row not found");
+  }
+
+  // Merge updates into existing normalizedData
+  const existing = (row.normalizedData as unknown as NormalizedRow) || {} as NormalizedRow;
+  const merged: NormalizedRow = { ...existing, ...updates };
+
+  // Recompute derived fields
+  merged.canonicalName = canonicalizeName(merged.name);
+  merged.categorySlug = slugifyCategory(merged.category);
+  merged.categoryGroup = getCategoryGroup(merged.category);
+
+  // Re-validate
+  const existingCategories = await loadExistingCategories(prisma);
+  const result = validateRow(row.rowIndex, merged, existingCategories);
+
+  const newStatus = result.valid ? "VALID" : "ERROR";
+  const newErrors = result.valid ? Prisma.JsonNull : result.errors;
+
+  await prisma.importBatchRow.update({
+    where: { id: rowId },
+    data: {
+      normalizedData: merged as any,
+      status: newStatus,
+      errors: newErrors,
+    },
+  });
+
+  // Recalculate batch errorCount
+  const errorCount = await prisma.importBatchRow.count({
+    where: { batchId, status: "ERROR" },
+  });
+
+  await prisma.importBatch.update({
+    where: { id: batchId },
+    data: { errorCount },
+  });
+
+  return {
+    status: newStatus,
+    errors: result.errors,
+    normalizedData: merged,
+    batchErrorCount: errorCount,
+  };
 }
 
 export async function getErrorRowsCsv(
