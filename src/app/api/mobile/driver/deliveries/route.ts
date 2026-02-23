@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { DeliveryStatus } from "@prisma/client";
 
 // Phase 2: No auth — hardcoded demo driver
-const DEMO_DRIVER_EMAIL = "demo-driver@hydra-multiservice.com";
+const DEMO_DRIVER_EMAIL = "driver.marco@hydra.local";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

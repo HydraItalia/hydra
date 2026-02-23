@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // Phase 2: No auth — hardcoded demo driver
-const DEMO_DRIVER_EMAIL = "demo-driver@hydra-multiservice.com";
+const DEMO_DRIVER_EMAIL = "driver.marco@hydra.local";
 
 export async function GET(
   _req: NextRequest,
