@@ -34,18 +34,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([]);
   }
 
-  // Date range (default: today)
-  const date = dateParam ? new Date(dateParam) : new Date();
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+  // Date filter (only applied when explicitly requested)
+  const dateFilter = dateParam
+    ? (() => {
+        const date = new Date(dateParam);
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+        return { gte: startOfDay, lte: endOfDay };
+      })()
+    : undefined;
 
   try {
     const deliveries = await prisma.delivery.findMany({
       where: {
         driverId: user.driverId,
-        assignedAt: { gte: startOfDay, lte: endOfDay },
+        ...(dateFilter ? { assignedAt: dateFilter } : {}),
         ...(statusParam ? { status: statusParam as DeliveryStatus } : {}),
       },
       include: {
