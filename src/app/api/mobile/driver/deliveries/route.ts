@@ -30,13 +30,8 @@ export async function GET(req: NextRequest) {
   });
 
   if (!user?.driverId) {
-    return NextResponse.json(
-      {
-        error:
-          "Demo driver not found. Seed the database with a demo driver user.",
-      },
-      { status: 404 },
-    );
+    // No demo driver seeded yet — return empty list so the app works gracefully
+    return NextResponse.json([]);
   }
 
   // Date range (default: today)
