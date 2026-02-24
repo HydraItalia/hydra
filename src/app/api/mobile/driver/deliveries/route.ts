@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { DeliveryStatus } from "@prisma/client";
-
-// Phase 2: No auth — hardcoded demo driver
-const DEMO_DRIVER_EMAIL = "driver.marco@hydra.local";
+import { verifyMobileRequest } from "@/lib/mobile-auth";
 
 export async function GET(req: NextRequest) {
+  const payload = await verifyMobileRequest(req);
+  if (!payload) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const dateParam = searchParams.get("date");
   const statusParam = searchParams.get("status");
@@ -23,14 +26,13 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Resolve demo driver
+  // Look up the user's driverId via Prisma
   const user = await prisma.user.findUnique({
-    where: { email: DEMO_DRIVER_EMAIL },
+    where: { id: payload.sub },
     select: { driverId: true },
   });
 
   if (!user?.driverId) {
-    // No demo driver seeded yet — return empty list so the app works gracefully
     return NextResponse.json([]);
   }
 

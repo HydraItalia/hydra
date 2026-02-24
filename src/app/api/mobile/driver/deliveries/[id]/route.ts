@@ -1,24 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-// Phase 2: No auth — hardcoded demo driver
-const DEMO_DRIVER_EMAIL = "driver.marco@hydra.local";
+import { verifyMobileRequest } from "@/lib/mobile-auth";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const payload = await verifyMobileRequest(req);
+  if (!payload) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id } = await params;
 
-  // Resolve demo driver
+  // Look up the user's driverId via Prisma
   const user = await prisma.user.findUnique({
-    where: { email: DEMO_DRIVER_EMAIL },
+    where: { id: payload.sub },
     select: { driverId: true },
   });
 
   if (!user?.driverId) {
     return NextResponse.json(
-      { error: "Demo driver not found" },
+      { error: "Driver not found" },
       { status: 404 },
     );
   }
@@ -90,7 +93,7 @@ export async function GET(
       );
     }
 
-    // Verify it belongs to the demo driver
+    // Verify it belongs to the authenticated driver
     if (delivery.driverId !== user.driverId) {
       return NextResponse.json(
         { error: "Delivery not found" },
