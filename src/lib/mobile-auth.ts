@@ -50,16 +50,18 @@ export async function consumeMagicToken(
   const now = new Date();
 
   // Atomically mark as used (only succeeds if usedAt is still null)
-  try {
-    const token = await prisma.mobileMagicToken.update({
-      where: { tokenHash, usedAt: null, expiresAt: { gte: now } },
-      data: { usedAt: now },
-    });
-    return { userId: token.userId, email: token.email };
-  } catch {
-    // Token not found, already used, or expired
-    return null;
-  }
+  const { count } = await prisma.mobileMagicToken.updateMany({
+    where: { tokenHash, usedAt: null, expiresAt: { gte: now } },
+    data: { usedAt: now },
+  });
+  if (count === 0) return null;
+
+  const token = await prisma.mobileMagicToken.findUnique({
+    where: { tokenHash },
+  });
+  if (!token) return null;
+
+  return { userId: token.userId, email: token.email };
 }
 
 // ── Access Token (JWT) ───────────────────────────────────────────────────────
@@ -116,30 +118,28 @@ export async function rotateRefreshToken(
   const now = new Date();
 
   // Revoke old token atomically
-  try {
-    const old = await prisma.mobileRefreshToken.update({
-      where: { tokenHash: oldHash, revokedAt: null, expiresAt: { gte: now } },
-      data: { revokedAt: now },
-    });
+  const { count } = await prisma.mobileRefreshToken.updateMany({
+    where: { tokenHash: oldHash, revokedAt: null, expiresAt: { gte: now } },
+    data: { revokedAt: now },
+  });
+  if (count === 0) return null;
 
-    // Issue new token for the same user
-    const { raw, expiresAt } = await createRefreshToken(old.userId);
-    return { raw, expiresAt, userId: old.userId };
-  } catch {
-    return null;
-  }
+  const old = await prisma.mobileRefreshToken.findUnique({
+    where: { tokenHash: oldHash },
+  });
+  if (!old) return null;
+
+  // Issue new token for the same user
+  const { raw, expiresAt } = await createRefreshToken(old.userId);
+  return { raw, expiresAt, userId: old.userId };
 }
 
 export async function revokeRefreshToken(raw: string): Promise<void> {
   const tokenHash = sha256(raw);
-  try {
-    await prisma.mobileRefreshToken.update({
-      where: { tokenHash, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-  } catch {
-    // Already revoked or not found — ignore
-  }
+  await prisma.mobileRefreshToken.updateMany({
+    where: { tokenHash, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
 }
 
 // ── Request Auth Helper ──────────────────────────────────────────────────────

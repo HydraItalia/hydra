@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid email" }, { status: 400 });
   }
 
-  const { email } = parsed.data;
+  const email = parsed.data.email.trim().toLowerCase();
 
   // Always return ok: true to prevent email enumeration
   const okResponse = () => NextResponse.json({ ok: true });
