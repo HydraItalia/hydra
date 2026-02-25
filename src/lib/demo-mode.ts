@@ -67,8 +67,8 @@ export const DEMO_USERS: DemoUser[] = [
     description: "Ice products vendor - premium ice cubes, spheres, and crushed ice",
   },
   {
-    email: "driver.marco@hydra.local",
-    name: "Marco (Driver)",
+    email: "brennnann@gmail.com",
+    name: "Brennan (Driver)",
     role: "DRIVER",
     description: "Delivery driver - view routes and manage deliveries",
   },
